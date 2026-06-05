@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "mywhiskey-97620",
+    "staging": "mywhiskey-97620",
+    "production": "my-whiskey-prod"
+  }
+}
