@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { sendEmail } from '@/lib/email';
 import * as React from 'react';
+import { cancelPendingReminders } from '@/lib/notifications';
 import {
   Html,
   Body,
@@ -66,6 +67,13 @@ export async function POST(request: NextRequest) {
     const booking = bookingSnap.data() || {};
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
     const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${booking.token || ''}`;
+
+    // Cancel any pending waiver reminders from the queue
+    try {
+      await cancelPendingReminders(bookingId, 'waiver');
+    } catch (cancelErr) {
+      console.error('Failed to cancel pending waiver reminders:', cancelErr);
+    }
 
     // Send confirmation email
     console.log(`[Waiver Notification] Sending email confirmation for booking ${bookingId}`);

@@ -4,7 +4,8 @@ import { adminDb } from '@/lib/firebase-admin';
 import * as React from 'react';
 import { sendEmail } from '@/lib/email';
 import { sendSms } from '@/lib/sms';
-import BookingConfirmation from '@/emails/BookingConfirmationEmail';
+import { enrollBookingInFlow, parseMarkdownToHtml } from '@/lib/notifications';
+import MasterEmailWrapper from '@/components/emails/MasterEmailWrapper';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
   apiVersion: '2023-10-16' as any,
@@ -103,56 +104,34 @@ export async function POST(request: NextRequest) {
 
         console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}".`);
 
-        // Send notifications
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
-        const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${existingData.token || ''}`;
-
+        // Send notifications via Flow Manager
         if (targetStatus === 'pending waiver') {
-          // Send Confirmed/Paid notifications
           try {
-            await sendEmail({
-              to: existingData.guestEmail,
-              subject: `Voyage Confirmed - Booking #${bookingId}`,
-              react: React.createElement(BookingConfirmation, {
-                bookingId,
-                guestName: existingData.guestName,
-                experienceTitle: existingData.experienceTitle,
-                vesselTitle: existingData.vesselTitle,
-                date: existingData.date,
-                startTime: existingData.startTime,
-                grandTotal: existingData.grandTotal,
-                amountPaidToday: amountPaid,
-                amountDueLater: amountDueLaterCalculated,
-                paymentPlan: existingData.paymentPlan,
-                portalUrl
-              })
-            });
-
-            await sendSms({
-              to: existingData.guestPhone,
-              text: `M/Y Whiskey Voyage Confirmed! ID: ${bookingId}. Complete your digital liability release waiver at: ${portalUrl}`
-            });
-          } catch (notifErr) {
-            console.error('Failed to send confirmation alerts:', notifErr);
+            await enrollBookingInFlow(bookingId, 'standard_bareboat_flow');
+          } catch (flowErr) {
+            console.error('Failed to enroll booking in standard bareboat flow:', flowErr);
           }
         } else if (targetStatus === 'pending_funds_verification') {
-          // Send ACH Pending notifications
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
+          const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${existingData.token || ''}`;
           try {
+            const settingsDoc = await adminDb.collection('settings').doc('global').get();
+            const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
+            const branding = settings.theme || {};
+            const htmlBody = parseMarkdownToHtml(`Dear ${existingData.guestName},\n\nYour bank payment of $${Number(amountPaid).toLocaleString()} is processing. Your reservation is temporarily held under booking ID **#${bookingId}**.\n\nWe will send your voyage confirmation link as soon as the funds clear.`);
+
             await sendEmail({
               to: existingData.guestEmail,
               subject: `Payment Processing - Booking #${bookingId}`,
-              react: React.createElement(BookingConfirmation, {
-                bookingId,
-                guestName: existingData.guestName,
-                experienceTitle: existingData.experienceTitle,
-                vesselTitle: existingData.vesselTitle,
-                date: existingData.date,
-                startTime: existingData.startTime,
-                grandTotal: existingData.grandTotal,
-                amountPaidToday: 0,
-                amountDueLater: existingData.grandTotal,
-                paymentPlan: existingData.paymentPlan,
-                portalUrl
+              react: React.createElement(MasterEmailWrapper, {
+                previewText: `Payment Processing - Booking #${bookingId}`,
+                logoUrl: branding.logoUrl,
+                primaryColor: branding.primaryColor || '#B9783B',
+                backgroundColor: branding.backgroundColor || '#121416',
+                surfaceColor: branding.surfaceColor || '#1E2124',
+                foregroundColor: branding.foregroundColor || '#F4F1EA',
+                mutedColor: branding.mutedColor || '#D8C7AF',
+                children: React.createElement('div', { dangerouslySetInnerHTML: { __html: htmlBody } })
               })
             });
 
@@ -188,35 +167,11 @@ export async function POST(request: NextRequest) {
               }, { merge: true });
               console.log(`✓ Funds cleared for booking ${bookingId}. Status updated to "pending waiver".`);
 
-              // Send confirmed notifications once ACH clears
-              const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
-              const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${data.token || ''}`;
-
+              // Enroll in the standard bareboat flow now that payment cleared!
               try {
-                await sendEmail({
-                  to: data.guestEmail,
-                  subject: `Voyage Confirmed - Booking #${bookingId}`,
-                  react: React.createElement(BookingConfirmation, {
-                    bookingId,
-                    guestName: data.guestName,
-                    experienceTitle: data.experienceTitle,
-                    vesselTitle: data.vesselTitle,
-                    date: data.date,
-                    startTime: data.startTime,
-                    grandTotal: data.grandTotal,
-                    amountPaidToday: data.grandTotal,
-                    amountDueLater: 0,
-                    paymentPlan: data.paymentPlan,
-                    portalUrl
-                  })
-                });
-
-                await sendSms({
-                  to: data.guestPhone,
-                  text: `M/Y Whiskey: Your bank payment has cleared! Booking #${bookingId} is confirmed. Sign your digital waiver here: ${portalUrl}`
-                });
-              } catch (notifErr) {
-                console.error('Failed to send cleared payment alerts:', notifErr);
+                await enrollBookingInFlow(bookingId, 'standard_bareboat_flow');
+              } catch (flowErr) {
+                console.error('Failed to enroll booking in standard bareboat flow on payment intent success:', flowErr);
               }
             }
           }
