@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { adminDb } from '@/lib/firebase-admin';
+import * as React from 'react';
+import { sendEmail } from '@/lib/email';
+import { sendSms } from '@/lib/sms';
+import BookingConfirmation from '@/emails/BookingConfirmationEmail';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
   apiVersion: '2023-10-16' as any,
@@ -85,19 +89,81 @@ export async function POST(request: NextRequest) {
         }
 
         const existingData = bookingSnap.data() || {};
+        const amountDueLaterCalculated = paymentPlan === 'deposit' ? (existingData.grandTotal - amountPaid) : 0;
         
         // Update booking document
         await bookingRef.set({
           status: targetStatus,
           amountPaidToday: amountPaid,
-          // Calculate amount due later based on payment plan
-          amountDueLater: paymentPlan === 'deposit' ? (existingData.grandTotal - amountPaid) : 0,
+          amountDueLater: amountDueLaterCalculated,
           stripeSessionId: session.id,
           stripePaymentStatus: paymentStatus,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
 
         console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}".`);
+
+        // Send notifications
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
+        const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${existingData.token || ''}`;
+
+        if (targetStatus === 'pending waiver') {
+          // Send Confirmed/Paid notifications
+          try {
+            await sendEmail({
+              to: existingData.guestEmail,
+              subject: `Voyage Confirmed - Booking #${bookingId}`,
+              react: React.createElement(BookingConfirmation, {
+                bookingId,
+                guestName: existingData.guestName,
+                experienceTitle: existingData.experienceTitle,
+                vesselTitle: existingData.vesselTitle,
+                date: existingData.date,
+                startTime: existingData.startTime,
+                grandTotal: existingData.grandTotal,
+                amountPaidToday: amountPaid,
+                amountDueLater: amountDueLaterCalculated,
+                paymentPlan: existingData.paymentPlan,
+                portalUrl
+              })
+            });
+
+            await sendSms({
+              to: existingData.guestPhone,
+              text: `M/Y Whiskey Voyage Confirmed! ID: ${bookingId}. Complete your digital liability release waiver at: ${portalUrl}`
+            });
+          } catch (notifErr) {
+            console.error('Failed to send confirmation alerts:', notifErr);
+          }
+        } else if (targetStatus === 'pending_funds_verification') {
+          // Send ACH Pending notifications
+          try {
+            await sendEmail({
+              to: existingData.guestEmail,
+              subject: `Payment Processing - Booking #${bookingId}`,
+              react: React.createElement(BookingConfirmation, {
+                bookingId,
+                guestName: existingData.guestName,
+                experienceTitle: existingData.experienceTitle,
+                vesselTitle: existingData.vesselTitle,
+                date: existingData.date,
+                startTime: existingData.startTime,
+                grandTotal: existingData.grandTotal,
+                amountPaidToday: 0,
+                amountDueLater: existingData.grandTotal,
+                paymentPlan: existingData.paymentPlan,
+                portalUrl
+              })
+            });
+
+            await sendSms({
+              to: existingData.guestPhone,
+              text: `M/Y Whiskey: Your bank payment is processing. Your reservation is temporarily held under booking ID ${bookingId}.`
+            });
+          } catch (notifErr) {
+            console.error('Failed to send processing alerts:', notifErr);
+          }
+        }
         break;
       }
 
@@ -121,6 +187,37 @@ export async function POST(request: NextRequest) {
                 updatedAt: new Date().toISOString(),
               }, { merge: true });
               console.log(`✓ Funds cleared for booking ${bookingId}. Status updated to "pending waiver".`);
+
+              // Send confirmed notifications once ACH clears
+              const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
+              const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${data.token || ''}`;
+
+              try {
+                await sendEmail({
+                  to: data.guestEmail,
+                  subject: `Voyage Confirmed - Booking #${bookingId}`,
+                  react: React.createElement(BookingConfirmation, {
+                    bookingId,
+                    guestName: data.guestName,
+                    experienceTitle: data.experienceTitle,
+                    vesselTitle: data.vesselTitle,
+                    date: data.date,
+                    startTime: data.startTime,
+                    grandTotal: data.grandTotal,
+                    amountPaidToday: data.grandTotal,
+                    amountDueLater: 0,
+                    paymentPlan: data.paymentPlan,
+                    portalUrl
+                  })
+                });
+
+                await sendSms({
+                  to: data.guestPhone,
+                  text: `M/Y Whiskey: Your bank payment has cleared! Booking #${bookingId} is confirmed. Sign your digital waiver here: ${portalUrl}`
+                });
+              } catch (notifErr) {
+                console.error('Failed to send cleared payment alerts:', notifErr);
+              }
             }
           }
         }

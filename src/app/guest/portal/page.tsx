@@ -232,6 +232,13 @@ function PortalContent() {
         const updated = await getBookingById(booking.id);
         if (updated) setBooking(updated);
         setStatusAlert({ type: 'success', message: 'Digital waiver signature submitted and verified successfully!' });
+
+        // Trigger transactional waiver confirmation email via server API
+        fetch('/api/notifications/waiver-signed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: booking.id })
+        }).catch(err => console.error('Failed to trigger waiver email:', err));
       } else {
         setStatusAlert({ type: 'error', message: 'Failed to submit waiver signature. Please contact administration.' });
       }
