@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   collection, getDocs, doc, setDoc, getDoc, query, orderBy, limit 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
-  MessageSquare, Calendar, Mail, Phone, Clock, Edit, Play, CheckCircle, 
+  Anchor, ArrowLeft, MessageSquare, Calendar, Mail, Phone, Clock, Edit, Play, CheckCircle, 
   AlertCircle, Plus, Eye, ListFilter, Trash2, ArrowRight, Settings, Sparkles, RefreshCw
 } from 'lucide-react';
 
@@ -214,18 +215,31 @@ export default function MessagingDashboard() {
   }
 
   return (
-    <div style={{ background: '#121416', minHeight: '100vh', color: '#F4F1EA', padding: '7rem 2rem 5rem 2rem' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif" }}>
+      {/* Top Navbar */}
+      <nav style={{ background: '#1E2124', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '1.25rem', color: '#B9783B' }}>
+          <Anchor size={24} /> Voyage Flow Command Center
+        </div>
+        <Link 
+          href="/admin" 
+          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#D8C7AF', fontSize: '0.85rem' }}
+        >
+          <ArrowLeft size={16} /> Back to Main Admin
+        </Link>
+      </nav>
+
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2.5rem 2rem' }}>
         
         {/* Dashboard Title */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
           <div>
-            <span style={{ color: '#B9783B', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Settings size={14} /> Voyage Flow settings
-            </span>
-            <h1 style={{ fontSize: '2.2rem', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 700, margin: '0.25rem 0 0 0', color: 'white' }}>
+            <h1 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '0.02em', color: 'white' }}>
               Voyage Flow Manager
             </h1>
+            <p style={{ color: '#D8C7AF', opacity: 0.8, margin: 0, fontSize: '0.88rem' }}>
+              Configure scheduled transactional alert journeys, edit templates with live branding, and audit the queue.
+            </p>
           </div>
           
           <button 
@@ -562,7 +576,7 @@ export default function MessagingDashboard() {
           </div>
         )}
 
-      </div>
+      </main>
     </div>
   );
 }

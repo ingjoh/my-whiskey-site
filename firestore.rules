@@ -37,6 +37,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Messaging Engine Rules
+    match /notification_templates/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    match /notification_flows/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    match /scheduled_notifications/{document} {
+      allow read, write: if isAdmin();
+    }
+
     // Pages collection rules (houses pages, bookings, waivers, content items)
     match /pages/{document} {
       // Pages, adventures, locations, fleet specifications are publicly readable
