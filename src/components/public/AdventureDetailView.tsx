@@ -247,9 +247,10 @@ interface ItineraryMapProps {
   allLocations: any[];
   hoveredLocationIndex: number | null;
   setHoveredLocationIndex: (idx: number | null) => void;
+  isMapsApiLoaded: boolean;
 }
 
-function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLocationIndex }: ItineraryMapProps) {
+function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLocationIndex, isMapsApiLoaded }: ItineraryMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -304,7 +305,7 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
     if (stops.length === 1) {
       gMap.setZoom(13);
     }
-  }, [stops.length]);
+  }, [stops.length, isMapsApiLoaded]);
 
   // Update Markers
   useEffect(() => {
@@ -2579,6 +2580,7 @@ export default function AdventureDetailView({
                   allLocations={allLocations}
                   hoveredLocationIndex={hoveredLocationIndex}
                   setHoveredLocationIndex={setHoveredLocationIndex}
+                  isMapsApiLoaded={isMapsApiLoaded}
                 />
               </div>
             )}
