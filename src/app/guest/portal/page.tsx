@@ -13,7 +13,7 @@ import PublicFooter from '@/components/public/PublicFooter';
 import { 
   Anchor, ShieldAlert, MessageSquare, Calendar, DollarSign, User, Ship, Clock, 
   ArrowRight, Lock, CheckCircle, Send, FileText, AlertTriangle, ShieldCheck, Mail, Phone, MapPin,
-  Edit3, Trash2, HelpCircle, ChevronDown, Check, X
+  Edit3, Trash2, HelpCircle, ChevronDown, Check, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 function PortalContent() {
@@ -59,6 +59,242 @@ function PortalContent() {
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState<boolean>(false);
 
   const [isProcessingBalancePayment, setIsProcessingBalancePayment] = useState<boolean>(false);
+
+  // Calendar Rescheduling States
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+  const [allBookingsList, setAllBookingsList] = useState<BookingRecord[]>([]);
+  const [blackoutsList, setBlackoutsList] = useState<any[]>([]);
+  const [locksList, setLocksList] = useState<any[]>([]);
+  const [loadingAvailabilityData, setLoadingAvailabilityData] = useState<boolean>(false);
+  const [showMobileChat, setShowMobileChat] = useState<boolean>(false);
+
+  const START_TIMES = ['08:00', '09:00', '09:30', '10:00', '11:00', '12:00', '13:00', '13:30', '14:00', '15:00', '16:00', '17:00'];
+
+  // Load calendar availability data on toggle
+  useEffect(() => {
+    if (showRescheduleForm) {
+      async function fetchAvailability() {
+        setLoadingAvailabilityData(true);
+        try {
+          const [allBks, blackouts, locks] = await Promise.all([
+            getAllBookings(),
+            getAssetBlackouts(),
+            getAllCheckoutLocks()
+          ]);
+          setAllBookingsList(allBks);
+          setBlackoutsList(blackouts);
+          setLocksList(locks);
+        } catch (err) {
+          console.error("Failed to load availability data:", err);
+        } finally {
+          setLoadingAvailabilityData(false);
+        }
+      }
+      fetchAvailability();
+    }
+  }, [showRescheduleForm]);
+
+  // Helper: check if a specific time slot is available
+  const isSlotAvailable = (dateStr: string, timeStr: string) => {
+    if (!booking) return false;
+    const targetDate = new Date(`${dateStr}T${timeStr}:00`);
+    
+    // 1. Conflicting bookings
+    const conflict = allBookingsList.find(b => 
+      b.vesselSlug === booking.vesselSlug && 
+      b.date === dateStr && 
+      b.startTime === timeStr && 
+      b.status !== 'cancelled' &&
+      b.id !== booking.id
+    );
+    if (conflict) return false;
+
+    // 2. Blackouts
+    const blackout = blackoutsList.find(b => {
+      if (b.vesselSlug !== booking.vesselSlug) return false;
+      const bStart = new Date(b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`).getTime();
+      const bEnd = new Date(b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`).getTime();
+      const candStart = targetDate.getTime();
+      const candEnd = candStart + 4 * 60 * 60 * 1000;
+      return candStart < bEnd && candEnd > bStart;
+    });
+    if (blackout) return false;
+
+    // 3. Locks
+    const lock = locksList.some(l => 
+      l.vesselSlug === booking.vesselSlug && 
+      l.date === dateStr && 
+      l.startTime === timeStr && 
+      l.holderEmail.toLowerCase().trim() !== booking.guestEmail.toLowerCase().trim()
+    );
+    if (lock) return false;
+
+    return true;
+  };
+
+  // Helper: get list of days for month
+  const getDaysInMonth = (monthDate: Date) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const numDays = new Date(year, month + 1, 0).getDate();
+    
+    const days: Array<{ day: number | null; dateStr: string; isAvailable: boolean }> = [];
+    
+    // Padding
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push({ day: null, dateStr: '', isAvailable: false });
+    }
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    // Month days
+    for (let day = 1; day <= numDays; day++) {
+      const dayDate = new Date(year, month, day);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      const isPast = dayDate.getTime() < today.getTime();
+      let isAvailable = !isPast;
+      
+      if (isAvailable && booking?.vesselSlug) {
+        // A day is available if at least one time is not blocked
+        const hasAnyAvailableTime = START_TIMES.some(time => isSlotAvailable(dateStr, time));
+        if (!hasAnyAvailableTime) {
+          isAvailable = false;
+        }
+      }
+      
+      days.push({ day, dateStr, isAvailable });
+    }
+    
+    return days;
+  };
+
+  // Get available start times for selected newRescheduleDate
+  const getAvailableTimesForDate = (dateStr: string) => {
+    if (!dateStr) return [];
+    return START_TIMES.filter(time => isSlotAvailable(dateStr, time));
+  };
+
+  // Helper to render chat messenger content responsively
+  const renderChatContent = (isMobileView = false) => {
+    if (!booking) return null;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Messenger Header */}
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+              <MessageSquare size={18} color="#B9783B" /> Charter Concierge
+            </h3>
+            <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6, marginTop: '0.25rem', display: 'block' }}>
+              Chat live with our crew and planners (Replies within ~30m).
+            </span>
+          </div>
+          {isMobileView && (
+            <button 
+              type="button" 
+              onClick={() => setShowMobileChat(false)} 
+              style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', padding: '0.25rem' }}
+            >
+              <X size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* Messages Feed */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0.2rem', marginBottom: '1rem' }}>
+          {(!booking.messages || booking.messages.length === 0) ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#D8C7AF', opacity: 0.5, padding: '2rem' }}>
+              <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</span>
+              <p style={{ fontSize: '0.78rem', margin: 0 }}>No messages yet. Send a message to coordinate boarding logistics or request upgrades.</p>
+            </div>
+          ) : (
+            booking.messages.map((msg) => {
+              const isGuest = msg.sender === 'guest';
+              return (
+                <div 
+                  key={msg.id}
+                  style={{
+                    alignSelf: isGuest ? 'flex-end' : 'flex-start',
+                    maxWidth: '85%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: isGuest ? 'flex-end' : 'flex-start'
+                  }}
+                >
+                  <div style={{
+                    background: isGuest ? '#B9783B' : 'rgba(255,255,255,0.04)',
+                    border: isGuest ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                    color: isGuest ? 'white' : '#F4F1EA',
+                    padding: '0.65rem 0.95rem',
+                    borderRadius: '12px',
+                    borderBottomRightRadius: isGuest ? '2px' : '12px',
+                    borderBottomLeftRadius: isGuest ? '12px' : '2px',
+                    fontSize: '0.82rem',
+                    lineHeight: '1.4',
+                    wordBreak: 'break-word'
+                  }}>
+                    {msg.text}
+                  </div>
+                  <span style={{ fontSize: '0.62rem', color: '#D8C7AF', opacity: 0.5, marginTop: '0.25rem', display: 'block' }}>
+                    {isGuest ? 'You' : 'M/Y Admin'} • {new Date(msg.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Form message input */}
+        <form onSubmit={handleSendMessage} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+          <input 
+            type="text"
+            value={newMessage}
+            onChange={e => setNewMessage(e.target.value)}
+            placeholder="Type message here..."
+            required
+            disabled={sendingMessage}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.85rem',
+              borderRadius: '6px',
+              background: '#121416',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: 'white',
+              fontSize: '0.8rem',
+              outline: 'none'
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!newMessage.trim() || sendingMessage}
+            style={{
+              background: (!newMessage.trim() || sendingMessage) ? 'rgba(255,255,255,0.05)' : '#B9783B',
+              color: (!newMessage.trim() || sendingMessage) ? '#666' : 'white',
+              border: 'none',
+              width: '38px',
+              height: '38px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: (!newMessage.trim() || sendingMessage) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Send size={14} />
+          </button>
+        </form>
+      </div>
+    );
+  };
 
   // Load theme and booking details
   useEffect(() => {
@@ -647,8 +883,9 @@ function PortalContent() {
 
   // Calculate financials
   const paidToday = booking.amountPaidToday || 0;
-  const balanceDue = booking.amountDueLater || 0;
-  const totalCost = paidToday + balanceDue;
+  const balanceDue = booking.status === 'cancelled' ? 0 : (booking.amountDueLater || 0);
+  const totalCost = booking.grandTotal || (paidToday + balanceDue);
+  const refundedAmount = booking.amountRefunded || 0;
 
   return (
     <div style={{ flex: 1, maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
@@ -749,7 +986,7 @@ function PortalContent() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem', alignItems: 'start' }}>
+      <div className="portal-grid" style={{ alignItems: 'start' }}>
         
         {/* LEFT COLUMN: Booking Details & Liability Waiver Signature */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
@@ -883,90 +1120,179 @@ function PortalContent() {
                 <p style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8, lineHeight: '1.4', margin: 0 }}>
                   Rescheduling is subject to vessel availability. Date changes must be made at least 7 days prior to your departure.
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.68rem', color: '#D8C7AF', fontWeight: 600 }}>New Date</label>
-                    <input
-                      type="date"
-                      value={newRescheduleDate}
-                      onChange={e => { setNewRescheduleDate(e.target.value); setAvailabilityResult(null); }}
-                      required
-                      style={{ padding: '0.45rem 0.65rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none' }}
-                    />
+
+                {loadingAvailabilityData ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 0', gap: '0.5rem', color: '#D8C7AF', fontSize: '0.8rem' }}>
+                    <div style={{ width: '16px', height: '16px', border: '2px solid rgba(185, 120, 59, 0.2)', borderTopColor: '#B9783B', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    <span>Loading vessel calendar...</span>
+                    <style dangerouslySetInnerHTML={{__html: `@keyframes spin { to { transform: rotate(360deg); } }`}} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.68rem', color: '#D8C7AF', fontWeight: 600 }}>Departure Time</label>
-                    <select
-                      value={newRescheduleTime}
-                      onChange={e => { setNewRescheduleTime(e.target.value); setAvailabilityResult(null); }}
-                      required
-                      style={{ padding: '0.45rem 0.65rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none' }}
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Calendar Month Header */}
+                    <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '0.65rem 0.7rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const prevMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+                            const now = new Date();
+                            now.setDate(1);
+                            now.setHours(0,0,0,0);
+                            if (prevMonth.getTime() >= now.getTime()) {
+                              setCalendarMonth(prevMonth);
+                            }
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'white' }}>
+                          {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+
+                      {/* Weekday Titles */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem', textAlign: 'center', marginBottom: '0.3rem' }}>
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                          <span key={d} style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.5, fontWeight: 600 }}>{d}</span>
+                        ))}
+                      </div>
+
+                      {/* Days Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem' }}>
+                        {getDaysInMonth(calendarMonth).map((dayObj, idx) => {
+                          if (dayObj.day === null) {
+                            return <div key={`empty-${idx}`} />;
+                          }
+                          const isSelected = newRescheduleDate === dayObj.dateStr;
+                          return (
+                            <button
+                              key={`resch-day-${dayObj.dateStr}`}
+                              type="button"
+                              disabled={!dayObj.isAvailable}
+                              onClick={() => {
+                                setNewRescheduleDate(dayObj.dateStr);
+                                const avTimes = getAvailableTimesForDate(dayObj.dateStr);
+                                if (avTimes.length > 0) {
+                                  setNewRescheduleTime(avTimes[0]);
+                                }
+                              }}
+                              style={{
+                                border: 'none',
+                                background: isSelected ? '#B9783B' : 'transparent',
+                                color: isSelected 
+                                  ? 'white' 
+                                  : dayObj.isAvailable 
+                                    ? '#D8C7AF' 
+                                    : 'rgba(255,255,255,0.15)',
+                                padding: '0.35rem 0',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                cursor: dayObj.isAvailable ? 'pointer' : 'not-allowed',
+                                textDecoration: dayObj.isAvailable ? 'none' : 'line-through',
+                                position: 'relative'
+                              }}
+                            >
+                              {dayObj.day}
+                              <span style={{
+                                position: 'absolute',
+                                bottom: '2px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                width: '3px',
+                                height: '3px',
+                                borderRadius: '50%',
+                                background: isSelected 
+                                  ? 'white' 
+                                  : dayObj.isAvailable 
+                                    ? '#708C84' 
+                                    : '#ef4444'
+                              }} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Time Selector based on Selected Date */}
+                    {newRescheduleDate && (() => {
+                      const parseTimeTo12Hour = (time: string) => {
+                        const [h, m] = time.split(':');
+                        const hour = parseInt(h);
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+                        return `${displayHour}:${m} ${ampm}`;
+                      };
+                      const availableTimes = getAvailableTimesForDate(newRescheduleDate);
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', animation: 'fadeIn 0.2s ease-out' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#D8C7AF' }}>
+                            Available Departure Times for {new Date(newRescheduleDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                          
+                          {availableTimes.length === 0 ? (
+                            <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>No times available on this date. Please select another.</span>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                              {availableTimes.map(time => {
+                                const isTimeSelected = newRescheduleTime === time;
+                                return (
+                                  <button
+                                    key={`time-${time}`}
+                                    type="button"
+                                    onClick={() => setNewRescheduleTime(time)}
+                                    style={{
+                                      border: isTimeSelected ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)',
+                                      background: isTimeSelected ? 'rgba(185, 120, 59, 0.15)' : 'rgba(255,255,255,0.02)',
+                                      color: isTimeSelected ? '#B9783B' : 'white',
+                                      padding: '0.4rem 0.65rem',
+                                      borderRadius: '6px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s'
+                                    }}
+                                  >
+                                    {parseTimeTo12Hour(time)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Reschedule submit button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReschedule || !newRescheduleDate || getAvailableTimesForDate(newRescheduleDate).length === 0}
+                      style={{
+                        background: (!newRescheduleDate || getAvailableTimesForDate(newRescheduleDate).length === 0 || isSubmittingReschedule) ? 'rgba(255,255,255,0.05)' : '#B9783B',
+                        color: (!newRescheduleDate || getAvailableTimesForDate(newRescheduleDate).length === 0 || isSubmittingReschedule) ? '#666' : 'white',
+                        border: 'none',
+                        padding: '0.65rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: (!newRescheduleDate || getAvailableTimesForDate(newRescheduleDate).length === 0 || isSubmittingReschedule) ? 'not-allowed' : 'pointer',
+                        boxShadow: (!newRescheduleDate || getAvailableTimesForDate(newRescheduleDate).length === 0 || isSubmittingReschedule) ? 'none' : '0 4px 12px rgba(185, 120, 59, 0.25)',
+                        marginTop: '0.5rem'
+                      }}
                     >
-                      <option value="08:00">08:00 AM</option>
-                      <option value="09:00">09:00 AM</option>
-                      <option value="09:30">09:30 AM</option>
-                      <option value="10:00">10:00 AM</option>
-                      <option value="11:00">11:00 AM</option>
-                      <option value="12:00">12:00 PM</option>
-                      <option value="13:00">01:00 PM</option>
-                      <option value="13:30">01:30 PM</option>
-                      <option value="14:00">02:00 PM</option>
-                      <option value="15:00">03:00 PM</option>
-                      <option value="16:00">04:00 PM</option>
-                      <option value="17:00">05:00 PM</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                  <button
-                    type="button"
-                    onClick={handleCheckAvailability}
-                    disabled={checkingAvailability || !newRescheduleDate}
-                    style={{
-                      flex: 1,
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: (checkingAvailability || !newRescheduleDate) ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {checkingAvailability ? 'Checking...' : 'Check Availability'}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingReschedule || !availabilityResult || !availabilityResult.available}
-                    style={{
-                      flex: 1.2,
-                      background: (!availabilityResult || !availabilityResult.available || isSubmittingReschedule) ? 'rgba(255,255,255,0.05)' : '#B9783B',
-                      color: (!availabilityResult || !availabilityResult.available || isSubmittingReschedule) ? '#666' : 'white',
-                      border: 'none',
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      cursor: (!availabilityResult || !availabilityResult.available || isSubmittingReschedule) ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {isSubmittingReschedule ? 'Rescheduling...' : 'Confirm Reschedule'}
-                  </button>
-                </div>
-
-                {availabilityResult && (
-                  <div style={{
-                    fontSize: '0.75rem',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '6px',
-                    border: availabilityResult.available ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-                    background: availabilityResult.available ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                    color: availabilityResult.available ? '#A7F3D0' : '#FCA5A5',
-                    marginTop: '0.25rem'
-                  }}>
-                    {availabilityResult.message}
+                      {isSubmittingReschedule ? 'Rescheduling Voyage...' : 'Confirm Reschedule'}
+                    </button>
                   </div>
                 )}
               </form>
@@ -977,7 +1303,7 @@ function PortalContent() {
               <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.75rem' }}>
                 Financial Statement
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: refundedAmount > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Total Charter Cost</span>
                   <span style={{ color: 'white', fontWeight: 600, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(totalCost)}</span>
@@ -986,6 +1312,12 @@ function PortalContent() {
                   <span style={{ fontSize: '0.7rem', color: '#708C84' }}>Amount Paid Today</span>
                   <span style={{ color: '#708C84', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(paidToday)}</span>
                 </div>
+                {refundedAmount > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#EF4444' }}>Amount Refunded</span>
+                    <span style={{ color: '#EF4444', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(refundedAmount)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.7rem', color: balanceDue > 0 ? '#E2A15E' : '#708C84' }}>Outstanding Balance</span>
                   <span style={{ color: balanceDue > 0 ? '#E2A15E' : '#708C84', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(balanceDue)}</span>
@@ -1266,103 +1598,8 @@ function PortalContent() {
         </div>
 
         {/* RIGHT COLUMN: Charter Messenger Panel */}
-        <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '2rem', display: 'flex', flexDirection: 'column', height: '650px', boxShadow: '0 12px 24px rgba(0,0,0,0.2)' }}>
-          
-          {/* Messenger Header */}
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <MessageSquare size={18} color="#B9783B" /> Charter Concierge
-            </h3>
-            <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6, marginTop: '0.25rem', display: 'block' }}>
-              Chat live with our crew and yacht planners (Replies within ~30m).
-            </span>
-          </div>
-
-          {/* Messages Feed */}
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0.2rem', marginBottom: '1rem' }}>
-            {(!booking.messages || booking.messages.length === 0) ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#D8C7AF', opacity: 0.5, padding: '2rem' }}>
-                <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</span>
-                <p style={{ fontSize: '0.78rem', margin: 0 }}>No messages yet. Send a message to coordinate boarding logistics or request upgrades.</p>
-              </div>
-            ) : (
-              booking.messages.map((msg) => {
-                const isGuest = msg.sender === 'guest';
-                return (
-                  <div 
-                    key={msg.id}
-                    style={{
-                      alignSelf: isGuest ? 'flex-end' : 'flex-start',
-                      maxWidth: '85%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: isGuest ? 'flex-end' : 'flex-start'
-                    }}
-                  >
-                    <div style={{
-                      background: isGuest ? '#B9783B' : 'rgba(255,255,255,0.04)',
-                      border: isGuest ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                      color: isGuest ? 'white' : '#F4F1EA',
-                      padding: '0.65rem 0.95rem',
-                      borderRadius: '12px',
-                      borderBottomRightRadius: isGuest ? '2px' : '12px',
-                      borderBottomLeftRadius: isGuest ? '12px' : '2px',
-                      fontSize: '0.82rem',
-                      lineHeight: '1.4',
-                      wordBreak: 'break-word'
-                    }}>
-                      {msg.text}
-                    </div>
-                    <span style={{ fontSize: '0.62rem', color: '#D8C7AF', opacity: 0.5, marginTop: '0.25rem', display: 'block' }}>
-                      {isGuest ? 'You' : 'M/Y Admin'} • {new Date(msg.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Form message input */}
-          <form onSubmit={handleSendMessage} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-            <input 
-              type="text"
-              value={newMessage}
-              onChange={e => setNewMessage(e.target.value)}
-              placeholder="Type message here..."
-              required
-              disabled={sendingMessage}
-              style={{
-                flex: 1,
-                padding: '0.6rem 0.85rem',
-                borderRadius: '6px',
-                background: '#121416',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: 'white',
-                fontSize: '0.8rem',
-                outline: 'none'
-              }}
-            />
-            <button
-              type="submit"
-              disabled={!newMessage.trim() || sendingMessage}
-              style={{
-                background: (!newMessage.trim() || sendingMessage) ? 'rgba(255,255,255,0.05)' : '#B9783B',
-                color: (!newMessage.trim() || sendingMessage) ? '#666' : 'white',
-                border: 'none',
-                width: '38px',
-                height: '38px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: (!newMessage.trim() || sendingMessage) ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Send size={14} />
-            </button>
-          </form>
+        <div className="chat-container-desktop" style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '2rem', display: 'flex', flexDirection: 'column', height: '650px', boxShadow: '0 12px 24px rgba(0,0,0,0.2)' }}>
+          {renderChatContent(false)}
         </div>
 
       </div>
@@ -1569,6 +1806,127 @@ function PortalContent() {
           </div>
         </div>
       )}
+
+      {/* Mobile Chat FAB */}
+      <button 
+        type="button"
+        className="chat-fab-button"
+        onClick={() => setShowMobileChat(true)}
+        aria-label="Open Concierge Messenger"
+      >
+        <MessageSquare size={24} />
+      </button>
+
+      {/* Mobile Chat Modal Overlay */}
+      {showMobileChat && (
+        <div className="chat-container-mobile-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowMobileChat(false);
+          }
+        }}>
+          <div className="chat-container-mobile">
+            {renderChatContent(true)}
+          </div>
+        </div>
+      )}
+
+      {/* Global Responsive CSS Styles */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .portal-grid {
+          display: grid;
+          grid-template-columns: 1fr 350px;
+          gap: 2.5rem;
+        }
+        
+        .chat-container-desktop {
+          display: flex;
+        }
+
+        .chat-fab-button {
+          display: none;
+        }
+
+        @media (max-width: 991px) {
+          .portal-grid {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+          }
+          
+          .chat-container-desktop {
+            display: none !important;
+          }
+
+          .chat-fab-button {
+            display: flex;
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #B9783B;
+            color: white;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            cursor: pointer;
+            z-index: 999;
+            border: none;
+            transition: transform 0.2s, background-color 0.2s;
+          }
+          
+          .chat-fab-button:hover {
+            background: #d08c4f;
+            transform: scale(1.05);
+          }
+
+          .chat-container-mobile-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.2s ease-out;
+          }
+
+          .chat-container-mobile {
+            background: #1E2124;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 480px;
+            height: 80vh;
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            animation: slideUpMobile 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-sizing: border-box;
+          }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+          from { transform: translateY(12px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideUpMobile {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}} />
     </div>
   );
 }

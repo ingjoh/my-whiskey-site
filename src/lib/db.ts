@@ -1825,6 +1825,11 @@ export interface BookingRecord {
   token?: string;
   messages?: BookingMessage[];
   messageStatus?: 'unread' | 'read' | 'answered';
+  amountRefunded?: number;
+  refundStatus?: 'none' | 'pending_manual_refund' | 'refunded';
+  stripeRefundId?: string;
+  stripePaymentIntentId?: string;
+  changeHistory?: any[];
 }
 
 export interface BookingMessage {
