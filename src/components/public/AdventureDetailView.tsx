@@ -227,21 +227,6 @@ const darkMapStyles = [
   },
 ];
 
-const getMarkerIcon = (number: number, isHighlighted: boolean) => {
-  const color = isHighlighted ? '#e2954c' : '#b9783b';
-  const size = isHighlighted ? 38 : 30;
-  const stroke = isHighlighted ? '#ffffff' : '#121416';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="14" fill="${encodeURIComponent(color)}" stroke="${encodeURIComponent(stroke)}" stroke-width="2"/>
-    <text x="16" y="21" font-family="'Cormorant Garamond', serif" font-weight="bold" font-size="14" fill="%23121416" text-anchor="middle">${number}</text>
-  </svg>`;
-  return {
-    url: 'data:image/svg+xml;utf8,' + svg,
-    scaledSize: typeof window !== 'undefined' && (window as any).google ? new (window as any).google.maps.Size(size, size) : null,
-    anchor: typeof window !== 'undefined' && (window as any).google ? new (window as any).google.maps.Point(size / 2, size / 2) : null
-  };
-};
-
 interface ItineraryMapProps {
   steps: any[];
   allLocations: any[];
@@ -292,6 +277,8 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
+      mapId: 'DEMO_MAP_ID',
+      renderingType: 'RASTER'
     };
 
     const gMap = new (window as any).google.maps.Map(mapRef.current, mapOptions);
@@ -309,10 +296,12 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
 
   // Update Markers
   useEffect(() => {
-    if (!map || !(window as any).google || !(window as any).google.maps) return;
+    if (!map || !(window as any).google || !(window as any).google.maps || !(window as any).google.maps.marker) return;
 
     // Clear previous markers
-    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current.forEach(m => {
+      m.map = null;
+    });
     markersRef.current = [];
 
     const hoveredStepSlug = hoveredLocationIndex !== null ? steps[hoveredLocationIndex]?.locationSlug : null;
@@ -321,19 +310,36 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
       const latLng = { lat: stop.lat, lng: stop.lng };
 
       const isHighlighted = hoveredStepSlug === stop.locationSlug;
-      const marker = new (window as any).google.maps.Marker({
+      const color = isHighlighted ? '#e2954c' : '#b9783b';
+      const size = isHighlighted ? 38 : 30;
+      const stroke = isHighlighted ? '#ffffff' : '#121416';
+
+      const markerContent = document.createElement('div');
+      markerContent.style.width = `${size}px`;
+      markerContent.style.height = `${size}px`;
+      markerContent.style.display = 'flex';
+      markerContent.style.alignItems = 'center';
+      markerContent.style.justifyContent = 'center';
+      markerContent.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="14" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+        <text x="16" y="21" font-family="'Cormorant Garamond', serif" font-weight="bold" font-size="14" fill="#121416" text-anchor="middle">${i + 1}</text>
+      </svg>`;
+
+      const marker = new (window as any).google.maps.marker.AdvancedMarkerElement({
         position: latLng,
         map: map,
         title: stop.title,
-        icon: getMarkerIcon(i + 1, isHighlighted),
-        zIndex: isHighlighted ? 1000 : 100
+        content: markerContent,
+        zIndex: isHighlighted ? 1000 : 100,
+        anchorLeft: '-50%',
+        anchorTop: '-50%'
       });
 
-      // Add mouseover and mouseout listeners to marker
-      marker.addListener('mouseover', () => {
+      // Add mouseenter and mouseleave listeners for hover highlights
+      markerContent.addEventListener('mouseenter', () => {
         setHoveredLocationIndex(stop.stepIndex);
       });
-      marker.addListener('mouseout', () => {
+      markerContent.addEventListener('mouseleave', () => {
         setHoveredLocationIndex(null);
       });
 
@@ -1115,7 +1121,7 @@ export default function AdventureDetailView({
 
   // Load Google Maps API script for places autocomplete in Waiver modal
   useEffect(() => {
-    if ((window as any).google && (window as any).google.maps) {
+    if ((window as any).google && (window as any).google.maps && (window as any).google.maps.marker) {
       setIsMapsApiLoaded(true);
       return;
     }
@@ -1134,7 +1140,7 @@ export default function AdventureDetailView({
 
     const script = document.createElement('script');
     script.id = 'google-maps-api-script-public';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => setIsMapsApiLoaded(true);
