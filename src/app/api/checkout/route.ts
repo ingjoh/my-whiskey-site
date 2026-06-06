@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
       startTime,
       vesselTitle,
       paymentPlan,
+      isBalancePayment,
+      bookingToken,
     } = body;
 
     if (!bookingId || !amount || !email || !experienceSlug || !experienceTitle) {
@@ -34,7 +36,9 @@ export async function POST(request: NextRequest) {
     if (!process.env.STRIPE_SECRET_KEY) {
       if (process.env.NODE_ENV !== 'production') {
         console.warn('Missing STRIPE_SECRET_KEY in development mode. Simulating a mock Stripe redirect.');
-        const mockUrl = `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=success`;
+        const mockUrl = isBalancePayment
+          ? `${origin}/guest/portal?id=${bookingId}&token=${bookingToken || ''}&status=success`
+          : `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=success`;
         return NextResponse.json({ url: mockUrl });
       }
       console.error('Missing STRIPE_SECRET_KEY environment variable');
@@ -50,7 +54,16 @@ export async function POST(request: NextRequest) {
       email,
       experienceTitle,
       paymentPlan,
+      isBalancePayment,
     });
+
+    const successUrl = isBalancePayment
+      ? `${origin}/guest/portal?id=${bookingId}&token=${bookingToken || ''}&status=success&session_id={CHECKOUT_SESSION_ID}`
+      : `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=success&session_id={CHECKOUT_SESSION_ID}`;
+
+    const cancelUrl = isBalancePayment
+      ? `${origin}/guest/portal?id=${bookingId}&token=${bookingToken || ''}&status=cancelled`
+      : `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=cancelled`;
 
     // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -67,8 +80,10 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `${experienceTitle} - Charter Booking`,
-              description: `Booking ID: ${bookingId} for Voyage on ${date} at ${startTime}. Vessel: ${vesselTitle}. Plan: ${paymentPlan === 'deposit' ? '20% Deposit Plan' : 'Pay in Full'}.`,
+              name: isBalancePayment ? `Remaining Balance - Charter Booking ${bookingId}` : `${experienceTitle} - Charter Booking`,
+              description: isBalancePayment 
+                ? `Outstanding Balance Payment for Charter booking ID: ${bookingId} on ${date}.`
+                : `Booking ID: ${bookingId} for Voyage on ${date} at ${startTime}. Vessel: ${vesselTitle}. Plan: ${paymentPlan === 'deposit' ? '20% Deposit Plan' : 'Pay in Full'}.`,
             },
             unit_amount: Math.round(amount * 100), // in cents
           },
@@ -81,9 +96,10 @@ export async function POST(request: NextRequest) {
         bookingId,
         paymentPlan,
         experienceSlug,
+        isBalancePayment: isBalancePayment ? 'true' : 'false',
       },
-      success_url: `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=cancelled`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
 
     return NextResponse.json({ url: session.url });

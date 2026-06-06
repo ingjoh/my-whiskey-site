@@ -507,6 +507,19 @@ export default function AdventureDetailView({
     setGuestName([guestTitle, guestFirstName, guestMiddleInitial, guestLastName].filter(Boolean).join(' '));
   }, [guestTitle, guestFirstName, guestMiddleInitial, guestLastName]);
 
+  // Scroll to booking widget when step changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const hasParams = params.has('status') || params.has('bookingId');
+    if (bookingStep > 1 || hasParams) {
+      const el = document.getElementById('booking-widget');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [bookingStep]);
+
   const [allBookings, setAllBookings] = useState<BookingRecord[]>([]);
   const [assetBlackouts, setAssetBlackouts] = useState<AssetBlackout[]>([]);
   const [checkoutLocks, setCheckoutLocks] = useState<CheckoutLock[]>([]);
@@ -4649,6 +4662,32 @@ export default function AdventureDetailView({
                         </>
                       )}
                     </p>
+
+                    {/* Booking Status Badge */}
+                    <div style={{
+                      background: 'rgba(112, 140, 132, 0.08)',
+                      border: '1px solid rgba(112, 140, 132, 0.2)',
+                      borderRadius: '8px',
+                      padding: '0.75rem 1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0.25rem 0'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Booking Reference:</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'white', letterSpacing: '0.02em' }}>{generatedBookingId}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#708C84', display: 'inline-block' }}></span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#708C84', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {paymentMethod === 'eft' ? 'Pending Verification' : 'Status: Confirmed'}
+                        </span>
+                      </div>
+                    </div>
+
                     <a
                       href={`/guest/portal?id=${generatedBookingId}&token=${generatedBookingToken}`}
                       style={{

@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const bookingId = session.metadata?.bookingId;
         const paymentPlan = session.metadata?.paymentPlan;
+        const isBalancePayment = session.metadata?.isBalancePayment === 'true';
+        const paymentIntentId = session.payment_intent as string;
 
         if (!bookingId) {
           console.log('Skipping session: No bookingId found in metadata.');
@@ -67,15 +69,8 @@ export async function POST(request: NextRequest) {
           amountPaid,
           paymentStatus,
           isEft,
+          isBalancePayment,
         });
-
-        // Determine booking status
-        // If payment cleared instantly (e.g. Card), status becomes 'pending waiver'
-        // If ACH direct debit is pending verification, status becomes 'pending_funds_verification'
-        let targetStatus: 'pending waiver' | 'pending_funds_verification' = 'pending waiver';
-        if (isEft && paymentStatus !== 'paid') {
-          targetStatus = 'pending_funds_verification';
-        }
 
         const docId = `booking-${bookingId}`;
         const bookingRef = adminDb.collection('pages').doc(docId);
@@ -90,28 +85,47 @@ export async function POST(request: NextRequest) {
         }
 
         const existingData = bookingSnap.data() || {};
-        const amountDueLaterCalculated = paymentPlan === 'deposit' ? (existingData.grandTotal - amountPaid) : 0;
+        
+        let amountPaidTodayCalculated = amountPaid;
+        let amountDueLaterCalculated = 0;
+        
+        if (isBalancePayment) {
+          amountPaidTodayCalculated = (existingData.amountPaidToday || 0) + amountPaid;
+          amountDueLaterCalculated = Math.max(0, (existingData.amountDueLater || 0) - amountPaid);
+        } else {
+          amountDueLaterCalculated = paymentPlan === 'deposit' ? (existingData.grandTotal - amountPaid) : 0;
+        }
+
+        // Retain current status (e.g. 'confirmed') if balance payment
+        let targetStatus = existingData.status || 'pending waiver';
+        if (!isBalancePayment) {
+          targetStatus = 'pending waiver';
+          if (isEft && paymentStatus !== 'paid') {
+            targetStatus = 'pending_funds_verification';
+          }
+        }
         
         // Update booking document
         await bookingRef.set({
           status: targetStatus,
-          amountPaidToday: amountPaid,
+          amountPaidToday: amountPaidTodayCalculated,
           amountDueLater: amountDueLaterCalculated,
           stripeSessionId: session.id,
+          stripePaymentIntentId: paymentIntentId || '',
           stripePaymentStatus: paymentStatus,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
 
-        console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}".`);
+        console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}". Paid: $${amountPaidTodayCalculated}, Due Later: $${amountDueLaterCalculated}`);
 
-        // Send notifications via Flow Manager
-        if (targetStatus === 'pending waiver') {
+        // Send notifications via Flow Manager (only on initial booking)
+        if (!isBalancePayment && targetStatus === 'pending waiver') {
           try {
             await enrollBookingInFlow(bookingId, 'standard_bareboat_flow');
           } catch (flowErr) {
             console.error('Failed to enroll booking in standard bareboat flow:', flowErr);
           }
-        } else if (targetStatus === 'pending_funds_verification') {
+        } else if (!isBalancePayment && targetStatus === 'pending_funds_verification') {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://motoryachtwhiskey.com';
           const portalUrl = `${siteUrl}/guest/portal?id=${bookingId}&token=${existingData.token || ''}`;
           try {
@@ -193,6 +207,34 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date().toISOString(),
           }, { merge: true });
           console.log(`✗ Updated booking ${bookingId} status to "cancelled" due to payment failure.`);
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const bookingId = charge.metadata?.bookingId;
+        if (bookingId) {
+          const refundAmount = (charge.amount_refunded || 0) / 100;
+          console.log(`Processing charge.refunded for booking ${bookingId}: $${refundAmount}`);
+          const docId = `booking-${bookingId}`;
+          const bookingRef = adminDb.collection('pages').doc(docId);
+          const bookingSnap = await bookingRef.get();
+          
+          if (bookingSnap.exists) {
+            const existingData = bookingSnap.data() || {};
+            const oldAmountPaid = existingData.amountPaidToday || 0;
+            const newAmountPaid = Math.max(0, oldAmountPaid - refundAmount);
+            
+            await bookingRef.set({
+              refundStatus: 'refunded',
+              amountRefunded: refundAmount,
+              amountPaidToday: newAmountPaid,
+              stripeRefundId: charge.refunds?.data[0]?.id || 'unknown',
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+            console.log(`✓ Sync: Booking ${bookingId} marked as refunded for $${refundAmount} via webhook.`);
+          }
         }
         break;
       }
