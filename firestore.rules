@@ -50,24 +50,29 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // Pages collection rules (houses pages, bookings, waivers, content items, locks)
+    // Pages collection rules (houses pages, bookings, waivers, content items, locks, customers)
     match /pages/{document} {
       // Pages, adventures, locations, fleet specifications are publicly readable
       allow read: if true;
 
-      // Clients can create new booking requests, passenger waivers, or checkout locks
+      // Clients can create new booking requests, passenger waivers, checkout locks, or customer profiles
       allow create: if request.resource.data.type == 'booking' 
                     || request.resource.data.type == 'waiver_signature'
-                    || request.resource.data.type == 'lock';
+                    || request.resource.data.type == 'lock'
+                    || (request.resource.data.type == 'customer' 
+                        && !('privateNotes' in request.resource.data));
 
       // Clients can update their own bookings to sign the digital waiver,
-      // or update checkout locks they own or which are expired.
+      // update checkout locks they own, or update their own customer profile.
       allow update: if isAdmin() 
                     || (resource.data.type == 'booking' 
                         && request.resource.data.waiverSigned == true 
                         && resource.data.waiverSigned == false)
                     || (resource.data.type == 'lock'
-                        && request.resource.data.type == 'lock');
+                        && request.resource.data.type == 'lock')
+                    || (resource.data.type == 'customer'
+                        && request.resource.data.type == 'customer'
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['privateNotes']));
 
       // Destructive deletion is reserved strictly for site administrators,
       // except for temporary checkout locks which clients can release/delete.
