@@ -562,11 +562,17 @@ export default function AdventureDetailView({
     const bookingId = params.get('bookingId');
     const stripeStatus = params.get('status');
     
+    if (bookingId || stripeStatus) {
+      console.log('[Stripe Redirect Check] Found params in URL on load:', { bookingId, stripeStatus });
+    }
+    
     if (bookingId && stripeStatus === 'success') {
       const initWaiverStep = async () => {
         try {
+          console.log('[Stripe Redirect Check] Attempting to retrieve booking by ID:', bookingId);
           const booking = await getBookingById(bookingId);
           if (booking) {
+            console.log('[Stripe Redirect Check] Booking successfully retrieved:', booking);
             // Load state
             setGeneratedBookingId(bookingId);
             setGeneratedBookingToken(booking.token || '');
@@ -585,22 +591,28 @@ export default function AdventureDetailView({
             }
 
             // Set step to step 4 (Waiver)
+            console.log('[Stripe Redirect Check] Switching to bookingStep 4 (Waiver)');
             setBookingStep(4);
             
             // Clean up the URL search parameters to make the UX clean
             const newUrl = window.location.pathname;
             window.history.replaceState({}, '', newUrl);
+            console.log('[Stripe Redirect Check] Replaced URL search parameters. URL is now clean.');
+          } else {
+            console.error('[Stripe Redirect Check] getBookingById returned null. Booking not found in database.');
           }
         } catch (err) {
-          console.error('Error resuming booking from Stripe success redirect:', err);
+          console.error('[Stripe Redirect Check] Error resuming booking from Stripe success redirect:', err);
         }
       };
       initWaiverStep();
     } else if (bookingId && stripeStatus === 'cancelled') {
       const resumeCancelledBooking = async () => {
         try {
+          console.log('[Stripe Redirect Check] Processing cancelled status. Fetching booking:', bookingId);
           const booking = await getBookingById(bookingId);
           if (booking) {
+            console.log('[Stripe Redirect Check] Booking retrieved for cancellation recovery:', booking);
             // Populate state so they don't have to fill it again
             setSelectedDate(booking.date);
             setSelectedStartTime(booking.startTime);
@@ -613,6 +625,7 @@ export default function AdventureDetailView({
             setPaymentMethod(booking.paymentMethod || 'card');
             
             // Open modal to Step 3 (Payment) so they can retry
+            console.log('[Stripe Redirect Check] Switching to bookingStep 3 (Payment Recovery)');
             setBookingStep(3);
             
             // Clean up URL parameters
@@ -620,14 +633,16 @@ export default function AdventureDetailView({
             window.history.replaceState({}, '', newUrl);
             
             alert('Your payment session was cancelled. You can select your payment method and try again.');
+          } else {
+            console.error('[Stripe Redirect Check] getBookingById returned null during cancellation recovery.');
           }
         } catch (err) {
-          console.error('Error resuming booking from Stripe cancel redirect:', err);
+          console.error('[Stripe Redirect Check] Error resuming booking from Stripe cancel redirect:', err);
         }
       };
       resumeCancelledBooking();
     }
-  }, [allLocations]);
+  }, []);
 
   // Reset selected captain if they become unavailable on the selected date/time
   useEffect(() => {
