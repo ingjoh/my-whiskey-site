@@ -12,7 +12,8 @@ export const detectProjectId = (): string => {
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||
       hostname.includes('mywhiskey-97620') ||
-      hostname.includes('staging')
+      hostname.includes('staging') ||
+      (hostname.includes('vercel.app') && hostname !== 'my-whiskey-site.vercel.app')
     ) {
       return 'mywhiskey-97620';
     }
@@ -20,7 +21,12 @@ export const detectProjectId = (): string => {
     return 'my-whiskey-prod';
   }
 
-  // 2. Server-side runtime check (inspecting Firebase / Google Cloud configuration)
+  // 2. Server-side runtime check (inspecting Vercel deployment type first)
+  if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') {
+    return 'mywhiskey-97620';
+  }
+
+  // 3. Server-side runtime check (inspecting Firebase / Google Cloud configuration)
   const firebaseConfigStr = process.env.FIREBASE_CONFIG;
   if (firebaseConfigStr) {
     try {
