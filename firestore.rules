@@ -50,24 +50,29 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // Pages collection rules (houses pages, bookings, waivers, content items)
+    // Pages collection rules (houses pages, bookings, waivers, content items, locks)
     match /pages/{document} {
       // Pages, adventures, locations, fleet specifications are publicly readable
       allow read: if true;
 
-      // Clients can create new booking requests and upload passenger waivers
+      // Clients can create new booking requests, passenger waivers, or checkout locks
       allow create: if request.resource.data.type == 'booking' 
-                    || request.resource.data.type == 'waiver_signature';
+                    || request.resource.data.type == 'waiver_signature'
+                    || request.resource.data.type == 'lock';
 
       // Clients can update their own bookings to sign the digital waiver,
-      // but are blocked from modifying billing details or admin fields.
+      // or update checkout locks they own or which are expired.
       allow update: if isAdmin() 
                     || (resource.data.type == 'booking' 
                         && request.resource.data.waiverSigned == true 
-                        && resource.data.waiverSigned == false);
+                        && resource.data.waiverSigned == false)
+                    || (resource.data.type == 'lock'
+                        && request.resource.data.type == 'lock');
 
-      // Destructive deletion is reserved strictly for site administrators
-      allow delete: if isAdmin();
+      // Destructive deletion is reserved strictly for site administrators,
+      // except for temporary checkout locks which clients can release/delete.
+      allow delete: if isAdmin()
+                    || (resource.data.type == 'lock');
     }
   }
 }
