@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
 
     // Verify secret key is set
     if (!process.env.STRIPE_SECRET_KEY) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Missing STRIPE_SECRET_KEY in development mode. Simulating a mock Stripe redirect.');
+        const mockUrl = `${origin}/experiences/${experienceSlug}?bookingId=${bookingId}&status=success`;
+        return NextResponse.json({ url: mockUrl });
+      }
       console.error('Missing STRIPE_SECRET_KEY environment variable');
       return NextResponse.json(
         { error: 'Stripe integration is not configured on the server.' },

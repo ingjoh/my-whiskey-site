@@ -277,8 +277,6 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
-      mapId: 'DEMO_MAP_ID',
-      renderingType: 'RASTER'
     };
 
     const gMap = new (window as any).google.maps.Map(mapRef.current, mapOptions);
