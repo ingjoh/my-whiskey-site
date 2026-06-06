@@ -735,15 +735,29 @@ function PortalContent() {
         throw new Error(errData.error || 'Failed to reschedule voyage.');
       }
 
-      alert('Voyage rescheduled successfully! A new confirmation email has been sent.');
-      setShowRescheduleForm(false);
-      setAvailabilityResult(null);
-      
-      // Reload page data
-      const updated = await getBookingById(booking.id);
-      if (updated) {
-        setBooking(updated);
-        setCustomerBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
+      const data = await res.json();
+      if (data.simulated) {
+        alert('Local Simulation: Voyage rescheduled successfully!\n\n(Since Firebase Admin credentials are not set in your local .env.local, the database update was simulated client-side. The changes will persist on your current screen but won\'t write to the remote database. Copy FIREBASE_SERVICE_ACCOUNT from Vercel to .env.local to enable real database writes locally.)');
+        
+        setBooking(prev => prev ? {
+          ...prev,
+          date: newRescheduleDate,
+          startTime: newRescheduleTime
+        } : null);
+        
+        setShowRescheduleForm(false);
+        setAvailabilityResult(null);
+      } else {
+        alert('Voyage rescheduled successfully! A new confirmation email has been sent.');
+        setShowRescheduleForm(false);
+        setAvailabilityResult(null);
+        
+        // Reload page data
+        const updated = await getBookingById(booking.id);
+        if (updated) {
+          setBooking(updated);
+          setCustomerBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
+        }
       }
     } catch (err: any) {
       console.error('Reschedule submit error:', err);
@@ -759,7 +773,15 @@ function PortalContent() {
 
     const subtotal = booking.subtotal || 0;
     const grandTotal = booking.grandTotal || 0;
-    const amountPaidToday = booking.amountPaidToday || 0;
+    const rawPaidToday = booking.amountPaidToday || 0;
+    const rawDueLater = booking.amountDueLater || 0;
+    
+    // Inferred amount paid today if webhook failed to run but booking is confirmed
+    const isActive = booking.status !== 'pending' && booking.status !== 'cancelled';
+    const amountPaidToday = (isActive && rawPaidToday === 0)
+      ? Math.max(0, grandTotal - rawDueLater)
+      : rawPaidToday;
+
     const hasInsurance = booking.cancellationInsurance || false;
     const insuranceCost = hasInsurance ? subtotal * 0.05 : 0;
 
@@ -828,14 +850,29 @@ function PortalContent() {
         throw new Error(errData.error || 'Failed to cancel voyage.');
       }
 
-      alert('Voyage has been cancelled. Your refund request is flagged for manual processing in Stripe.');
-      setShowCancelModal(false);
-      
-      // Reload page data
-      const updated = await getBookingById(booking.id);
-      if (updated) {
-        setBooking(updated);
-        setCustomerBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
+      const data = await res.json();
+      if (data.simulated) {
+        alert('Local Simulation: Voyage has been cancelled!\n\n(Since Firebase Admin credentials are not set in your local .env.local, the database update was simulated client-side. The status will show as CANCELLED on your screen but won\'t write to the remote database. Copy FIREBASE_SERVICE_ACCOUNT from Vercel to .env.local to enable real database writes locally.)');
+        
+        setBooking(prev => prev ? {
+          ...prev,
+          status: 'cancelled',
+          refundStatus: 'pending_manual_refund',
+          amountRefunded: data.refundEstimate || 0,
+          amountDueLater: 0
+        } : null);
+        
+        setShowCancelModal(false);
+      } else {
+        alert('Voyage has been cancelled. Your refund request is flagged for manual processing in Stripe.');
+        setShowCancelModal(false);
+        
+        // Reload page data
+        const updated = await getBookingById(booking.id);
+        if (updated) {
+          setBooking(updated);
+          setCustomerBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
+        }
       }
     } catch (err: any) {
       console.error('Cancellation submit error:', err);
@@ -882,8 +919,17 @@ function PortalContent() {
   }
 
   // Calculate financials
-  const paidToday = booking.amountPaidToday || 0;
-  const balanceDue = booking.status === 'cancelled' ? 0 : (booking.amountDueLater || 0);
+  const rawPaidToday = booking.amountPaidToday || 0;
+  const rawDueLater = booking.amountDueLater || 0;
+  
+  // If status is active (not pending and not cancelled) but paidToday is 0,
+  // we infer it from grandTotal and amountDueLater so the math is always consistent
+  const isActive = booking.status !== 'pending' && booking.status !== 'cancelled';
+  const paidToday = (isActive && rawPaidToday === 0)
+    ? Math.max(0, booking.grandTotal - rawDueLater)
+    : rawPaidToday;
+
+  const balanceDue = booking.status === 'cancelled' ? 0 : rawDueLater;
   const totalCost = booking.grandTotal || (paidToday + balanceDue);
   const refundedAmount = booking.amountRefunded || 0;
 
@@ -1303,25 +1349,22 @@ function PortalContent() {
               <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.75rem' }}>
                 Financial Statement
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: refundedAmount > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '1rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Total Charter Cost</span>
-                  <span style={{ color: 'white', fontWeight: 600, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(totalCost)}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#708C84' }}>Amount Paid Today</span>
-                  <span style={{ color: '#708C84', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(paidToday)}</span>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: refundedAmount > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '0.5rem 1.25rem', alignItems: 'start' }}>
+                {/* Labels Row */}
+                <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7, lineHeight: '1.2' }}>Total Charter Cost</span>
+                <span style={{ fontSize: '0.7rem', color: '#708C84', lineHeight: '1.2' }}>Amount Paid Today</span>
                 {refundedAmount > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#EF4444' }}>Amount Refunded</span>
-                    <span style={{ color: '#EF4444', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(refundedAmount)}</span>
-                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#EF4444', lineHeight: '1.2' }}>Amount Refunded</span>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '0.7rem', color: balanceDue > 0 ? '#E2A15E' : '#708C84' }}>Outstanding Balance</span>
-                  <span style={{ color: balanceDue > 0 ? '#E2A15E' : '#708C84', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.15rem' }}>{formatCost(balanceDue)}</span>
-                </div>
+                <span style={{ fontSize: '0.7rem', color: balanceDue > 0 ? '#E2A15E' : '#708C84', lineHeight: '1.2' }}>Outstanding Balance</span>
+
+                {/* Values Row */}
+                <span style={{ color: 'white', fontWeight: 600, fontSize: '1.15rem', marginTop: '0.15rem' }}>{formatCost(totalCost)}</span>
+                <span style={{ color: '#708C84', fontWeight: 700, fontSize: '1.15rem', marginTop: '0.15rem' }}>{formatCost(paidToday)}</span>
+                {refundedAmount > 0 && (
+                  <span style={{ color: '#EF4444', fontWeight: 700, fontSize: '1.15rem', marginTop: '0.15rem' }}>{formatCost(refundedAmount)}</span>
+                )}
+                <span style={{ color: balanceDue > 0 ? '#E2A15E' : '#708C84', fontWeight: 700, fontSize: '1.15rem', marginTop: '0.15rem' }}>{formatCost(balanceDue)}</span>
               </div>
               
               {balanceDue > 0 && booking.status !== 'cancelled' && (
@@ -1754,7 +1797,7 @@ function PortalContent() {
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.78rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#D8C7AF' }}>
                 <span>Total Amount Paid:</span>
-                <span style={{ color: 'white', fontWeight: 600 }}>{formatCost(booking.amountPaidToday || 0)}</span>
+                <span style={{ color: 'white', fontWeight: 600 }}>{formatCost(paidToday)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#EF4444', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
                 <span>Cancellation Policy Applied:</span>
