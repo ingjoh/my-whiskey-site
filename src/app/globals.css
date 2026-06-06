@@ -202,11 +202,34 @@ button {
   display: none;
 }
 
+.adventure-section-heading {
+  font-size: 2.25rem;
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.5rem;
+}
+
 @media (max-width: 767px) {
+  .adventure-section-heading {
+    font-size: 1.65rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .swipe-scroll-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
   /* Layout transformation: from grid to flex row */
   .swipe-scroll-active {
     display: flex !important;
     overflow-x: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
     scroll-snap-type: x mandatory !important;
     scroll-behavior: smooth !important;
     -webkit-overflow-scrolling: touch !important;
@@ -222,8 +245,8 @@ button {
 
   /* Force child cards/items to peek */
   .swipe-scroll-active > * {
-    flex: 0 0 82% !important; /* Width is 82% so next item is visible */
-    max-width: 82% !important;
+    flex: 0 0 75% !important; /* Width is 75% so next item is visible */
+    max-width: 75% !important;
     scroll-snap-align: start !important;
   }
 

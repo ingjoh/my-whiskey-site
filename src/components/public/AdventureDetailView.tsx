@@ -1595,7 +1595,7 @@ export default function AdventureDetailView({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', overflowX: 'hidden' }}>
       {/* Dynamic styles for hover states and animations */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeInUp {
@@ -1720,15 +1720,15 @@ export default function AdventureDetailView({
             margin-top: -2.5rem !important;
             margin-bottom: 2.5rem !important;
             grid-template-columns: repeat(4, 1fr) !important;
-            gap: 0.4rem !important;
-            padding: 0 0.5rem !important;
+            gap: 0.25rem !important;
+            padding: 0 0.25rem !important;
           }
           .adventure-spec-card {
             flex-direction: column !important;
             align-items: center !important;
             text-align: center !important;
-            padding: 0.65rem 0.25rem !important;
-            gap: 0.35rem !important;
+            padding: 0.65rem 0.15rem !important;
+            gap: 0.2rem !important;
             justify-content: center !important;
             border-top: 2px solid transparent !important;
             border-radius: 8px !important;
@@ -1758,18 +1758,28 @@ export default function AdventureDetailView({
             font-size: 0.55rem !important;
             letter-spacing: 0.02em !important;
             margin-bottom: 0.1rem !important;
+            white-space: normal !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
             width: 100% !important;
+            min-height: 2.3em !important;
           }
           .adventure-spec-value {
-            font-size: 0.75rem !important;
+            font-size: 0.7rem !important;
             font-weight: 700 !important;
             width: 100% !important;
+            white-space: normal !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
+            min-height: 2.3em !important;
           }
           .desktop-only {
             display: none !important;
@@ -2056,7 +2066,7 @@ export default function AdventureDetailView({
 
         .adventure-layout {
           display: grid;
-          grid-template-columns: 1fr 420px;
+          grid-template-columns: minmax(0, 1fr) 420px;
           gap: 3.5rem;
           align-items: start;
         }
@@ -2070,9 +2080,13 @@ export default function AdventureDetailView({
           display: none;
         }
 
+        .adventure-content-container {
+          padding: 0 2rem 6rem 2rem;
+        }
+
         @media (max-width: 992px) {
           .adventure-layout {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
             gap: 2rem;
           }
           .adventure-sidebar-wrapper {
@@ -2094,6 +2108,12 @@ export default function AdventureDetailView({
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 -5px 25px rgba(0,0,0,0.5);
+          }
+        }
+
+        @media (max-width: 767px) {
+          .adventure-content-container {
+            padding: 0 1rem 4rem 1rem !important;
           }
         }
       ` }} />
@@ -2183,13 +2203,15 @@ export default function AdventureDetailView({
       </div>
 
       {/* Main Grid Content */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 2rem 6rem 2rem',
-        position: 'relative',
-        zIndex: 5
-      }}>
+      <div 
+        className="adventure-content-container"
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          position: 'relative',
+          zIndex: 5
+        }}
+      >
         {/* Specs Bar (Overlap Hero) */}
         <div className="adventure-specs-container">
           {/* Duration */}
@@ -2237,7 +2259,7 @@ export default function AdventureDetailView({
                 <span className="desktop-only">Charter </span>Price
               </div>
               <div className="adventure-spec-value highlight">
-                {price > 0 ? `From ${formatCost(price)}` : 'Inquire'}
+                {price > 0 ? `From ${formatCost(price)}` : 'Book'}
               </div>
             </div>
           </div>
@@ -2251,7 +2273,7 @@ export default function AdventureDetailView({
             
             {/* Overview & Detailed Description */}
             <div>
-              <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+              <h2 className="adventure-section-heading">
                 Overview
               </h2>
               <div style={{ fontSize: '1.05rem', color: '#D8C7AF', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: 0.95 }} className="prose prose-invert">
@@ -2269,7 +2291,7 @@ export default function AdventureDetailView({
             {/* What's Included */}
             {included.length > 0 && (
               <div>
-                <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <h2 className="adventure-section-heading">
                   What's Included
                 </h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
@@ -2324,7 +2346,7 @@ export default function AdventureDetailView({
                   paddingBottom: '0.75rem' 
                 }}>
                   <div>
-                    <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: 0 }}>
+                    <h2 className="adventure-section-heading" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
                       Itinerary & Schedule
                     </h2>
                     {/* Time sums under the title */}
@@ -2865,7 +2887,7 @@ export default function AdventureDetailView({
             {/* Media Gallery & Documents Section */}
             {galleryItems.length > 0 && (
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '3.5rem', marginTop: '1rem' }}>
-                <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <h2 className="adventure-section-heading">
                   Gallery & Documents
                 </h2>
                 
@@ -5355,7 +5377,7 @@ export default function AdventureDetailView({
         <div>
           <div style={{ fontSize: '0.75rem', color: '#D8C7AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Charter Price</div>
           <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#B9783B', fontFamily: "'Cormorant Garamond', serif" }}>
-            {price > 0 ? `From ${formatCost(price)}` : 'Inquire'}
+            {price > 0 ? `From ${formatCost(price)}` : 'Book'}
           </div>
         </div>
         <button 
@@ -5371,7 +5393,8 @@ export default function AdventureDetailView({
             fontWeight: 600,
             fontSize: '0.9rem',
             boxShadow: '0 4px 15px rgba(185, 120, 59, 0.4)',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            flexShrink: 0
           }}
         >
           Book Experience

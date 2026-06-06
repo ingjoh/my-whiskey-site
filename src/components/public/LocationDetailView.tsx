@@ -98,7 +98,7 @@ export default function LocationDetailView({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', overflowX: 'hidden' }}>
       {/* Premium Styling Injections */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeInUp {
@@ -191,15 +191,15 @@ export default function LocationDetailView({
             margin-top: -2.5rem !important;
             margin-bottom: 2.5rem !important;
             grid-template-columns: repeat(4, 1fr) !important;
-            gap: 0.4rem !important;
-            padding: 0 0.5rem !important;
+            gap: 0.25rem !important;
+            padding: 0 0.25rem !important;
           }
           .location-spec-card {
             flex-direction: column !important;
             align-items: center !important;
             text-align: center !important;
-            padding: 0.65rem 0.25rem !important;
-            gap: 0.35rem !important;
+            padding: 0.65rem 0.15rem !important;
+            gap: 0.2rem !important;
             justify-content: center !important;
             border-top: 2px solid transparent !important;
             border-radius: 8px !important;
@@ -226,18 +226,28 @@ export default function LocationDetailView({
             font-size: 0.55rem !important;
             letter-spacing: 0.02em !important;
             margin-bottom: 0.1rem !important;
+            white-space: normal !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
             width: 100% !important;
+            min-height: 2.3em !important;
           }
           .location-spec-value {
-            font-size: 0.75rem !important;
+            font-size: 0.7rem !important;
             font-weight: 700 !important;
             width: 100% !important;
+            white-space: normal !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
+            min-height: 2.3em !important;
           }
           .desktop-only {
             display: none !important;
@@ -263,6 +273,30 @@ export default function LocationDetailView({
           box-shadow: 0 25px 50px rgba(0,0,0,0.4) !important;
           border-top-color: #d28c4b !important;
           transform: translateY(-2px);
+        }
+
+        .location-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+          gap: 3.5rem;
+          align-items: start;
+        }
+
+        .location-content-container {
+          padding: 0 2rem 6rem 2rem;
+        }
+
+        @media (max-width: 992px) {
+          .location-layout {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 2rem;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .location-content-container {
+            padding: 0 1rem 4rem 1rem !important;
+          }
         }
       ` }} />
 
@@ -349,13 +383,15 @@ export default function LocationDetailView({
       </div>
 
       {/* Main Grid Content */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 2rem 6rem 2rem',
-        position: 'relative',
-        zIndex: 5
-      }}>
+      <div 
+        className="location-content-container"
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          position: 'relative',
+          zIndex: 5
+        }}
+      >
         {/* 4-Column Specs Bar (Overlapping Hero) */}
         <div className="location-specs-container">
           {/* Anchor Status */}
@@ -422,14 +458,14 @@ export default function LocationDetailView({
         </div>
 
         {/* Layout Splitting */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '3.5rem', alignItems: 'start' }}>
+        <div className="location-layout">
           
           {/* Left Column (1.6fr) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
             
             {/* Overview & Markdown Description */}
             <div>
-              <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+              <h2 className="adventure-section-heading">
                 About {item.title}
               </h2>
               <div style={{ fontSize: '1.05rem', color: '#D8C7AF', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: 0.95 }} className="prose prose-invert">
@@ -444,7 +480,7 @@ export default function LocationDetailView({
             {/* Media Gallery Section */}
             {galleryItems.length > 0 && (
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '3.5rem', marginTop: '1rem' }}>
-                <h2 style={{ fontSize: '2.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <h2 className="adventure-section-heading">
                   Gallery & Documents
                 </h2>
                 

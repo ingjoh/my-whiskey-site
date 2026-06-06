@@ -211,8 +211,31 @@ function AssetDetailView({ item, theme }: { item: any; theme: any }) {
   const specs = item.specifications ? Object.entries(item.specifications) : [];
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'start' }}>
+    <div className="asset-detail-container">
+      <style dangerouslySetInnerHTML={{ __html: `
+        .asset-detail-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 8rem 2rem 6rem 2rem;
+          width: 100%;
+        }
+        .asset-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 4rem;
+          align-items: start;
+        }
+        @media (max-width: 992px) {
+          .asset-detail-container {
+            padding: 6rem 1rem 4rem 1rem !important;
+          }
+          .asset-layout {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 2rem !important;
+          }
+        }
+      ` }} />
+      <div className="asset-layout">
         
         {/* Left Image & Title Info */}
         <div>
@@ -380,8 +403,36 @@ function StaffDetailView({ item, theme, linkedAdventures = [] }: { item: any; th
   };
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4rem', alignItems: 'start' }}>
+    <div className="staff-detail-container">
+      <style dangerouslySetInnerHTML={{ __html: `
+        .staff-detail-container {
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 8rem 2rem 6rem 2rem;
+          width: 100%;
+        }
+        .staff-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+          gap: 4rem;
+          align-items: start;
+        }
+        .adventure-hosted-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(185, 120, 59, 0.4) !important;
+          box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+        @media (max-width: 992px) {
+          .staff-detail-container {
+            padding: 6rem 1rem 4rem 1rem !important;
+          }
+          .staff-layout {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 2rem !important;
+          }
+        }
+      ` }} />
+      <div className="staff-layout">
         
         {/* Left Column: Avatar & Basic Details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
