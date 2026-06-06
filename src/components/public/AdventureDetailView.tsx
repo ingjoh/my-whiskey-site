@@ -496,9 +496,6 @@ export default function AdventureDetailView({
   const [generatedBookingToken, setGeneratedBookingToken] = useState<string>('');
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'deposit'>('full');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'eft'>('card');
-  const [cardNumber, setCardNumber] = useState<string>('');
-  const [cardExpiry, setCardExpiry] = useState<string>('');
-  const [cardCvc, setCardCvc] = useState<string>('');
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [isSigningWaiver, setIsSigningWaiver] = useState<boolean>(false);
   const [guestCount, setGuestCount] = useState<number>(1);
@@ -4091,7 +4088,7 @@ export default function AdventureDetailView({
                         style={{ accentColor: '#B9783B', marginTop: '0.15rem' }}
                       />
                       <span style={{ fontSize: '0.7rem', color: showTermsError ? '#ef4444' : '#D8C7AF', opacity: 0.8, lineHeight: '1.3', fontWeight: showTermsError ? 600 : 'normal' }}>
-                        I agree to the Bareboat Charter terms, digital liability waiver, and cancellation policies. I authorize charging card below.
+                        I agree to the Bareboat Charter terms, digital liability waiver, and cancellation policies.
                       </span>
                     </label>
                     <div style={{ paddingLeft: '1.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4174,56 +4171,26 @@ export default function AdventureDetailView({
 
                   {/* Payment Info Form - Conditional */}
                   {paymentMethod === 'card' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', borderTop: '1px dashed rgba(255,255,255,0.06)', paddingTop: '0.75rem', animation: 'fadeIn 0.2s ease-out' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#D8C7AF', display: 'flex', alignItems: 'center', gap: '0.35rem' }}><CreditCard size={14} /> Credit Card Information</span>
-                      <input 
-                        type="text" 
-                        placeholder="Card Number (4111 2222 3333 4444)"
-                        value={cardNumber}
-                        maxLength={19}
-                        onChange={e => {
-                          const val = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-                          const matches = val.match(/\d{4,16}/g);
-                          const match = (matches && matches[0]) || '';
-                          const parts = [];
-                          for (let i=0, len=match.length; i<len; i+=4) {
-                            parts.push(match.substring(i, i+4));
-                          }
-                          if (parts.length > 0) {
-                            setCardNumber(parts.join(' '));
-                          } else {
-                            setCardNumber(val);
-                          }
-                        }}
-                        style={{ padding: '0.45rem 0.65rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none' }}
-                        required
-                      />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        <input 
-                          type="text" 
-                          placeholder="MM/YY"
-                          value={cardExpiry}
-                          maxLength={5}
-                          onChange={e => {
-                            const val = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-                            if (val.length >= 2) {
-                              setCardExpiry(val.substring(0,2) + '/' + val.substring(2,4));
-                            } else {
-                              setCardExpiry(val);
-                            }
-                          }}
-                          style={{ padding: '0.45rem 0.65rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none', textAlign: 'center' }}
-                          required
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="CVC (123)"
-                          value={cardCvc}
-                          maxLength={3}
-                          onChange={e => setCardCvc(e.target.value.replace(/[^0-9]/gi, ''))}
-                          style={{ padding: '0.45rem 0.65rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none', textAlign: 'center' }}
-                          required
-                        />
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '0.4rem', 
+                      borderTop: '1px dashed rgba(255,255,255,0.06)', 
+                      paddingTop: '0.75rem',
+                      background: 'rgba(185, 120, 59, 0.05)',
+                      border: '1px solid rgba(185, 120, 59, 0.15)',
+                      padding: '0.75rem 0.85rem',
+                      borderRadius: '8px',
+                      color: '#D8C7AF',
+                      fontSize: '0.72rem',
+                      lineHeight: '1.45',
+                      animation: 'fadeIn 0.2s ease-out'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: '#B9783B' }}>
+                        <CreditCard size={14} /> Secure Payment via Stripe
+                      </div>
+                      <div>
+                        Clicking below will securely redirect you to Stripe to enter your payment details. Once complete, you will return here to sign the mandatory passenger waiver.
                       </div>
                     </div>
                   ) : (
@@ -4285,19 +4252,19 @@ export default function AdventureDetailView({
                         }
                         handleProcessPayment();
                       }}
-                      disabled={isProcessingPayment || (paymentMethod === 'card' && (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()))}
+                      disabled={isProcessingPayment}
                       style={{
                         flex: 2,
-                        background: (isProcessingPayment || (paymentMethod === 'card' && (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()))) ? 'rgba(255,255,255,0.05)' : '#B9783B',
-                        color: (isProcessingPayment || (paymentMethod === 'card' && (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()))) ? '#666' : 'white',
+                        background: isProcessingPayment ? 'rgba(255,255,255,0.05)' : '#B9783B',
+                        color: isProcessingPayment ? '#666' : 'white',
                         padding: '0.75rem',
                         borderRadius: '6px',
                         fontWeight: 600,
                         fontSize: '0.8rem',
-                        cursor: (isProcessingPayment || (paymentMethod === 'card' && (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()))) ? 'not-allowed' : 'pointer',
+                        cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
                         textAlign: 'center',
                         border: 'none',
-                        boxShadow: (isProcessingPayment || (paymentMethod === 'card' && (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()))) ? 'none' : '0 4px 14px rgba(185, 120, 59, 0.3)',
+                        boxShadow: isProcessingPayment ? 'none' : '0 4px 14px rgba(185, 120, 59, 0.3)',
                         transition: 'all 0.2s',
                         display: 'flex',
                         alignItems: 'center',
@@ -4308,7 +4275,7 @@ export default function AdventureDetailView({
                       {isProcessingPayment ? (
                         <>Processing...</>
                       ) : paymentMethod === 'card' ? (
-                        <>Pay {formatCost(amountDueToday)} <ArrowRight size={14} /></>
+                        <>Proceed to Secure Payment ({formatCost(amountDueToday)}) <ArrowRight size={14} /></>
                       ) : (
                         <>Confirm ACH Booking ({formatCost(amountDueToday)}) <ArrowRight size={14} /></>
                       )}
@@ -5111,9 +5078,6 @@ export default function AdventureDetailView({
                       setGuestName('');
                       setGuestPhone('');
                       setGuestEmail('');
-                      setCardNumber('');
-                      setCardExpiry('');
-                      setCardCvc('');
                       setAcceptTerms(false);
                       setCancellationInsurance(false);
                     }}
