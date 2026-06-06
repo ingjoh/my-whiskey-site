@@ -36,7 +36,7 @@ Federal regulations require all charter passengers to sign the bareboat release 
   },
   {
     id: 'waiver_reminder_sms',
-    name: 'Initial Waiver Request SMS',
+    name: 'Waiver Request SMS',
     channel: 'sms',
     body: 'M/Y Whiskey Voyage Confirmed! ID: {{bookingId}}. Date: {{date}} at {{startTime}}. Complete your digital release waiver here: {{portalUrl}}',
   },
@@ -60,7 +60,7 @@ Please click the button below to sign your digital passenger waiver. If you have
   },
   {
     id: 'trip_reminder_email_7d',
-    name: '7-Day Pre-Voyage Checklist Email',
+    name: 'Pre-Voyage Checklist Email',
     channel: 'email',
     subject: '7-Day Pre-Voyage Checklist - Booking #{{bookingId}}',
     body: `Dear {{guestName}},
@@ -80,13 +80,13 @@ We look forward to welcoming you on board **M/Y Whiskey** in Destin! To ensure a
   },
   {
     id: 'trip_reminder_sms_7d',
-    name: '7-Day Pre-Voyage Reminder SMS',
+    name: 'Pre-Voyage Reminder SMS',
     channel: 'sms',
     body: 'M/Y Whiskey: 7 days until your voyage! Please review your boarding checklist and waivers: {{portalUrl}}',
   },
   {
     id: 'trip_reminder_email_24h',
-    name: '24-Hour Boarding Instructions Email',
+    name: 'Boarding Instructions Email',
     channel: 'email',
     subject: 'Important: 24-Hour Boarding Instructions - Booking #{{bookingId}}',
     body: `Dear {{guestName}},
@@ -101,7 +101,7 @@ Please meet at the designated slip 15 minutes before your scheduled departure ti
   },
   {
     id: 'trip_reminder_sms_24h',
-    name: '24-Hour Boarding Instructions SMS',
+    name: 'Boarding Instructions SMS',
     channel: 'sms',
     body: 'M/Y Whiskey departure tomorrow at {{startTime}}! Meet at {{startLocationName}}. Check details and direction: {{portalUrl}}',
   },
@@ -179,6 +179,61 @@ const DEFAULT_FLOWS = [
   }
 ];
 
+const getStepMinutes = (value: number, unit: string) => {
+  if (unit === 'minutes') return value;
+  if (unit === 'hours') return value * 60;
+  if (unit === 'days') return value * 24 * 60;
+  return value;
+};
+
+const sortFlowSteps = (steps: any[]) => {
+  return [...steps].sort((a, b) => {
+    // 1. Instant steps always come first
+    if (a.offsetType === 'instant' && b.offsetType !== 'instant') return -1;
+    if (a.offsetType !== 'instant' && b.offsetType === 'instant') return 1;
+    if (a.offsetType === 'instant' && b.offsetType === 'instant') return 0;
+
+    // 2. Delayed after trigger steps come next
+    if (a.offsetType === 'delay_after_trigger' && b.offsetType === 'before_trip') return -1;
+    if (a.offsetType === 'before_trip' && b.offsetType === 'delay_after_trigger') return 1;
+
+    if (a.offsetType === 'delay_after_trigger' && b.offsetType === 'delay_after_trigger') {
+      return getStepMinutes(a.offsetValue, a.offsetUnit) - getStepMinutes(b.offsetValue, b.offsetUnit);
+    }
+
+    // 3. Before trip steps come last, sorted from furthest to closest (descending offset value)
+    // e.g. 7 days before comes BEFORE 1 day before.
+    if (a.offsetType === 'before_trip' && b.offsetType === 'before_trip') {
+      return getStepMinutes(b.offsetValue, b.offsetUnit) - getStepMinutes(a.offsetValue, a.offsetUnit);
+    }
+
+    return 0;
+  });
+};
+
+function formatStepName(templateName: string, step: any): string {
+  if (step.offsetType === 'instant') {
+    let cleanedName = templateName.replace(/^\d+-(Day|Hour|Minute)s?\s+/gi, '');
+    cleanedName = cleanedName.replace(/^Initial\s+/gi, '');
+    return `Instant ${cleanedName}`;
+  }
+  
+  const val = step.offsetValue;
+  const unit = step.offsetUnit;
+  
+  let unitLabel = '';
+  if (unit === 'days') unitLabel = val === 1 ? 'Day' : 'Day';
+  else if (unit === 'hours') unitLabel = val === 1 ? 'Hour' : 'Hour';
+  else if (unit === 'minutes') unitLabel = val === 1 ? 'Minute' : 'Minute';
+  
+  const timingPrefix = `${val}-${unitLabel}`;
+  
+  let cleanedName = templateName.replace(/^\d+-(Day|Hour|Minute)s?\s+/gi, '');
+  cleanedName = cleanedName.replace(/^Initial\s+/gi, '');
+  
+  return `${timingPrefix} ${cleanedName}`;
+}
+
 export default function MessagingDashboard() {
   const [activeTab, setActiveTab] = useState<'flows' | 'templates' | 'queue'>('flows');
 
@@ -195,6 +250,14 @@ export default function MessagingDashboard() {
   // Flow Editor State
   const [selectedFlow, setSelectedFlow] = useState<any>(null);
   const [editingStep, setEditingStep] = useState<any>(null);
+
+  // Step Creation Form State
+  const [showAddStepForm, setShowAddStepForm] = useState(false);
+  const [newStepTemplateId, setNewStepTemplateId] = useState('');
+  const [newStepOffsetType, setNewStepOffsetType] = useState<'instant' | 'delay_after_trigger' | 'before_trip'>('delay_after_trigger');
+  const [newStepOffsetValue, setNewStepOffsetValue] = useState(1);
+  const [newStepOffsetUnit, setNewStepOffsetUnit] = useState('days');
+  const [newStepCondition, setNewStepCondition] = useState('');
 
   // Template Editor State
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -231,6 +294,67 @@ export default function MessagingDashboard() {
       alert(`Seeding failed: ${err.message || String(err)}`);
     } finally {
       setIsSeeding(false);
+    }
+  };
+
+  // Delete Flow Step helper
+  const handleDeleteFlowStep = async (stepId: string) => {
+    if (!selectedFlow || !confirm('Are you sure you want to delete this step from the journey?')) return;
+    try {
+      const fRef = doc(db, 'notification_flows', selectedFlow.id);
+      const updatedSteps = selectedFlow.steps.filter((s: any) => s.id !== stepId);
+      const updatedFlow = {
+        ...selectedFlow,
+        steps: updatedSteps,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(fRef, updatedFlow);
+      setFlows(flows.map(f => f.id === selectedFlow.id ? updatedFlow : f));
+      setSelectedFlow(updatedFlow);
+      alert('Step removed from flow.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete step.');
+    }
+  };
+
+  // Add Flow Step helper
+  const handleAddFlowStep = async () => {
+    if (!selectedFlow || !newStepTemplateId) return;
+    try {
+      const fRef = doc(db, 'notification_flows', selectedFlow.id);
+      const newStepId = `step_${Date.now()}`;
+      const newStep = {
+        id: newStepId,
+        templateId: newStepTemplateId,
+        offsetType: newStepOffsetType,
+        offsetValue: newStepOffsetType === 'instant' ? 0 : Number(newStepOffsetValue),
+        offsetUnit: newStepOffsetUnit,
+        condition: newStepCondition || null
+      };
+
+      const updatedSteps = [...selectedFlow.steps, newStep];
+      const updatedFlow = {
+        ...selectedFlow,
+        steps: updatedSteps,
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(fRef, updatedFlow);
+      setFlows(flows.map(f => f.id === selectedFlow.id ? updatedFlow : f));
+      setSelectedFlow(updatedFlow);
+      
+      // Reset form
+      setShowAddStepForm(false);
+      setNewStepTemplateId('');
+      setNewStepOffsetType('delay_after_trigger');
+      setNewStepOffsetValue(1);
+      setNewStepOffsetUnit('days');
+      setNewStepCondition('');
+      alert('New journey step added successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add step.');
     }
   };
 
@@ -524,7 +648,7 @@ export default function MessagingDashboard() {
               </h3>
               
               <div style={{ position: 'relative', paddingLeft: '2.5rem', borderLeft: '2px dashed rgba(185, 120, 59, 0.25)', marginLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                {selectedFlow.steps.map((step: any, idx: number) => {
+                {sortFlowSteps(selectedFlow.steps).map((step: any, idx: number) => {
                   const tInfo = templates.find(t => t.id === step.templateId) || {};
                   const isEmail = tInfo.channel === 'email';
                   
@@ -547,55 +671,196 @@ export default function MessagingDashboard() {
                               </span>
                             )}
                           </div>
-                          <h4 style={{ fontSize: '0.92rem', color: 'white', fontWeight: 600, margin: '0 0 0.15rem 0' }}>{tInfo.name || step.templateId}</h4>
+                          <h4 style={{ fontSize: '0.92rem', color: 'white', fontWeight: 600, margin: '0 0 0.15rem 0' }}>
+                            {formatStepName(tInfo.name || step.templateId, step)}
+                          </h4>
                           <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6 }}>
                             Trigger: {step.offsetType === 'instant' ? 'Instant Dispatch' : `${step.offsetValue} ${step.offsetUnit} ${step.offsetType === 'before_trip' ? 'before departure' : 'after booking'}`}
                           </span>
                         </div>
 
-                        {editingStep?.id === step.id ? (
-                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                            <input 
-                              type="number"
-                              defaultValue={step.offsetValue}
-                              id={`offset-val-${step.id}`}
-                              style={{ width: '50px', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.3rem', borderRadius: '4px', fontSize: '0.75rem' }}
-                            />
-                            <select 
-                              defaultValue={step.offsetUnit}
-                              id={`offset-unit-${step.id}`}
-                              style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.3rem', borderRadius: '4px', fontSize: '0.75rem' }}
-                            >
-                              <option value="minutes">minutes</option>
-                              <option value="hours">hours</option>
-                              <option value="days">days</option>
-                            </select>
-                            <button 
-                              onClick={() => {
-                                const val = (document.getElementById(`offset-val-${step.id}`) as HTMLInputElement).value;
-                                const unit = (document.getElementById(`offset-unit-${step.id}`) as HTMLSelectElement).value;
-                                handleSaveFlowStep(step.id, Number(val), unit);
-                              }}
-                              style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.3rem 0.65rem', borderRadius: '4px', fontSize: '0.72rem', cursor: 'pointer' }}
-                            >
-                              Save
-                            </button>
-                          </div>
-                        ) : (
-                          step.offsetType !== 'instant' && (
-                            <button 
-                              onClick={() => setEditingStep(step)}
-                              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#D8C7AF', padding: '0.3rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
-                            >
-                              Edit Delay
-                            </button>
-                          )
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {editingStep?.id === step.id ? (
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                              <input 
+                                type="number"
+                                defaultValue={step.offsetValue}
+                                id={`offset-val-${step.id}`}
+                                style={{ width: '50px', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.3rem', borderRadius: '4px', fontSize: '0.75rem' }}
+                              />
+                              <select 
+                                defaultValue={step.offsetUnit}
+                                id={`offset-unit-${step.id}`}
+                                style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.3rem', borderRadius: '4px', fontSize: '0.75rem' }}
+                              >
+                                <option value="minutes">minutes</option>
+                                <option value="hours">hours</option>
+                                <option value="days">days</option>
+                              </select>
+                              <button 
+                                onClick={() => {
+                                  const val = (document.getElementById(`offset-val-${step.id}`) as HTMLInputElement).value;
+                                  const unit = (document.getElementById(`offset-unit-${step.id}`) as HTMLSelectElement).value;
+                                  handleSaveFlowStep(step.id, Number(val), unit);
+                                }}
+                                style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.3rem 0.65rem', borderRadius: '4px', fontSize: '0.72rem', cursor: 'pointer' }}
+                              >
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {step.offsetType !== 'instant' && (
+                                <button 
+                                  onClick={() => setEditingStep(step)}
+                                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#D8C7AF', padding: '0.3rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+                                >
+                                  Edit Delay
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleDeleteFlowStep(step.id)}
+                                style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#EF4444', padding: '0.35rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                                onMouseOut={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)'}
+                                title="Remove Step"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {/* Add Journey Step Button / Form */}
+              {!showAddStepForm ? (
+                <button
+                  onClick={() => setShowAddStepForm(true)}
+                  style={{
+                    marginTop: '2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    background: 'rgba(185, 120, 59, 0.04)',
+                    border: '1px dashed #B9783B',
+                    color: '#B9783B',
+                    padding: '0.65rem',
+                    width: '100%',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = 'rgba(185, 120, 59, 0.1)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'rgba(185, 120, 59, 0.04)'}
+                >
+                  <Plus size={14} /> Add Journey Step
+                </button>
+              ) : (
+                <div style={{
+                  marginTop: '2rem',
+                  background: 'rgba(255,255,255,0.01)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  padding: '1.25rem',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}>
+                  <h4 style={{ margin: 0, fontSize: '0.88rem', color: 'white', fontWeight: 600 }}>Add Journey Step</h4>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Select Template</label>
+                      <select
+                        value={newStepTemplateId}
+                        onChange={e => setNewStepTemplateId(e.target.value)}
+                        style={{ padding: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '4px', fontSize: '0.78rem' }}
+                      >
+                        <option value="">-- Choose Template --</option>
+                        {templates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.channel.toUpperCase()})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Trigger Type</label>
+                      <select
+                        value={newStepOffsetType}
+                        onChange={e => setNewStepOffsetType(e.target.value as any)}
+                        style={{ padding: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '4px', fontSize: '0.78rem' }}
+                      >
+                        <option value="instant">Instant Dispatch</option>
+                        <option value="delay_after_trigger">Delay After Booking</option>
+                        <option value="before_trip">Before Departure</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {newStepOffsetType !== 'instant' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Delay Value</label>
+                        <input
+                          type="number"
+                          value={newStepOffsetValue}
+                          onChange={e => setNewStepOffsetValue(Number(e.target.value))}
+                          style={{ padding: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '4px', fontSize: '0.78rem' }}
+                          min={1}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Unit</label>
+                        <select
+                          value={newStepOffsetUnit}
+                          onChange={e => setNewStepOffsetUnit(e.target.value)}
+                          style={{ padding: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '4px', fontSize: '0.78rem' }}
+                        >
+                          <option value="minutes">minutes</option>
+                          <option value="hours">hours</option>
+                          <option value="days">days</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.7 }}>Condition (Optional)</label>
+                    <select
+                      value={newStepCondition}
+                      onChange={e => setNewStepCondition(e.target.value)}
+                      style={{ padding: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '4px', fontSize: '0.78rem' }}
+                    >
+                      <option value="">No conditions (always send)</option>
+                      <option value="waiverSigned == false">Only if Waiver is Unsigned (waiverSigned == false)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={() => setShowAddStepForm(false)}
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#D8C7AF', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.78rem', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddFlowStep}
+                      disabled={!newStepTemplateId}
+                      style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 'bold', cursor: !newStepTemplateId ? 'not-allowed' : 'pointer' }}
+                    >
+                      Save Step
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Extended roadmap actions */}

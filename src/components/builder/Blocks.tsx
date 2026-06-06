@@ -4,6 +4,7 @@ import React from 'react';
 import { PageNode } from '@/store/useBuilderStore';
 import ReactMarkdown from 'react-markdown';
 import { SmartLink } from '@/components/SmartLink';
+import { SwipeScrollContainer } from './SwipeScrollContainer';
 
 export const SpecsBlock = ({ node }: { node: PageNode }) => {
   return (
@@ -86,11 +87,12 @@ export const GalleryBlock = ({ node }: { node: PageNode }) => {
       <h2 style={{ textAlign: 'center', marginBottom: '2rem', color: 'var(--color-primary)' }}>
         <ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{node.props.title}</ReactMarkdown>
       </h2>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '1.5rem',
-      }}>
+      <SwipeScrollContainer
+        active={node.props.mobileLayout === 'swipe'}
+        gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+        gap="1.5rem"
+        arrowColor="var(--color-primary)"
+      >
         {node.props.images && node.props.images.map((img: string, idx: number) => (
           <div key={idx} style={{ position: 'relative', borderRadius: 'var(--base-radius)', overflow: 'hidden', aspectRatio: '4/3' }}>
             {img ? (
@@ -100,7 +102,7 @@ export const GalleryBlock = ({ node }: { node: PageNode }) => {
             )}
           </div>
         ))}
-      </div>
+      </SwipeScrollContainer>
     </div>
   );
 };

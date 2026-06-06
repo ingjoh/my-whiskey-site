@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronUp, Anchor
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { SwipeScrollContainer } from '../builder/SwipeScrollContainer';
 import { 
   saveBookingData, saveWaiverSignature, loadPageData, getCustomerProfile, getContentItem,
   getAllBookings, getAssetBlackouts, BookingRecord, AssetBlackout,
@@ -1678,6 +1679,103 @@ export default function AdventureDetailView({
           justify-content: center;
         }
 
+        .adventure-spec-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .adventure-spec-label {
+          font-size: 0.75rem;
+          color: #D8C7AF;
+          opacity: 0.6;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.15rem;
+        }
+
+        .adventure-spec-value {
+          font-size: 1.15rem;
+          font-weight: 600;
+          color: white;
+          font-family: 'Cormorant Garamond', serif;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .adventure-spec-value.highlight {
+          color: #B9783B;
+        }
+
+        .spec-price-symbol {
+          font-size: 1.35rem;
+          font-weight: 700;
+          color: #B9783B;
+          line-height: 1;
+        }
+
+        @media (max-width: 767px) {
+          .adventure-specs-container {
+            margin-top: -2.5rem !important;
+            margin-bottom: 2.5rem !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.4rem !important;
+            padding: 0 0.5rem !important;
+          }
+          .adventure-spec-card {
+            flex-direction: column !important;
+            align-items: center !important;
+            text-align: center !important;
+            padding: 0.65rem 0.25rem !important;
+            gap: 0.35rem !important;
+            justify-content: center !important;
+            border-top: 2px solid transparent !important;
+            border-radius: 8px !important;
+            min-width: 0 !important;
+          }
+          .adventure-spec-card:hover {
+            transform: none !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
+          }
+          .spec-icon-wrapper {
+            padding: 0.35rem !important;
+            border-radius: 6px !important;
+          }
+          .spec-icon-wrapper svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+          .spec-price-symbol {
+            font-size: 0.95rem !important;
+          }
+          .adventure-spec-info {
+            align-items: center !important;
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .adventure-spec-label {
+            font-size: 0.55rem !important;
+            letter-spacing: 0.02em !important;
+            margin-bottom: 0.1rem !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            width: 100% !important;
+          }
+          .adventure-spec-value {
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+          .desktop-only {
+            display: none !important;
+          }
+        }
+
         .adventure-included-card {
           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -1689,7 +1787,17 @@ export default function AdventureDetailView({
           box-shadow: 0 8px 20px rgba(0,0,0,0.15);
         }
 
+        .adventure-itinerary-container {
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          padding-left: 2.25rem;
+          border-left: 2px solid rgba(185, 120, 59, 0.15);
+        }
+
         .adventure-itinerary-step {
+          position: relative;
+          margin-bottom: 1.5rem;
           transition: all 0.3s ease;
         }
 
@@ -1706,6 +1814,185 @@ export default function AdventureDetailView({
 
         .timeline-dot {
           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          position: absolute;
+          left: -2.95rem;
+          top: 0.1rem;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.65rem;
+          font-weight: 700;
+          color: #B9783B;
+          z-index: 2;
+        }
+
+        .itinerary-step-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          margin-bottom: 0.15rem;
+        }
+
+        .itinerary-step-title {
+          font-size: 1.15rem;
+          font-weight: 600;
+          color: white;
+          margin: 0;
+          font-family: 'Cormorant Garamond', serif;
+          letter-spacing: 0.01em;
+        }
+
+        .itinerary-step-time {
+          font-size: 0.8rem;
+          color: #B9783B;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+
+        .itinerary-step-description {
+          font-size: 0.95rem;
+          color: #D8C7AF;
+          line-height: 1.5;
+          margin: 0;
+          opacity: 0.9;
+        }
+
+        .itinerary-step-offset {
+          font-size: 0.75rem;
+          color: #D8C7AF;
+          opacity: 0.4;
+          margin-top: 0.2rem;
+          font-style: italic;
+        }
+
+        .itinerary-location-row {
+          position: relative;
+          margin-top: 0.5rem;
+          display: flex;
+        }
+
+        .itinerary-location-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 0.3rem 0.6rem;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease-in-out;
+        }
+
+        .itinerary-location-badge:hover {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(185, 120, 59, 0.3);
+        }
+
+        .itinerary-location-image {
+          width: 28px;
+          height: 28px;
+          border-radius: 4px;
+          object-fit: cover;
+        }
+
+        .itinerary-location-fallback {
+          width: 28px;
+          height: 28px;
+          border-radius: 4px;
+          background: rgba(185, 120, 59, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .itinerary-location-info {
+          display: flex;
+          align-items: baseline;
+          gap: 0.5rem;
+        }
+
+        .itinerary-location-title {
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: white;
+        }
+
+        .itinerary-location-link {
+          font-size: 0.72rem;
+          color: #B9783B;
+          text-decoration: none;
+          border-bottom: 1px solid transparent;
+          transition: border-color 0.2s;
+        }
+
+        .itinerary-location-link:hover {
+          border-bottom-color: #B9783B;
+        }
+
+        @media (max-width: 767px) {
+          .adventure-itinerary-container {
+            padding-left: 1.4rem !important;
+          }
+          .adventure-itinerary-step {
+            margin-bottom: 0.9rem !important;
+          }
+          .adventure-itinerary-step:hover {
+            transform: none !important;
+          }
+          .adventure-itinerary-step:hover .timeline-dot {
+            box-shadow: 0 0 0 3px rgba(185, 120, 59, 0.25) !important;
+          }
+          .timeline-dot {
+            left: -1.825rem !important;
+            width: 17px !important;
+            height: 17px !important;
+            font-size: 0.55rem !important;
+            top: 0.08rem !important;
+          }
+          .itinerary-step-header {
+            gap: 0.3rem !important;
+            margin-bottom: 0.05rem !important;
+          }
+          .itinerary-step-title {
+            font-size: 0.95rem !important;
+          }
+          .itinerary-step-time {
+            font-size: 0.68rem !important;
+          }
+          .itinerary-step-description {
+            font-size: 0.8rem !important;
+            line-height: 1.35 !important;
+          }
+          .itinerary-step-offset {
+            font-size: 0.68rem !important;
+            margin-top: 0.1rem !important;
+          }
+          .itinerary-location-row {
+            margin-top: 0.35rem !important;
+          }
+          .itinerary-location-badge {
+            padding: 0.2rem 0.45rem !important;
+            gap: 0.4rem !important;
+            border-radius: 4px !important;
+          }
+          .itinerary-location-image,
+          .itinerary-location-fallback {
+            width: 22px !important;
+            height: 22px !important;
+          }
+          .itinerary-location-info {
+            gap: 0.35rem !important;
+          }
+          .itinerary-location-title {
+            font-size: 0.75rem !important;
+          }
+          .itinerary-location-link {
+            font-size: 0.68rem !important;
+          }
         }
 
         .adventure-sidebar-card {
@@ -1765,6 +2052,49 @@ export default function AdventureDetailView({
         .addon-checkbox-label.checked {
           background: rgba(185, 120, 59, 0.1);
           border-color: rgba(185, 120, 59, 0.4);
+        }
+
+        .adventure-layout {
+          display: grid;
+          grid-template-columns: 1fr 420px;
+          gap: 3.5rem;
+          align-items: start;
+        }
+
+        .adventure-sidebar-wrapper {
+          position: sticky;
+          top: 100px;
+        }
+
+        .mobile-bottom-bar {
+          display: none;
+        }
+
+        @media (max-width: 992px) {
+          .adventure-layout {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+          }
+          .adventure-sidebar-wrapper {
+            position: relative;
+            top: 0;
+            margin-top: 1rem;
+          }
+          .mobile-bottom-bar {
+            display: flex;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(18, 20, 22, 0.98);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(185, 120, 59, 0.2);
+            padding: 1rem 1.5rem;
+            z-index: 1000;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.5);
+          }
         }
       ` }} />
 
@@ -1867,9 +2197,9 @@ export default function AdventureDetailView({
             <div className="spec-icon-wrapper">
               <Clock size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Duration</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
+            <div className="adventure-spec-info">
+              <div className="adventure-spec-label">Duration</div>
+              <div className="adventure-spec-value">
                 {formatDuration(guestMinutes)}
               </div>
             </div>
@@ -1880,9 +2210,9 @@ export default function AdventureDetailView({
             <div className="spec-icon-wrapper">
               <Users size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Capacity</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>Up to {capacity} Guests</div>
+            <div className="adventure-spec-info">
+              <div className="adventure-spec-label">Capacity</div>
+              <div className="adventure-spec-value">Up to {capacity} Guests</div>
             </div>
           </div>
 
@@ -1891,28 +2221,30 @@ export default function AdventureDetailView({
             <div className="spec-icon-wrapper">
               <MapPin size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Departure</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>{location}</div>
+            <div className="adventure-spec-info">
+              <div className="adventure-spec-label">Departure</div>
+              <div className="adventure-spec-value">{location}</div>
             </div>
           </div>
 
           {/* Price */}
           <div className="adventure-spec-card">
             <div className="spec-icon-wrapper">
-              <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#B9783B', lineHeight: 1 }}>{currencySymbol}</span>
+              <span className="spec-price-symbol">{currencySymbol}</span>
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Charter Price</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#B9783B', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
-                {price > 0 ? `From ${formatCost(price)}` : 'Inquire for Price'}
+            <div className="adventure-spec-info">
+              <div className="adventure-spec-label">
+                <span className="desktop-only">Charter </span>Price
+              </div>
+              <div className="adventure-spec-value highlight">
+                {price > 0 ? `From ${formatCost(price)}` : 'Inquire'}
               </div>
             </div>
           </div>
         </div>
 
         {/* Layout Splitting */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: '3.5rem', alignItems: 'start' }}>
+        <div className="adventure-layout">
           
           {/* Main Left Content */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
@@ -2057,7 +2389,7 @@ export default function AdventureDetailView({
                   </div>
                 </div>
               </div>
-                <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', paddingLeft: '2.5rem', borderLeft: '2px solid rgba(185, 120, 59, 0.15)' }}>
+                <div className="adventure-itinerary-container">
                   {computedItinerary
                     .filter((step: any) => showCrewDuties || !step.isCrewOnly)
                     .map((step: any, idx: number) => {
@@ -2067,8 +2399,6 @@ export default function AdventureDetailView({
                           key={idx} 
                           className="adventure-itinerary-step"
                           style={{ 
-                            position: 'relative', 
-                            marginBottom: '2.75rem',
                             opacity: isCrewStep ? 0.75 : 1,
                             zIndex: hoveredLocationIndex === idx ? 10 : 1
                           }}
@@ -2077,32 +2407,19 @@ export default function AdventureDetailView({
                           <div 
                             className="timeline-dot" 
                             style={{
-                              position: 'absolute',
-                              left: '-3.15rem',
-                              top: '0.1rem',
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '50%',
                               background: isCrewStep ? 'rgba(185, 120, 59, 0.1)' : '#121416',
                               border: isCrewStep ? '2px dashed #B9783B' : '2px solid #B9783B',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              color: '#B9783B',
-                              zIndex: 2
                             }}
                           >
                             {String(idx + 1).padStart(2, '0')}
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                            <h3 style={{ fontSize: '1.3rem', fontWeight: 600, color: 'white', margin: 0, fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
+                          <div className="itinerary-step-header">
+                            <h3 className="itinerary-step-title">
                               {step.title}
                             </h3>
                             {step.formattedTime && (
-                              <span style={{ fontSize: '0.85rem', color: '#B9783B', fontWeight: 600, textTransform: 'uppercase' }}>
+                              <span className="itinerary-step-time">
                                 ({step.formattedTime})
                               </span>
                             )}
@@ -2124,7 +2441,7 @@ export default function AdventureDetailView({
                             )}
                           </div>
                           
-                          <p style={{ fontSize: '0.975rem', color: '#D8C7AF', lineHeight: '1.65', margin: 0, opacity: 0.9 }}>
+                          <p className="itinerary-step-description">
                             {step.description}
                           </p>
 
@@ -2136,19 +2453,9 @@ export default function AdventureDetailView({
                             const isHovered = hoveredLocationIndex === idx;
                             
                             return (
-                              <div style={{ position: 'relative', marginTop: '0.75rem', display: 'flex' }}>
+                              <div className="itinerary-location-row">
                                 <div 
-                                  style={{ 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center', 
-                                    gap: '0.75rem', 
-                                    background: 'rgba(255,255,255,0.02)', 
-                                    border: '1px solid rgba(255,255,255,0.06)', 
-                                    padding: '0.4rem 0.75rem', 
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease-in-out',
-                                  }}
+                                  className="itinerary-location-badge"
                                   onMouseEnter={() => setHoveredLocationIndex(idx)}
                                   onMouseLeave={() => setHoveredLocationIndex(null)}
                                 >
@@ -2156,23 +2463,21 @@ export default function AdventureDetailView({
                                     <img 
                                       src={linkedLocation.heroImage} 
                                       alt={linkedLocation.title} 
-                                      style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }}
+                                      className="itinerary-location-image"
                                     />
                                   ) : (
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '4px', background: 'rgba(185, 120, 59, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div className="itinerary-location-fallback">
                                       <Anchor size={14} style={{ color: '#B9783B' }} />
                                     </div>
                                   )}
-                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>
+                                  <div className="itinerary-location-info">
+                                    <span className="itinerary-location-title">
                                       {linkedLocation.title}
                                     </span>
                                     <a 
                                       href={`/locations/${linkedLocation.slug}`}
-                                      style={{ fontSize: '0.75rem', color: '#B9783B', textDecoration: 'none', borderBottom: '1px solid transparent', transition: 'border-color 0.2s' }}
+                                      className="itinerary-location-link"
                                       onMouseEnter={(e) => e.stopPropagation()} // keep card showing when hovering the link
-                                      onMouseOver={(e) => e.currentTarget.style.borderColor = '#B9783B'}
-                                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
                                     >
                                       Learn more
                                     </a>
@@ -2237,7 +2542,7 @@ export default function AdventureDetailView({
                           })()}
                       
                       {idx > 0 && step.offsetMinutes > 0 && (
-                        <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.4, marginTop: '0.25rem', fontStyle: 'italic' }}>
+                        <div className="itinerary-step-offset">
                           +{step.offsetMinutes} minutes from previous step
                         </div>
                       )}
@@ -2266,7 +2571,12 @@ export default function AdventureDetailView({
                     <h3 style={{ fontSize: '1.75rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.25rem' }}>
                       Key Stops & Highlights
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                    <SwipeScrollContainer
+                      active={true}
+                      gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))"
+                      gap="1.5rem"
+                      arrowColor="#B9783B"
+                    >
                       {linkedLocations.map((loc: any) => (
                         <a
                           key={loc.id}
@@ -2299,7 +2609,7 @@ export default function AdventureDetailView({
                           </div>
                         </a>
                       ))}
-                    </div>
+                    </SwipeScrollContainer>
                   </div>
                 )}
 
@@ -2309,7 +2619,12 @@ export default function AdventureDetailView({
                     <h3 style={{ fontSize: '1.75rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.25rem' }}>
                       Featured Vessel & Equipment
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+                    <SwipeScrollContainer
+                      active={true}
+                      gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))"
+                      gap="1.5rem"
+                      arrowColor="#B9783B"
+                    >
                       {linkedAssets.map((asset: any) => (
                         <a
                           key={asset.id}
@@ -2357,7 +2672,7 @@ export default function AdventureDetailView({
                           </div>
                         </a>
                       ))}
-                    </div>
+                    </SwipeScrollContainer>
                   </div>
                 )}
 
@@ -2367,7 +2682,12 @@ export default function AdventureDetailView({
                     <h3 style={{ fontSize: '1.75rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', marginBottom: '1.25rem' }}>
                       Assigned Crew & Guides
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+                    <SwipeScrollContainer
+                      active={true}
+                      gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))"
+                      gap="1.5rem"
+                      arrowColor="#B9783B"
+                    >
                       {linkedStaff.map((staff: any) => {
                         const isCaptain = staff.isCaptain === true;
                         const isSelected = selectedCaptainId === staff.id;
@@ -2535,7 +2855,7 @@ export default function AdventureDetailView({
                           </a>
                         );
                       })}
-                    </div>
+                    </SwipeScrollContainer>
                   </div>
                 )}
 
@@ -2589,7 +2909,12 @@ export default function AdventureDetailView({
                 </div>
 
                 {/* Filtered Gallery Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                <SwipeScrollContainer
+                  active={true}
+                  gridTemplateColumns="repeat(auto-fill, minmax(220px, 1fr))"
+                  gap="1rem"
+                  arrowColor="#B9783B"
+                >
                   {galleryItems
                     .filter(media => {
                       if (activeGalleryTab === 'all') return true;
@@ -2675,13 +3000,13 @@ export default function AdventureDetailView({
                         </div>
                       );
                     })}
-                </div>
+                </SwipeScrollContainer>
               </div>
             )}
           </div>
 
           {/* Sidebar Booking Card */}
-          <div style={{ position: 'sticky', top: '100px' }}>
+          <div className="adventure-sidebar-wrapper" id="booking-widget">
             <div 
               className="adventure-sidebar-card"
               style={{
@@ -5025,6 +5350,33 @@ export default function AdventureDetailView({
         </div>
       )}
 
+      {/* Mobile Floating Action Bar */}
+      <div className="mobile-bottom-bar">
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#D8C7AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Charter Price</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#B9783B', fontFamily: "'Cormorant Garamond', serif" }}>
+            {price > 0 ? `From ${formatCost(price)}` : 'Inquire'}
+          </div>
+        </div>
+        <button 
+          onClick={() => {
+            document.getElementById('booking-widget')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          style={{
+            background: '#B9783B',
+            color: 'white',
+            border: 'none',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '8px',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            boxShadow: '0 4px 15px rgba(185, 120, 59, 0.4)',
+            cursor: 'pointer'
+          }}
+        >
+          Book Experience
+        </button>
+      </div>
     </div>
   );
 }

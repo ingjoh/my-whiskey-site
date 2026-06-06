@@ -4,6 +4,7 @@ import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
 import AdventureDetailView from '@/components/public/AdventureDetailView';
 import LocationDetailView from '@/components/public/LocationDetailView';
+import { SwipeScrollContainer } from '@/components/builder/SwipeScrollContainer';
 import ReactMarkdown from 'react-markdown';
 import { notFound } from 'next/navigation';
 import { 
@@ -119,10 +120,53 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
       style={{ 
         minHeight: '100vh', 
         width: '100%', 
-        background: theme.backgroundColor,
-        color: theme.foregroundColor,
-        fontFamily: "'Inter', sans-serif"
-      }}
+        background: 'var(--color-background)',
+        '--color-background': theme?.backgroundColor || '#1F2326',
+        '--color-foreground': theme?.foregroundColor || '#F4F1EA',
+        '--color-primary': theme?.primaryColor || '#B9783B',
+        '--color-surface': theme?.surfaceColor || '#1E3A4C',
+        '--color-muted': theme?.mutedColor || '#D8C7AF',
+        '--color-accent': theme?.accentColor || '#708C84',
+        '--color-border': 'rgba(255, 255, 255, 0.1)',
+        
+        '--font-heading': theme?.typography?.headingFontFamily || "'Cormorant Garamond', serif",
+        '--font-sans': theme?.typography?.bodyFontFamily || "'Inter', sans-serif",
+        
+        '--h1-font-size': theme?.typography?.h1?.fontSize || '3.5rem',
+        '--h1-font-weight': theme?.typography?.h1?.fontWeight || '800',
+        '--h1-font-size-mobile': theme?.typography?.h1Mobile?.fontSize || theme?.typography?.h1?.fontSize || '2.25rem',
+        '--h1-font-weight-mobile': theme?.typography?.h1Mobile?.fontWeight || theme?.typography?.h1?.fontWeight || '800',
+        '--h2-font-size': theme?.typography?.h2?.fontSize || '2.5rem',
+        '--h2-font-weight': theme?.typography?.h2?.fontWeight || '700',
+        '--h2-font-size-mobile': theme?.typography?.h2Mobile?.fontSize || theme?.typography?.h2?.fontSize || '1.75rem',
+        '--h2-font-weight-mobile': theme?.typography?.h2Mobile?.fontWeight || theme?.typography?.h2?.fontWeight || '700',
+        '--h3-font-size': theme?.typography?.h3?.fontSize || '1.5rem',
+        '--h3-font-weight': theme?.typography?.h3?.fontWeight || '600',
+        '--h3-font-size-mobile': theme?.typography?.h3Mobile?.fontSize || theme?.typography?.h3?.fontSize || '1.25rem',
+        '--h3-font-weight-mobile': theme?.typography?.h3Mobile?.fontWeight || theme?.typography?.h3?.fontWeight || '600',
+        '--p-font-size': theme?.typography?.p?.fontSize || '1rem',
+        '--p-font-weight': theme?.typography?.p?.fontWeight || '400',
+        '--p-font-size-mobile': theme?.typography?.pMobile?.fontSize || '0.925rem',
+        '--p-font-weight-mobile': theme?.typography?.pMobile?.fontWeight || theme?.typography?.p?.fontWeight || '400',
+        '--p-large-font-size': theme?.typography?.large?.fontSize || '1.2rem',
+        '--p-large-font-weight': theme?.typography?.large?.fontWeight || '400',
+        '--p-large-font-size-mobile': theme?.typography?.largeMobile?.fontSize || '1.1rem',
+        '--p-large-font-weight-mobile': theme?.typography?.largeMobile?.fontWeight || theme?.typography?.large?.fontWeight || '400',
+        '--small-font-size': theme?.typography?.small?.fontSize || '0.825rem',
+        '--small-font-weight': theme?.typography?.small?.fontWeight || '400',
+        '--small-font-size-mobile': theme?.typography?.smallMobile?.fontSize || '0.775rem',
+        '--small-font-weight-mobile': theme?.typography?.smallMobile?.fontWeight || theme?.typography?.small?.fontWeight || '400',
+        '--a-font-size': theme?.typography?.a?.fontSize || '0.95rem',
+        '--a-font-weight': theme?.typography?.a?.fontWeight || '600',
+        '--a-font-size-mobile': theme?.typography?.aMobile?.fontSize || '0.875rem',
+        '--a-font-weight-mobile': theme?.typography?.aMobile?.fontWeight || theme?.typography?.a?.fontWeight || '600',
+        
+        '--base-radius': theme?.styles?.radius || '0.5rem',
+        '--section-padding': theme?.styles?.padding || 'clamp(3rem, 8vw, 6rem) clamp(1.5rem, 4vw, 2rem)',
+        
+        fontFamily: 'var(--font-sans)',
+        color: 'var(--color-foreground)'
+      } as React.CSSProperties}
     >
       <PublicNavigation theme={{ ...theme, header: { ...theme.header, sticky: true } }} />
 
@@ -535,14 +579,19 @@ function StaffDetailView({ item, theme, linkedAdventures = [] }: { item: any; th
               <h2 style={{ fontSize: '1.65rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Experiences Hosted by {item.title.split(' ')[1] || item.title}
               </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
-                <style dangerouslySetInnerHTML={{__html: `
-                  .adventure-hosted-card:hover {
-                    transform: translateY(-3px);
-                    border-color: rgba(185, 120, 59, 0.4) !important;
-                    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-                  }
-                `}} />
+              <style dangerouslySetInnerHTML={{__html: `
+                .adventure-hosted-card:hover {
+                  transform: translateY(-3px);
+                  border-color: rgba(185, 120, 59, 0.4) !important;
+                  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+                }
+              `}} />
+              <SwipeScrollContainer
+                active={true}
+                gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))"
+                gap="1.5rem"
+                arrowColor="#B9783B"
+              >
                 {linkedAdventures.map((adv: any) => (
                   <a
                     key={adv.id}
@@ -588,7 +637,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [] }: { item: any; th
                     </div>
                   </a>
                 ))}
-              </div>
+              </SwipeScrollContainer>
             </div>
           )}
 

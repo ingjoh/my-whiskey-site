@@ -16,8 +16,8 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
     { label: 'Privacy Policy', url: '#' }
   ];
 
-  const navLinks = settings?.navigation?.links || [];
-  const [dynamicNavLinks, setDynamicNavLinks] = useState<any[]>(navLinks);
+  const navLinks = settings?.navigation?.links;
+  const [dynamicNavLinks, setDynamicNavLinks] = useState<any[]>(navLinks || []);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,7 +29,8 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
         
         if (!isMounted) return;
 
-        const updatedLinks = navLinks.map((link: any) => {
+        const currentLinks = navLinks || [];
+        const updatedLinks = currentLinks.map((link: any) => {
           if (!link.dynamicSublinks) return link;
           
           const matchedConfig = activeConfigs.find(c => c.id === link.dynamicSublinks);
@@ -65,10 +66,11 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
       }
     }
 
-    if (navLinks.some((l: any) => l.dynamicSublinks)) {
+    const currentLinks = navLinks || [];
+    if (currentLinks.some((l: any) => l.dynamicSublinks)) {
       loadDynamic();
     } else {
-      setDynamicNavLinks(navLinks);
+      setDynamicNavLinks(currentLinks);
     }
 
     return () => { isMounted = false; };

@@ -2,16 +2,36 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { detectProjectId } from './project-env';
 
 // Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+const stagingConfig = {
+  apiKey: "AIzaSyC81AvHn8JS5k4C1vYp2l8o1-5219QL1qw",
+  authDomain: "mywhiskey-97620.firebaseapp.com",
+  projectId: "mywhiskey-97620",
+  storageBucket: "mywhiskey-97620.firebasestorage.app",
+  messagingSenderId: "80580144561",
+  appId: "1:80580144561:web:dd04247b830dad39fa6190",
 };
+
+const prodConfig = {
+  apiKey: "AIzaSyDYdfDnkM8YFgdM9sEx1ZAFzpuDlP02kMU",
+  authDomain: "my-whiskey-prod.firebaseapp.com",
+  projectId: "my-whiskey-prod",
+  storageBucket: "my-whiskey-prod.firebasestorage.app",
+  messagingSenderId: "784231801845",
+  appId: "1:784231801845:web:ee3c862516db88934e76bc",
+};
+
+const getFirebaseConfig = () => {
+  const projectId = detectProjectId();
+  if (projectId === 'my-whiskey-prod') {
+    return prodConfig;
+  }
+  return stagingConfig;
+};
+
+const firebaseConfig = getFirebaseConfig();
 
 // Singleton pattern to prevent duplicate initializations during Next.js hot-reloading in dev.
 const globalForFirebase = globalThis as unknown as {

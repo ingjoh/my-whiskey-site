@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, X as CloseIcon } from 'lucide-react';
 import VideoPlayer from '@/components/public/VideoPlayer';
 import { SmartLink } from '@/components/SmartLink';
 import { getContentItems, ContentItem, getContentTypeConfigs, ContentTypeConfig, getContentItem } from '@/lib/db';
+import { SwipeScrollContainer } from './SwipeScrollContainer';
 
 export const TextBlock = ({ node, theme }: { node: PageNode, theme?: ThemeConfig }) => {
   const preset = node.props.typographyPreset;
@@ -317,7 +318,13 @@ export const CrewBlock = ({ node }: { node: PageNode }) => {
           <ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{node.props.title}</ReactMarkdown>
         </h2>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <SwipeScrollContainer
+        active={node.props.mobileLayout === 'swipe'}
+        gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))"
+        gap="2rem"
+        arrowColor="var(--color-primary)"
+        style={{ maxWidth: '1200px', margin: '0 auto' }}
+      >
         {crew.map((member, idx) => (
           <div key={idx} style={{ background: 'var(--color-surface)', borderRadius: 'var(--base-radius)', border: '1px solid var(--color-border)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ aspectRatio: '4/3', overflow: 'hidden' }}>
@@ -334,7 +341,7 @@ export const CrewBlock = ({ node }: { node: PageNode }) => {
             </div>
           </div>
         ))}
-      </div>
+      </SwipeScrollContainer>
     </div>
   );
 };
@@ -513,7 +520,12 @@ export const GalleryWithLightbox = ({ node, isEditorMode = false }: { node: Page
           <ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{node.props.title}</ReactMarkdown>
         </h2>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+      <SwipeScrollContainer
+        active={node.props.mobileLayout === 'swipe'}
+        gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+        gap="1.5rem"
+        arrowColor="var(--color-primary)"
+      >
         {images.map((img, idx) => (
           <div key={idx} onClick={() => openLightbox(idx)} style={{ position: 'relative', borderRadius: 'var(--base-radius)', overflow: 'hidden', aspectRatio: '4/3', cursor: isEditorMode ? 'default' : 'pointer' }}>
             {img ? (
@@ -526,7 +538,7 @@ export const GalleryWithLightbox = ({ node, isEditorMode = false }: { node: Page
             )}
           </div>
         ))}
-      </div>
+      </SwipeScrollContainer>
       {lightboxIdx !== null && (
         <div onClick={closeLightbox} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {/* Close Button */}
@@ -789,7 +801,13 @@ export const ExperiencesGridBlock = ({ node }: { node: PageNode }) => {
         {eyebrow && <div style={{ color: eyebrowColor, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1rem', fontFamily: 'var(--font-sans)' }}>{eyebrow}</div>}
         {headline && <h2 style={{ marginBottom: '3rem', color: headlineColor, fontSize: headlineFontSize, fontFamily: 'var(--font-heading)' }}><ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{headline}</ReactMarkdown></h2>}
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '4rem', textAlign: 'center' }}>
+        <SwipeScrollContainer
+          active={node.props.mobileLayout === 'swipe'}
+          gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+          gap="1.5rem"
+          arrowColor={eyebrowColor}
+          style={{ marginBottom: '4rem', textAlign: 'center' }}
+        >
           {cards.map((c: any, i: number) => {
             const Icon = c.icon ? (LucideIcons as any)[c.icon] as React.ComponentType<any> | undefined : undefined;
             return (
@@ -809,7 +827,7 @@ export const ExperiencesGridBlock = ({ node }: { node: PageNode }) => {
               </div>
             );
           })}
-        </div>
+        </SwipeScrollContainer>
         
         {bottomText && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', opacity: 0.7 }}>
@@ -952,22 +970,27 @@ export const TestimonialsGridBlock = ({ node }: { node: PageNode }) => {
           </div>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+        <SwipeScrollContainer
+          active={node.props.mobileLayout === 'swipe'}
+          gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+          gap="2rem"
+          arrowColor={eyebrowColor}
+        >
           {quotes.map((q: any, i: number) => {
             const numStars = typeof q.stars === 'number' ? q.stars : 5;
             
             return (
-             <div key={i} style={{ 
-               display: 'flex', 
-               flexDirection: 'column', 
-               background: cardBgColor, 
-               borderRadius: 'var(--radius-lg)', 
-               padding: '2.5rem', 
-               boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)',
-               border: '1px solid var(--color-border)',
-               position: 'relative',
-               overflow: 'hidden'
-             }}>
+              <div key={i} style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                background: cardBgColor, 
+                borderRadius: 'var(--radius-lg)', 
+                padding: '2.5rem', 
+                boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)',
+                border: '1px solid var(--color-border)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
                 {/* Decorative watermark */}
                 <div style={{ position: 'absolute', top: '-1rem', right: '1rem', color: eyebrowColor, fontSize: '10rem', lineHeight: 1, opacity: 0.08, fontFamily: 'serif', userSelect: 'none' }}>&ldquo;</div>
                 
@@ -995,10 +1018,10 @@ export const TestimonialsGridBlock = ({ node }: { node: PageNode }) => {
                     {q.subtitle && <div style={{ color: 'var(--color-muted)', fontSize: '0.75rem', fontFamily: 'var(--font-sans)' }}>{q.subtitle}</div>}
                   </div>
                 </div>
-             </div>
+              </div>
             );
           })}
-        </div>
+        </SwipeScrollContainer>
       </div>
     </div>
   );
@@ -1358,7 +1381,12 @@ export const ContentGridBlock = ({ node }: { node: PageNode }) => {
 
         {/* Loading skeleton */}
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns, gap: '2rem' }}>
+          <SwipeScrollContainer
+            active={node.props.mobileLayout === 'swipe'}
+            gridTemplateColumns={gridTemplateColumns}
+            gap="2rem"
+            arrowColor={eyebrowColor}
+          >
             {[1, 2, 3].slice(0, columns).map((idx) => (
               <div key={idx} style={{ background: cardBgColor, borderRadius: cardBorderRadius, border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '350px', opacity: 0.6 }}>
                 <div style={{ width: '100%', height: '200px', background: 'rgba(255,255,255,0.05)', borderRadius: cardBorderRadius }} />
@@ -1367,14 +1395,19 @@ export const ContentGridBlock = ({ node }: { node: PageNode }) => {
                 <div style={{ width: '100%', height: '40px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginTop: 'auto' }} />
               </div>
             ))}
-          </div>
+          </SwipeScrollContainer>
         ) : items.length === 0 ? (
           <div style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-muted)', textAlign: 'center', padding: '4rem 2rem', border: '1px dashed var(--color-border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
             <LucideIcons.AlertCircle size={32} color="var(--color-primary)" />
             <span>No published {contentType} items found.</span>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns, gap: '2rem' }}>
+          <SwipeScrollContainer
+            active={node.props.mobileLayout === 'swipe'}
+            gridTemplateColumns={gridTemplateColumns}
+            gap="2rem"
+            arrowColor={eyebrowColor}
+          >
             {items.map((item) => {
               const isHovered = hoveredItemId === item.id;
               return (
@@ -1481,7 +1514,7 @@ export const ContentGridBlock = ({ node }: { node: PageNode }) => {
                 </div>
               );
             })}
-          </div>
+          </SwipeScrollContainer>
         )}
       </div>
     </section>
@@ -1683,7 +1716,12 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
         )}
 
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns, gap: '2rem' }}>
+          <SwipeScrollContainer
+            active={node.props.mobileLayout === 'swipe'}
+            gridTemplateColumns={gridTemplateColumns}
+            gap="2rem"
+            arrowColor={eyebrowColor}
+          >
             {[1, 2, 3].slice(0, columns).map((idx) => (
               <div key={idx} style={{ background: cardBgColor, borderRadius: cardBorderRadius, border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '350px', opacity: 0.6 }}>
                 <div style={{ width: '100%', height: '200px', background: 'rgba(255,255,255,0.05)', borderRadius: cardBorderRadius }} />
@@ -1692,14 +1730,19 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
                 <div style={{ width: '100%', height: '40px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginTop: 'auto' }} />
               </div>
             ))}
-          </div>
+          </SwipeScrollContainer>
         ) : items.length === 0 ? (
           <div style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-muted)', textAlign: 'center', padding: '4rem 2rem', border: '1px dashed var(--color-border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
             <LucideIcons.AlertCircle size={32} color="var(--color-primary)" />
             <span>No published {contentType} items matching filters.</span>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns, gap: '2rem' }}>
+          <SwipeScrollContainer
+            active={node.props.mobileLayout === 'swipe'}
+            gridTemplateColumns={gridTemplateColumns}
+            gap="2rem"
+            arrowColor={eyebrowColor}
+          >
             {items.map((item) => {
               const isHovered = hoveredItemId === item.id;
               
@@ -1814,7 +1857,7 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
                 </div>
               );
             })}
-          </div>
+          </SwipeScrollContainer>
         )}
       </div>
     </section>

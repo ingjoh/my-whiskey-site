@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useId } from 'react';
 
 export interface VideoPlayerProps {
   url?: string;
@@ -41,11 +41,12 @@ export default function VideoPlayer({
   const ytMatch = url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
   const vimeoMatch = url?.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)([0-9]+)/i);
 
-  const playerId = useRef(`yt_${Math.random().toString(36).substring(2, 9)}`);
+  const reactId = useId();
+  const playerId = `yt_${reactId.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   if (ytMatch) {
     isYoutube = true;
-    let params = `autoplay=${autoPlay ? 1 : 0}&mute=${muted ? 1 : 0}&playsinline=1&rel=0&enablejsapi=1&controls=${showControls ? 1 : 0}&id=${playerId.current}`;
+    let params = `autoplay=${autoPlay ? 1 : 0}&mute=${muted ? 1 : 0}&playsinline=1&rel=0&enablejsapi=1&controls=${showControls ? 1 : 0}&id=${playerId}`;
     if (numStart) params += `&start=${numStart}`;
     if (numEnd) params += `&end=${numEnd}`;
     if (loop) params += `&loop=1&playlist=${ytMatch[1]}`;

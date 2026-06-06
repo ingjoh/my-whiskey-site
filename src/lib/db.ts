@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { PageNode, ThemeConfig, NavLink } from '@/store/useBuilderStore';
+import { detectProjectId } from './project-env';
 
 const PAGE_COLLECTION = 'pages';
 const TEMPLATE_COLLECTION = 'templates';
@@ -8,6 +9,10 @@ const SETTINGS_COLLECTION = 'settings';
 const ASSETS_COLLECTION = 'assets';
 const CONTENT_TYPES_COLLECTION = 'content_types';
 const CONTENT_ITEMS_COLLECTION = 'content_items';
+
+const getProjectId = () => {
+  return detectProjectId();
+};
 
 export interface Asset {
   id: string;
@@ -160,11 +165,19 @@ export const DEFAULT_TERMS_PAGE = {
       headingFontFamily: "'Cormorant Garamond', serif",
       bodyFontFamily: "'Inter', sans-serif",
       h1: { fontSize: '3.5rem', fontWeight: '800' },
+      h1Mobile: { fontSize: '2.25rem', fontWeight: '800' },
       h2: { fontSize: '2.5rem', fontWeight: '700' },
+      h2Mobile: { fontSize: '1.75rem', fontWeight: '700' },
       h3: { fontSize: '1.5rem', fontWeight: '600' },
-      p: { fontSize: '1.1rem', fontWeight: '400' },
-      small: { fontSize: '0.875rem', fontWeight: '400' },
-      a: { fontSize: '1rem', fontWeight: '600' },
+      h3Mobile: { fontSize: '1.25rem', fontWeight: '600' },
+      p: { fontSize: '1rem', fontWeight: '400' },
+      pMobile: { fontSize: '0.925rem', fontWeight: '400' },
+      large: { fontSize: '1.2rem', fontWeight: '400' },
+      largeMobile: { fontSize: '1.1rem', fontWeight: '400' },
+      small: { fontSize: '0.825rem', fontWeight: '400' },
+      smallMobile: { fontSize: '0.775rem', fontWeight: '400' },
+      a: { fontSize: '0.95rem', fontWeight: '600' },
+      aMobile: { fontSize: '0.875rem', fontWeight: '600' },
     },
     styles: {
       radius: '0.5rem',
@@ -285,11 +298,19 @@ export const DEFAULT_INSURANCE_PAGE = {
       headingFontFamily: "'Cormorant Garamond', serif",
       bodyFontFamily: "'Inter', sans-serif",
       h1: { fontSize: '3.5rem', fontWeight: '800' },
+      h1Mobile: { fontSize: '2.25rem', fontWeight: '800' },
       h2: { fontSize: '2.5rem', fontWeight: '700' },
+      h2Mobile: { fontSize: '1.75rem', fontWeight: '700' },
       h3: { fontSize: '1.5rem', fontWeight: '600' },
-      p: { fontSize: '1.1rem', fontWeight: '400' },
-      small: { fontSize: '0.875rem', fontWeight: '400' },
-      a: { fontSize: '1rem', fontWeight: '600' },
+      h3Mobile: { fontSize: '1.25rem', fontWeight: '600' },
+      p: { fontSize: '1rem', fontWeight: '400' },
+      pMobile: { fontSize: '0.925rem', fontWeight: '400' },
+      large: { fontSize: '1.2rem', fontWeight: '400' },
+      largeMobile: { fontSize: '1.1rem', fontWeight: '400' },
+      small: { fontSize: '0.825rem', fontWeight: '400' },
+      smallMobile: { fontSize: '0.775rem', fontWeight: '400' },
+      a: { fontSize: '0.95rem', fontWeight: '600' },
+      aMobile: { fontSize: '0.875rem', fontWeight: '600' },
     },
     styles: {
       radius: '0.5rem',
@@ -404,7 +425,7 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
   // On the server side, fetch from the Firestore REST API to avoid connection issues or client offline failures
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${PAGE_COLLECTION}/${route}`;
       const response = await fetch(url, {
         next: { revalidate: 0 } // bypass fetch caching to load fresh edits
@@ -716,7 +737,7 @@ export async function loadSiteSettings(): Promise<SiteSettings | null> {
   // On the server side, fetch from the Firestore REST API to avoid connection issues or client offline failures
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/global`;
       const response = await fetch(url, {
         next: { revalidate: 0 } // bypass fetch caching to load fresh settings
@@ -862,7 +883,7 @@ const DEFAULT_CONTENT_TYPES: ContentTypeConfig[] = [
 export async function getContentTypeConfigs(): Promise<ContentTypeConfig[]> {
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/content_types`;
       const response = await fetch(url, { next: { revalidate: 0 } });
       if (response.ok) {
@@ -1003,7 +1024,7 @@ export function applyMockFallbacks(item: ContentItem): ContentItem {
 export async function getContentItems(contentType?: string): Promise<ContentItem[]> {
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${PAGE_COLLECTION}`;
       const response = await fetch(url, { next: { revalidate: 0 } });
       if (response.ok) {
@@ -1131,7 +1152,7 @@ export async function getContentItem(id: string): Promise<ContentItem | null> {
   const docId = `content-item-${id}`;
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${PAGE_COLLECTION}/${docId}`;
       const response = await fetch(url, { next: { revalidate: 0 } });
       if (response.ok) {
@@ -1190,7 +1211,7 @@ export const DEFAULT_INCLUDED_ITEMS: IncludedItemConfig[] = [
 export async function loadIncludedItems(): Promise<IncludedItemConfig[]> {
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/included_items`;
       const response = await fetch(url, { next: { revalidate: 0 } });
       if (response.ok) {
@@ -1259,7 +1280,7 @@ export const DEFAULT_ADDON_PRODUCTS: AddonProduct[] = [
 export async function loadAddonProducts(): Promise<AddonProduct[]> {
   if (typeof window === 'undefined') {
     try {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mywhiskey-97620';
+      const projectId = getProjectId();
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/addon_products`;
       const response = await fetch(url, { next: { revalidate: 0 } });
       if (response.ok) {

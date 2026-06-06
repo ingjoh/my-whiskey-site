@@ -1,6 +1,6 @@
 'use client';
 
-import { useBuilderStore } from '@/store/useBuilderStore';
+import { useBuilderStore, ThemeConfig, TypographySettings } from '@/store/useBuilderStore';
 import * as LucideIcons from 'lucide-react';
 import { Trash2, Settings, Palette, UploadCloud, Plus, Image as ImageIcon, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -512,38 +512,84 @@ export default function BuilderRightPanel() {
 
                     <div style={{ height: '1px', background: 'var(--color-border)' }} />
 
+                    {/* Typography Sizes Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '50px 1fr 1fr 40px', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-muted)', textTransform: 'uppercase', paddingBottom: '0.25rem' }}>
+                      <span>Element</span>
+                      <span>Desktop</span>
+                      <span>Mobile</span>
+                      <span style={{ textAlign: 'center' }}>Bold</span>
+                    </div>
+
                     {/* Typography Sizes & Weights */}
                     {(['h1', 'h2', 'h3', 'large', 'p', 'small', 'a'] as const).map(tag => {
-                      const settings = theme.typography[tag] || { fontSize: tag === 'large' ? '1.3rem' : '', fontWeight: '400' };
+                      const settings = theme.typography[tag] || { fontSize: tag === 'large' ? '1.2rem' : '', fontWeight: '400' };
+                      const mobileKey = `${tag}Mobile` as keyof ThemeConfig['typography'];
+                      const mobileSettings = theme.typography[mobileKey] as TypographySettings || { fontSize: '', fontWeight: '400' };
                       const isBold = settings.fontWeight === 'bold' || parseInt(settings.fontWeight || '') > 600;
                       
                       return (
-                        <div key={tag} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div style={{ width: '40px', fontSize: '0.875rem', fontWeight: 600, textTransform: 'uppercase' }} title={tag === 'large' ? 'Large Body' : ''}>{tag}</div>
+                        <div key={tag} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 1fr 40px', gap: '0.5rem', alignItems: 'center' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }} title={tag === 'large' ? 'Large Body' : ''}>{tag}</div>
+                          
+                          {/* Desktop input */}
                           <input 
                             type="text" 
-                            placeholder="Size (e.g. 1rem)"
-                            value={settings.fontSize} 
-                            onChange={(e) => updateTheme({ typography: { ...theme.typography, [tag]: { ...settings, fontSize: e.target.value } } })}
-                            style={{ ...inputStyle, flex: 1 }}
+                            placeholder="Desktop size"
+                            value={settings.fontSize || ''} 
+                            onChange={(e) => updateTheme({ 
+                              typography: { 
+                                ...theme.typography, 
+                                [tag]: { ...settings, fontSize: e.target.value } 
+                              } 
+                            })}
+                            style={{ ...inputStyle, padding: '0.35rem 0.5rem', fontSize: '0.75rem' }}
                           />
+                          
+                          {/* Mobile input */}
+                          <input 
+                            type="text" 
+                            placeholder="Mobile size"
+                            value={mobileSettings?.fontSize || ''} 
+                            onChange={(e) => updateTheme({ 
+                              typography: { 
+                                ...theme.typography, 
+                                [mobileKey]: { ...mobileSettings, fontSize: e.target.value } 
+                              } 
+                            })}
+                            style={{ ...inputStyle, padding: '0.35rem 0.5rem', fontSize: '0.75rem' }}
+                          />
+                          
+                          {/* Bold Toggle */}
                           <button 
-                            onClick={() => updateTheme({ typography: { ...theme.typography, [tag]: { ...settings, fontWeight: isBold ? '400' : '700' } } })}
+                            onClick={() => {
+                              const newWeight = isBold ? '400' : '700';
+                              updateTheme({ 
+                                typography: { 
+                                  ...theme.typography, 
+                                  [tag]: { ...settings, fontWeight: newWeight },
+                                  [mobileKey]: { ...mobileSettings, fontWeight: newWeight }
+                                } 
+                              });
+                            }}
                             style={{ 
-                              padding: '0.5rem', 
+                              padding: '0.35rem', 
                               background: isBold ? 'var(--color-primary)' : 'var(--color-background)', 
                               color: isBold ? 'white' : 'var(--color-muted)',
                               border: '1px solid var(--color-border)', 
                               borderRadius: 'var(--radius-sm)', 
                               fontWeight: 'bold',
-                              cursor: 'pointer'
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
                             title="Toggle Bold"
                           >
                             B
                           </button>
                         </div>
-                      );
+                      )
                     })}
                     <div style={{ height: '1px', background: 'var(--color-border)' }} />
 
@@ -1034,6 +1080,17 @@ export default function BuilderRightPanel() {
                         />
                       </div>
                     </div>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
+                      </select>
+                    </label>
                   </>
                 )}
 
@@ -1496,6 +1553,17 @@ export default function BuilderRightPanel() {
                       ))}
                       <button onClick={() => { const crew = [...(selectedNode.props.crew || []), { image: '', name: '', role: '', bio: '' }]; updateNodeProps(selectedNodeId, { crew }); }} style={{ padding: '0.5rem', background: 'transparent', border: '1px dashed var(--color-border)', color: 'var(--color-primary)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}>+ Add Member</button>
                     </div>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
+                      </select>
+                    </label>
                   </>
                 )}
 
@@ -1769,6 +1837,17 @@ export default function BuilderRightPanel() {
                       Bottom Text
                       <input type="text" value={selectedNode.props.bottomText || ''} onChange={(e) => updateNodeProps(selectedNodeId, { bottomText: e.target.value })} style={inputStyle} />
                     </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
+                      </select>
+                    </label>
                   </>
                 )}
 
@@ -1809,6 +1888,17 @@ export default function BuilderRightPanel() {
                         <option value={2}>2 Columns</option>
                         <option value={3}>3 Columns</option>
                         <option value={4}>4 Columns</option>
+                      </select>
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
                       </select>
                     </label>
                   </>
@@ -1919,6 +2009,17 @@ export default function BuilderRightPanel() {
                       ))}
                       <button onClick={() => { const quotes = [...(selectedNode.props.quotes || []), { text: '', author: '' }]; updateNodeProps(selectedNodeId, { quotes }); }} style={{ padding: '0.5rem', background: 'transparent', border: '1px dashed var(--color-border)', color: 'var(--color-primary)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}>+ Add Quote</button>
                     </div>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
+                      </select>
+                    </label>
                   </>
                 )}
 
@@ -2188,6 +2289,17 @@ export default function BuilderRightPanel() {
                         Show CTA Button
                       </label>
                     </div>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      Mobile Layout
+                      <select 
+                        value={selectedNode.props.mobileLayout || 'stack'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="stack">Stack Vertically</option>
+                        <option value="swipe">Swipe Side-Scroll</option>
+                      </select>
+                    </label>
                   </>
                 )}
 

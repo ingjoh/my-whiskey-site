@@ -6,6 +6,7 @@ import {
   Download, X, ArrowRight, Sun, ExternalLink 
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { SwipeScrollContainer } from '../builder/SwipeScrollContainer';
 
 interface GalleryItem {
   type: 'image' | 'video' | 'document';
@@ -160,6 +161,89 @@ export default function LocationDetailView({
           justify-content: center;
         }
 
+        .location-spec-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .location-spec-label {
+          font-size: 0.75rem;
+          color: #D8C7AF;
+          opacity: 0.6;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.15rem;
+        }
+
+        .location-spec-value {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: white;
+          font-family: 'Cormorant Garamond', serif;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        @media (max-width: 767px) {
+          .location-specs-container {
+            margin-top: -2.5rem !important;
+            margin-bottom: 2.5rem !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.4rem !important;
+            padding: 0 0.5rem !important;
+          }
+          .location-spec-card {
+            flex-direction: column !important;
+            align-items: center !important;
+            text-align: center !important;
+            padding: 0.65rem 0.25rem !important;
+            gap: 0.35rem !important;
+            justify-content: center !important;
+            border-top: 2px solid transparent !important;
+            border-radius: 8px !important;
+            min-width: 0 !important;
+          }
+          .location-spec-card:hover {
+            transform: none !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
+          }
+          .spec-icon-wrapper {
+            padding: 0.35rem !important;
+            border-radius: 6px !important;
+          }
+          .spec-icon-wrapper svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+          .location-spec-info {
+            align-items: center !important;
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .location-spec-label {
+            font-size: 0.55rem !important;
+            letter-spacing: 0.02em !important;
+            margin-bottom: 0.1rem !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            width: 100% !important;
+          }
+          .location-spec-value {
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+          .desktop-only {
+            display: none !important;
+          }
+        }
+
         .adventure-hosted-card {
           transition: all 0.25s ease;
         }
@@ -279,9 +363,11 @@ export default function LocationDetailView({
             <div className="spec-icon-wrapper">
               <Anchor size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Anchor & Dock</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
+            <div className="location-spec-info">
+              <div className="location-spec-label">
+                <span className="desktop-only">Anchor & </span>Dock
+              </div>
+              <div className="location-spec-value">
                 {anchorStatus}
               </div>
             </div>
@@ -292,9 +378,11 @@ export default function LocationDetailView({
             <div className="spec-icon-wrapper">
               <Sun size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Best Time to Visit</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
+            <div className="location-spec-info">
+              <div className="location-spec-label">
+                Best Time<span className="desktop-only"> to Visit</span>
+              </div>
+              <div className="location-spec-value">
                 {bestTime}
               </div>
             </div>
@@ -305,9 +393,11 @@ export default function LocationDetailView({
             <div className="spec-icon-wrapper">
               <Ship size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Vessel Suitability</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em' }}>
+            <div className="location-spec-info">
+              <div className="location-spec-label">
+                <span className="desktop-only">Vessel </span>Suitability
+              </div>
+              <div className="location-spec-value">
                 {suitability}
               </div>
             </div>
@@ -318,9 +408,9 @@ export default function LocationDetailView({
             <div className="spec-icon-wrapper">
               <Compass size={22} color="#B9783B" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Coordinates</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.01em', wordBreak: 'break-all' }}>
+            <div className="location-spec-info">
+              <div className="location-spec-label">Coordinates</div>
+              <div className="location-spec-value">
                 {latitude && longitude ? (
                   `${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°`
                 ) : (
@@ -398,7 +488,12 @@ export default function LocationDetailView({
                 </div>
 
                 {/* Filtered Gallery Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                <SwipeScrollContainer
+                  active={true}
+                  gridTemplateColumns="repeat(auto-fill, minmax(220px, 1fr))"
+                  gap="1rem"
+                  arrowColor="#B9783B"
+                >
                   {galleryItems
                     .filter(media => {
                       if (activeGalleryTab === 'all') return true;
@@ -488,7 +583,7 @@ export default function LocationDetailView({
                         </div>
                       );
                     })}
-                </div>
+                </SwipeScrollContainer>
               </div>
             )}
           </div>

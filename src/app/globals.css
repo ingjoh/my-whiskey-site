@@ -94,6 +94,12 @@ h1 {
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
+@media (max-width: 767px) {
+  h1 {
+    font-size: var(--h1-font-size-mobile, 2.25rem);
+    font-weight: var(--h1-font-weight-mobile, 800);
+  }
+}
 
 h2 {
   font-family: var(--font-heading);
@@ -101,6 +107,12 @@ h2 {
   font-weight: var(--h2-font-weight, 700);
   line-height: 1.2;
   letter-spacing: -0.02em;
+}
+@media (max-width: 767px) {
+  h2 {
+    font-size: var(--h2-font-size-mobile, 1.75rem);
+    font-weight: var(--h2-font-weight-mobile, 700);
+  }
 }
 
 h3 {
@@ -110,28 +122,59 @@ h3 {
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
+@media (max-width: 767px) {
+  h3 {
+    font-size: var(--h3-font-size-mobile, 1.25rem);
+    font-weight: var(--h3-font-weight-mobile, 600);
+  }
+}
 
 p {
-  font-size: var(--p-font-size, 1.1rem);
+  font-size: var(--p-font-size, 1rem);
   font-weight: var(--p-font-weight, 400);
   line-height: 1.5;
 }
+@media (max-width: 767px) {
+  p {
+    font-size: var(--p-font-size-mobile, 0.925rem);
+    font-weight: var(--p-font-weight-mobile, 400);
+    line-height: 1.45;
+  }
+}
 
 p.large {
-  font-size: var(--p-large-font-size, 1.3rem);
+  font-size: var(--p-large-font-size, 1.2rem);
   font-weight: var(--p-large-font-weight, 400);
+}
+@media (max-width: 767px) {
+  p.large {
+    font-size: var(--p-large-font-size-mobile, 1.1rem);
+    font-weight: var(--p-large-font-weight-mobile, 400);
+  }
 }
 
 small {
-  font-size: var(--small-font-size, 0.875rem);
+  font-size: var(--small-font-size, 0.825rem);
   font-weight: var(--small-font-weight, 400);
+}
+@media (max-width: 767px) {
+  small {
+    font-size: var(--small-font-size-mobile, 0.775rem);
+    font-weight: var(--small-font-weight-mobile, 400);
+  }
 }
 
 a {
   color: inherit;
   text-decoration: none;
-  font-size: var(--a-font-size, 1rem);
+  font-size: var(--a-font-size, 0.95rem);
   font-weight: var(--a-font-weight, 600);
+}
+@media (max-width: 767px) {
+  a {
+    font-size: var(--a-font-size-mobile, 0.875rem);
+    font-weight: var(--a-font-weight-mobile, 600);
+  }
 }
 
 button {
@@ -153,3 +196,72 @@ button {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* Mobile Swipe Side-Scroll Module */
+.swipe-scroll-arrows-container {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* Layout transformation: from grid to flex row */
+  .swipe-scroll-active {
+    display: flex !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important;  /* IE/Edge */
+    padding-bottom: 1rem !important; /* Avoid card-shadow clipping */
+    margin-bottom: -1rem !important;
+  }
+  
+  .swipe-scroll-active::-webkit-scrollbar {
+    display: none !important; /* Chrome/Safari/Opera */
+  }
+
+  /* Force child cards/items to peek */
+  .swipe-scroll-active > * {
+    flex: 0 0 82% !important; /* Width is 82% so next item is visible */
+    max-width: 82% !important;
+    scroll-snap-align: start !important;
+  }
+
+  /* Premium Swipe Arrows */
+  .swipe-scroll-arrows-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-right: 0.5rem;
+  }
+
+  .swipe-scroll-arrow-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .swipe-scroll-arrow-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(0.92);
+  }
+
+  /* Theme adaptations */
+  [data-theme="light"] .swipe-scroll-arrow-btn {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  
+  [data-theme="light"] .swipe-scroll-arrow-btn:active {
+    background: rgba(0, 0, 0, 0.08);
+  }
+}
+
