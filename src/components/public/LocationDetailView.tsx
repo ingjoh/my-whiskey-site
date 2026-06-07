@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SwipeScrollContainer } from '../builder/SwipeScrollContainer';
+import { DynamicCardBlock } from '../builder/NewBlocks';
 
 interface GalleryItem {
   type: 'image' | 'video' | 'document';
@@ -53,7 +54,7 @@ interface LocationDetailViewProps {
     mutedColor: string;
     accentColor: string;
   };
-  linkedAdventures?: LinkedAdventure[];
+  linkedAdventures?: any[];
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -712,95 +713,42 @@ export default function LocationDetailView({
               </div>
             )}
 
-            {/* Experiences Visiting Here */}
-            <div>
-              <h3 style={{ 
-                fontSize: '1.5rem', 
-                fontFamily: "'Cormorant Garamond', serif", 
-                fontWeight: 700, 
-                color: 'white', 
-                marginBottom: '1.25rem',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                paddingBottom: '0.5rem'
-              }}>
-                Experiences Visiting Here
-              </h3>
-
-              {linkedAdventures.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {linkedAdventures.map(adv => {
-                    const guestMinutes = adv.guestDurationMinutes || 0;
-                    return (
-                      <a
-                        key={adv.id}
-                        href={`/experiences/${adv.slug}`}
-                        className="adventure-hosted-card"
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          background: '#1E2124',
-                          border: '1px solid rgba(255, 255, 255, 0.06)',
-                          borderRadius: '10px',
-                          overflow: 'hidden',
-                          textDecoration: 'none',
-                          transition: 'all 0.25s'
-                        }}
-                      >
-                        {adv.heroImage && (
-                          <div style={{ width: '100%', height: '140px', overflow: 'hidden' }}>
-                            <img src={adv.heroImage} alt={adv.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          </div>
-                        )}
-                        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                          <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>
-                            Private Charter
-                          </span>
-                          <h4 style={{ fontSize: '1.15rem', color: 'white', fontWeight: 600, margin: '0 0 0.5rem 0', fontFamily: "'Cormorant Garamond', serif" }}>
-                            {adv.title}
-                          </h4>
-                          <p style={{ fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.7, margin: '0 0 1rem 0', lineHeight: '1.4', flex: 1 }}>
-                            {adv.shortDescription}
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.75rem', marginTop: 'auto' }}>
-                            {guestMinutes > 0 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.7 }}>
-                                <Clock size={12} color="#B9783B" />
-                                <span>{formatDuration(guestMinutes)}</span>
-                              </div>
-                            )}
-                            {adv.basePrice && adv.basePrice > 0 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.7, marginLeft: 'auto' }}>
-                                <span style={{ color: '#B9783B', fontWeight: 600 }}>From {formatCost(adv.basePrice, adv.currency)}</span>
-                              </div>
-                            )}
-                          </div>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', color: '#B9783B', fontWeight: 600, marginTop: '0.75rem' }}>
-                            View Charter Details <ArrowRight size={12} />
-                          </span>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ 
-                  background: 'rgba(255,255,255,0.01)', 
-                  border: '1px dashed rgba(255,255,255,0.08)', 
-                  borderRadius: '8px', 
-                  padding: '1.5rem', 
-                  textAlign: 'center', 
-                  color: '#D8C7AF', 
-                  fontSize: '0.9rem', 
-                  opacity: 0.7 
-                }}>
-                  No public charters stop here directly yet. Contact us to design a custom itinerary.
-                </div>
-              )}
-            </div>
-
           </div>
 
         </div>
+
+        {linkedAdventures.length > 0 && (
+          <div style={{ marginTop: '5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4rem' }}>
+            <DynamicCardBlock 
+              node={{
+                id: 'location-adventures-grid',
+                type: 'DynamicCardBlock',
+                props: {
+                  contentType: 'adventure',
+                  eyebrow: 'Experiences',
+                  headline: `Experiences Visiting Here`,
+                  columns: 3,
+                  limit: 6,
+                  showImage: true,
+                  showTitle: true,
+                  showDescription: true,
+                  showLocation: true,
+                  showDuration: true,
+                  showPrice: true,
+                  showRating: true,
+                  showCerts: true,
+                  showButton: true,
+                  cardBgColor: '#1E2124',
+                  headlineFontSize: '2.25rem',
+                  mobileLayout: 'swipe',
+                  style: { padding: '0 0 2rem 0' }
+                },
+                children: []
+              }}
+              preFetchedItems={linkedAdventures}
+            />
+          </div>
+        )}
       </div>
 
       {/* Lightbox Modal overlay */}
