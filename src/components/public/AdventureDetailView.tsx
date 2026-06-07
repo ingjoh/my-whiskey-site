@@ -236,10 +236,17 @@ const getMarkerIcon = (number: number, isHighlighted: boolean) => {
     <circle cx="16" cy="16" r="14" fill="${encodeURIComponent(color)}" stroke="${encodeURIComponent(stroke)}" stroke-width="2"/>
     <text x="16" y="21" font-family="'Cormorant Garamond', serif" font-weight="bold" font-size="14" fill="%23121416" text-anchor="middle">${number}</text>
   </svg>`;
+  
+  const hasMaps = typeof window !== 'undefined' && 
+                  (window as any).google && 
+                  (window as any).google.maps && 
+                  (window as any).google.maps.Size && 
+                  (window as any).google.maps.Point;
+
   return {
     url: 'data:image/svg+xml;utf8,' + svg,
-    scaledSize: typeof window !== 'undefined' && (window as any).google ? new (window as any).google.maps.Size(size, size) : null,
-    anchor: typeof window !== 'undefined' && (window as any).google ? new (window as any).google.maps.Point(size / 2, size / 2) : null
+    scaledSize: hasMaps ? new (window as any).google.maps.Size(size, size) : null,
+    anchor: hasMaps ? new (window as any).google.maps.Point(size / 2, size / 2) : null
   };
 };
 
@@ -282,7 +289,12 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
 
   // Load Google Map
   useEffect(() => {
-    if (!mapRef.current || !(window as any).google || !(window as any).google.maps || stops.length === 0) {
+    if (!mapRef.current || 
+        !(window as any).google || 
+        !(window as any).google.maps || 
+        !(window as any).google.maps.Map || 
+        !(window as any).google.maps.LatLngBounds || 
+        stops.length === 0) {
       return;
     }
 
@@ -310,7 +322,10 @@ function ItineraryMap({ steps, allLocations, hoveredLocationIndex, setHoveredLoc
 
   // Update Markers
   useEffect(() => {
-    if (!map || !(window as any).google || !(window as any).google.maps) return;
+    if (!map || 
+        !(window as any).google || 
+        !(window as any).google.maps || 
+        !(window as any).google.maps.Marker) return;
 
     // Clear previous markers
     markersRef.current.forEach(m => m.setMap(null));
