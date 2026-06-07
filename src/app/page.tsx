@@ -1,4 +1,4 @@
-import { loadPageData } from '@/lib/db';
+import { loadPageData, loadSiteSettings } from '@/lib/db';
 import { DEFAULT_THEME } from '@/lib/pageTemplates';
 import { PageNode } from '@/store/useBuilderStore';
 import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from '@/components/builder/Blocks';
@@ -138,6 +138,7 @@ function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNode
 
 export default async function PublicHomePage() {
   const pageData = await loadPageData('home');
+  const siteSettings = await loadSiteSettings();
 
   if (!pageData) {
     return (
@@ -228,7 +229,7 @@ export default async function PublicHomePage() {
           rel="stylesheet" 
         />
       )}
-      <PublicNavigation theme={theme} />
+      <PublicNavigation theme={theme} settings={siteSettings} />
       <PublicNodeRenderer node={rootNode} allNodes={nodes} theme={theme} />
       <PublicFooter theme={theme} />
     </main>

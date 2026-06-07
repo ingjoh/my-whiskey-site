@@ -1,4 +1,4 @@
-import { getContentTypeConfigs, getContentItem, getPublishedCaptains, getContentItems, loadIncludedItems, loadPageData } from '@/lib/db';
+import { getContentTypeConfigs, getContentItem, getPublishedCaptains, getContentItems, loadIncludedItems, loadPageData, loadSiteSettings } from '@/lib/db';
 import { DEFAULT_THEME } from '@/lib/pageTemplates';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
@@ -94,6 +94,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
 
   // Common Theme styles for consistency
   const homeData = await loadPageData('home');
+  const siteSettings = await loadSiteSettings();
   const globalTheme = homeData?.theme || DEFAULT_THEME;
 
   const theme = {
@@ -168,7 +169,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
         color: 'var(--color-foreground)'
       } as React.CSSProperties}
     >
-      <PublicNavigation theme={{ ...theme, header: { ...theme.header, sticky: true } }} />
+      <PublicNavigation theme={{ ...theme, header: { ...theme.header, sticky: true } }} settings={siteSettings} />
 
       {/* Render based on Content Type */}
       {config.id === 'adventure' && (

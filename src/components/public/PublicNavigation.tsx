@@ -10,8 +10,9 @@ import { useSiteSettings } from '@/components/SiteSettingsProvider';
 import WeatherWidget from './WeatherWidget';
 import { getContentItems, getContentTypeConfigs } from '@/lib/db';
 
-export default function PublicNavigation({ theme, isEditorMode = false }: { theme?: ThemeConfig; isEditorMode?: boolean }) {
-  const { settings } = useSiteSettings();
+export default function PublicNavigation({ theme, settings: propSettings, isEditorMode = false }: { theme?: ThemeConfig; settings?: any; isEditorMode?: boolean }) {
+  const { settings: contextSettings } = useSiteSettings();
+  const settings = propSettings || contextSettings;
   const pathname = usePathname();
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);

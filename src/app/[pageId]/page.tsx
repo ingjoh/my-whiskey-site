@@ -1,4 +1,4 @@
-import { loadPageData, getContentTypeConfigs, getContentItems } from '@/lib/db';
+import { loadPageData, getContentTypeConfigs, getContentItems, loadSiteSettings } from '@/lib/db';
 import { DEFAULT_THEME } from '@/lib/pageTemplates';
 import { PageNode } from '@/store/useBuilderStore';
 import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from '@/components/builder/Blocks';
@@ -173,6 +173,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
   }
   
   let pageData = await loadPageData(pageId);
+  const siteSettings = await loadSiteSettings();
 
   if (!pageData) {
     // Check if route matches content type prefix
@@ -217,7 +218,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
             flexDirection: 'column'
           }}
         >
-          <PublicNavigation theme={theme} />
+          <PublicNavigation theme={theme} settings={siteSettings} />
           
           <div style={{ flex: 1, maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
             <div style={{ marginBottom: '3.5rem', textAlign: 'center' }}>
@@ -405,7 +406,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
           rel="stylesheet" 
         />
       )}
-      <PublicNavigation theme={theme} />
+      <PublicNavigation theme={theme} settings={siteSettings} />
       <PublicNodeRenderer node={rootNode} allNodes={nodes} />
       <PublicFooter theme={theme} />
     </main>
