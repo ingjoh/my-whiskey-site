@@ -2,9 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the user is an authenticated administrator
     function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null && (
+        request.auth.token.admin == true 
+        || request.auth.token.email.matches('.*@motoryachtwhiskey\\.com')
+        || request.auth.token.email.matches('.*@projects\\.vercel\\.app')
+        || request.auth.token.email == 'ingjohs@gmail.com'
+      );
     }
 
     // Global site settings rules

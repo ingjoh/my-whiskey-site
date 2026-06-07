@@ -1829,6 +1829,10 @@ export interface BookingRecord {
   refundStatus?: 'none' | 'pending_manual_refund' | 'refunded';
   stripeRefundId?: string;
   stripePaymentIntentId?: string;
+  cancellationSource?: 'customer_portal' | 'customer_call' | 'company_operational';
+  cancelledBy?: 'guest' | 'admin';
+  cancelReason?: string;
+  refundEstimate?: number;
   changeHistory?: any[];
 }
 
@@ -2569,6 +2573,33 @@ export function checkSignatureMatch(signature: string, printedName: string): boo
   }
   
   return false;
+}
+
+/**
+ * Ensures a booking document has a valid secure token. Generates one if missing.
+ */
+export async function ensureBookingToken(bookingId: string, currentToken?: string): Promise<string> {
+  if (currentToken && currentToken !== 'undefined') return currentToken;
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    const snap = await getDoc(bookingRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.token && data.token !== 'undefined') {
+        return data.token;
+      }
+      const secureToken = 'tkn_' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+      await setDoc(bookingRef, {
+        token: secureToken,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      return secureToken;
+    }
+  } catch (error) {
+    console.error('Error ensuring booking token:', error);
+  }
+  return '';
 }
 
 

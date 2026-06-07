@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { cancelPendingReminders } from '@/lib/notifications';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
+  apiVersion: '2023-10-16' as any,
+});
 
 // Parser to convert Firestore REST API formats to clean JSON objects
 async function getFirestoreDocRest(collectionName: string, docId: string) {
@@ -54,10 +59,40 @@ async function getFirestoreDocRest(collectionName: string, docId: string) {
   return result;
 }
 
+async function checkIsAdmin(request: NextRequest): Promise<boolean> {
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (process.env.NODE_ENV === 'development' && !serviceAccountJson) {
+    console.warn('Development mode: Firebase Admin credentials not found. Bypassing checkIsAdmin verification.');
+    return true;
+  }
+
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return false;
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    return decodedToken.admin === true;
+  } catch (error) {
+    console.error('Error verifying admin token:', error);
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bookingId, token, clientMetadata } = body;
+    const { 
+      bookingId, 
+      token, 
+      clientMetadata, 
+      isAdminOverride, 
+      refundOverrideAmount, 
+      cancelReason,
+      cancellationSource,
+      autoProcessRefund
+    } = body;
 
     if (!bookingId || !token || !clientMetadata) {
       return NextResponse.json({ error: 'Missing required parameters.' }, { status: 400 });
@@ -151,14 +186,70 @@ export async function POST(request: NextRequest) {
     // Round refund estimate to 2 decimal places
     refundEstimate = Math.round(refundEstimate * 100) / 100;
 
+    let isAuthorizedAdmin = false;
+    if (isAdminOverride) {
+      isAuthorizedAdmin = await checkIsAdmin(request);
+    }
+
+    let finalRefundEstimate = refundEstimate;
+    let finalPolicyText = policyText;
+
+    if (isAuthorizedAdmin && refundOverrideAmount !== undefined) {
+      finalRefundEstimate = refundOverrideAmount;
+      finalPolicyText = `Admin Override: Refund set to $${refundOverrideAmount} (Original policy: ${policyText})`;
+    }
+
+    let finalCancellationSource = cancellationSource;
+    if (!finalCancellationSource) {
+      finalCancellationSource = isAuthorizedAdmin ? 'customer_call' : 'customer_portal';
+    }
+
+    const cancelledBy = (finalCancellationSource === 'customer_portal') ? 'guest' : 'admin';
+
+    // Stripe Refund Integration
+    let stripeRefundId = '';
+    let refundStatus = 'pending_manual_refund';
+    let stripeRefundError = '';
+
+    if (autoProcessRefund && isAuthorizedAdmin && finalRefundEstimate > 0 && booking.stripePaymentIntentId) {
+      const isMockStripe = process.env.NODE_ENV === 'development' && (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'sk_test_dummy');
+      if (isMockStripe) {
+        console.warn('Simulating Stripe refund in development mode.');
+        stripeRefundId = 're_simulated_' + Math.random().toString(36).substring(2, 11);
+        refundStatus = 'refunded';
+      } else {
+        try {
+          const refundObj = await stripe.refunds.create({
+            payment_intent: booking.stripePaymentIntentId,
+            amount: Math.round(finalRefundEstimate * 100), // convert to cents
+            metadata: { bookingId: bookingId }
+          });
+          stripeRefundId = refundObj.id;
+          refundStatus = 'refunded';
+          console.log(`✓ Stripe refund successfully processed: ${refundObj.id}`);
+        } catch (stripeErr: any) {
+          console.error('Failed to create Stripe refund:', stripeErr);
+          stripeRefundError = stripeErr.message || 'Unknown Stripe refund failure';
+          refundStatus = 'pending_manual_refund';
+        }
+      }
+    }
+
+    const oldAmountPaid = booking.amountPaidToday || 0;
+    const newAmountPaid = refundStatus === 'refunded' ? Math.max(0, oldAmountPaid - finalRefundEstimate) : oldAmountPaid;
+
     // 1. Prepare Change History Audit Entry
-    const auditEntry = {
+    const auditEntry: any = {
       action: 'cancel',
       timestamp: new Date().toISOString(),
       oldValue: { date: booking.date, startTime: booking.startTime, status: booking.status },
       newValue: { date: booking.date, startTime: booking.startTime, status: 'cancelled' },
-      refundEstimate,
-      policyApplied: policyText,
+      initiatedBy: cancelledBy,
+      cancellationSource: finalCancellationSource,
+      cancelReason: cancelReason || (cancelledBy === 'admin' ? 'Cancelled by administrator' : 'Cancelled by customer'),
+      refundEstimate: finalRefundEstimate,
+      policyApplied: finalPolicyText,
+      refundStatus: refundStatus,
       ip: clientMetadata.ip || 'Unknown',
       city: clientMetadata.city || 'Unknown',
       region: clientMetadata.region || 'Unknown',
@@ -170,22 +261,42 @@ export async function POST(request: NextRequest) {
       device: clientMetadata.device || 'Unknown',
     };
 
+    if (stripeRefundId) {
+      auditEntry.stripeRefundId = stripeRefundId;
+    }
+    if (stripeRefundError) {
+      auditEntry.stripeRefundError = stripeRefundError;
+    }
+
     const currentHistory = booking.changeHistory || [];
     let isSimulated = false;
 
     try {
       // 2. Update Booking Document
       const bookingRef = adminDb.collection('pages').doc(docId);
-      await bookingRef.set({
+      const updateData: any = {
         status: 'cancelled',
-        refundStatus: 'pending_manual_refund',
-        refundEstimate: refundEstimate,
+        cancelledBy: cancelledBy,
+        cancellationSource: finalCancellationSource,
+        refundStatus: refundStatus,
+        refundEstimate: finalRefundEstimate,
         amountDueLater: 0, // cancelled bookings do not have outstanding balances
         changeHistory: [...currentHistory, auditEntry],
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
 
-      console.log(`✓ Cancelled booking ${bookingId}. Estimated refund: $${refundEstimate} (Applied: ${policyText})`);
+      if (refundStatus === 'refunded') {
+        updateData.amountRefunded = finalRefundEstimate;
+        updateData.stripeRefundId = stripeRefundId;
+        updateData.amountPaidToday = newAmountPaid;
+      }
+      if (stripeRefundError) {
+        updateData.stripeRefundError = stripeRefundError;
+      }
+
+      await bookingRef.set(updateData, { merge: true });
+
+      console.log(`✓ Cancelled booking ${bookingId}. Source: ${finalCancellationSource}. Estimated refund: $${finalRefundEstimate} (Applied: ${finalPolicyText})`);
 
       // 3. Cancel Scheduled Reminders
       await cancelPendingReminders(bookingId, '');
@@ -203,8 +314,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       simulated: isSimulated,
-      refundEstimate, 
-      policyApplied: policyText 
+      refundEstimate: finalRefundEstimate, 
+      policyApplied: finalPolicyText,
+      refundStatus: refundStatus,
+      stripeRefundId: stripeRefundId,
+      stripeRefundError: stripeRefundError
     });
   } catch (error: any) {
     console.error('Cancellation API error:', error);

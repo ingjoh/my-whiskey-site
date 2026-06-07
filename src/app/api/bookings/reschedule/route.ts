@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { cancelPendingReminders, enrollBookingInFlow } from '@/lib/notifications';
 
 // Parser to convert Firestore REST API formats to clean JSON objects
@@ -111,10 +111,31 @@ async function getFirestoreCollectionRest(collectionName: string) {
   });
 }
 
+async function checkIsAdmin(request: NextRequest): Promise<boolean> {
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (process.env.NODE_ENV === 'development' && !serviceAccountJson) {
+    console.warn('Development mode: Firebase Admin credentials not found. Bypassing checkIsAdmin verification.');
+    return true;
+  }
+
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return false;
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    return decodedToken.admin === true;
+  } catch (error) {
+    console.error('Error verifying admin token:', error);
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bookingId, token, newDate, newStartTime, clientMetadata } = body;
+    const { bookingId, token, newDate, newStartTime, clientMetadata, isAdminOverride, bypassAvailabilityCheck } = body;
 
     if (!bookingId || !token || !newDate || !newStartTime || !clientMetadata) {
       return NextResponse.json({ error: 'Missing required parameters.' }, { status: 400 });
@@ -200,13 +221,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This booking has already been cancelled.' }, { status: 400 });
     }
 
-    // 1. Verify reschedule time window (must be > 7 days prior to scheduled departure)
+    // 1. Verify reschedule time window (must be > 7 days prior to scheduled departure unless admin)
     const tripDate = new Date(`${booking.date}T${booking.startTime || '00:00'}:00`);
     const now = new Date();
     const diffTime = tripDate.getTime() - now.getTime();
     const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-    if (diffDays < 7) {
+    let isAuthorizedAdmin = false;
+    if (isAdminOverride) {
+      isAuthorizedAdmin = await checkIsAdmin(request);
+    }
+
+    if (!isAuthorizedAdmin && diffDays < 7) {
       return NextResponse.json({ 
         error: 'Voyages cannot be rescheduled within 7 days of departure. Please contact concierge.' 
       }, { status: 400 });
@@ -214,35 +240,38 @@ export async function POST(request: NextRequest) {
 
     const vesselSlug = booking.vesselSlug;
 
-    // 2. Server-side availability validation
-    if (conflicts.length > 0) {
-      return NextResponse.json({ error: 'The requested slot is already booked.' }, { status: 409 });
-    }
+    // 2. Server-side availability validation (bypassed if admin override requests it)
+    const shouldBypassAvailability = isAuthorizedAdmin && bypassAvailabilityCheck;
+    if (!shouldBypassAvailability) {
+      if (conflicts.length > 0) {
+        return NextResponse.json({ error: 'The requested slot is already booked.' }, { status: 409 });
+      }
 
-    // B. Check for blackouts
-    const matchedBlackout = blackouts.find(b => {
-      if (b.vesselSlug !== vesselSlug) return false;
-      const bStart = new Date(b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`).getTime();
-      const bEnd = new Date(b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`).getTime();
-      
-      const candStart = new Date(`${newDate}T${newStartTime}:00`).getTime();
-      // Assume average charter is 4 hours
-      const candEnd = candStart + 4 * 60 * 60 * 1000;
+      // B. Check for blackouts
+      const matchedBlackout = blackouts.find(b => {
+        if (b.vesselSlug !== vesselSlug) return false;
+        const bStart = new Date(b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`).getTime();
+        const bEnd = new Date(b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`).getTime();
+        
+        const candStart = new Date(`${newDate}T${newStartTime}:00`).getTime();
+        // Assume average charter is 4 hours
+        const candEnd = candStart + 4 * 60 * 60 * 1000;
 
-      return candStart < bEnd && candEnd > bStart;
-    });
+        return candStart < bEnd && candEnd > bStart;
+      });
 
-    if (matchedBlackout) {
-      return NextResponse.json({ error: `The vessel is blacked out during this slot: ${matchedBlackout.title}` }, { status: 409 });
-    }
+      if (matchedBlackout) {
+        return NextResponse.json({ error: `The vessel is blacked out during this slot: ${matchedBlackout.title}` }, { status: 409 });
+      }
 
-    // C. Check for checkout locks (excluding locks from this guest)
-    const otherLock = locks.find(l => {
-      return l.holderEmail?.toLowerCase().trim() !== booking.guestEmail?.toLowerCase().trim();
-    });
+      // C. Check for checkout locks (excluding locks from this guest)
+      const otherLock = locks.find(l => {
+        return l.holderEmail?.toLowerCase().trim() !== booking.guestEmail?.toLowerCase().trim();
+      });
 
-    if (otherLock) {
-      return NextResponse.json({ error: 'This slot is temporarily held in another checkout.' }, { status: 409 });
+      if (otherLock) {
+        return NextResponse.json({ error: 'This slot is temporarily held in another checkout.' }, { status: 409 });
+      }
     }
 
     // 3. Prepare Change History Audit Entry
@@ -251,6 +280,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
       oldValue: { date: booking.date, startTime: booking.startTime, status: booking.status },
       newValue: { date: newDate, startTime: newStartTime, status: booking.status },
+      initiatedBy: isAuthorizedAdmin ? 'admin' : 'guest',
       ip: clientMetadata.ip || 'Unknown',
       city: clientMetadata.city || 'Unknown',
       region: clientMetadata.region || 'Unknown',

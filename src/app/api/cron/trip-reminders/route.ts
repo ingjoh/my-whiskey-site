@@ -13,11 +13,27 @@ export async function GET(request: NextRequest) {
     console.log('[Cron] Checking scheduled notification queue...');
     const now = new Date().toISOString();
     
-    // Query pending notifications scheduled for now or earlier
-    const pendingSnap = await adminDb.collection('scheduled_notifications')
-      .where('status', '==', 'pending')
-      .where('scheduledTime', '<=', now)
-      .get();
+    let pendingSnap;
+    try {
+      pendingSnap = await adminDb.collection('scheduled_notifications')
+        .where('status', '==', 'pending')
+        .where('scheduledTime', '<=', now)
+        .get();
+    } catch (writeErr: any) {
+      const isCredsErr = writeErr.message?.includes('credentials') || writeErr.message?.includes('default credentials');
+      if (process.env.NODE_ENV === 'development' && isCredsErr) {
+        console.warn('Firebase Admin credentials not found. Simulating cron queue processing locally in development.');
+        return NextResponse.json({ 
+          success: true, 
+          totalPending: 0, 
+          processed: 0,
+          simulated: true,
+          message: 'Local Simulation: Firebase Admin credentials are not found. Copy FIREBASE_SERVICE_ACCOUNT from Vercel to .env.local to enable real database writes locally.'
+        });
+      } else {
+        throw writeErr;
+      }
+    }
 
     console.log(`[Cron] Found ${pendingSnap.size} pending alerts to process.`);
     

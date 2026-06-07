@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
 import { 
   getBookingById, sendBookingMessage, saveWaiverSignature, loadPageData,
   BookingRecord, BookingMessage, checkSignatureMatch, getCustomerProfile,
@@ -16,16 +17,28 @@ import {
   Edit3, Trash2, HelpCircle, ChevronDown, Check, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-function PortalContent() {
+function PortalContent({ externalTheme }: { externalTheme?: any }) {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
-  const bookingId = searchParams.get('id') || '';
+  const rawBookingId = searchParams.get('id') || '';
+  const bookingId = rawBookingId
+    ? (rawBookingId.startsWith('BK-')
+      ? 'BK-' + rawBookingId.replace(/^(?:BK-)+/, '')
+      : 'BK-' + rawBookingId)
+    : '';
   const token = searchParams.get('token') || '';
 
   // Core Data States
   const [booking, setBooking] = useState<BookingRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [theme, setTheme] = useState<any>(DEFAULT_THEME);
+  const [theme, setTheme] = useState<any>(externalTheme || DEFAULT_THEME);
+
+  useEffect(() => {
+    if (externalTheme) {
+      setTheme(externalTheme);
+    }
+  }, [externalTheme]);
   const [customerBookings, setCustomerBookings] = useState<BookingRecord[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
 
@@ -57,6 +70,7 @@ function PortalContent() {
   const [cancellationRefundEstimate, setCancellationRefundEstimate] = useState<number>(0);
   const [cancellationPolicyText, setCancellationPolicyText] = useState<string>('');
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
 
   const [isProcessingBalancePayment, setIsProcessingBalancePayment] = useState<boolean>(false);
 
@@ -307,18 +321,28 @@ function PortalContent() {
 
       try {
         // Load global site settings / theme
-        const homeData = await loadPageData('home');
-        if (homeData?.theme) {
-          setTheme({
-            ...DEFAULT_THEME,
-            ...homeData.theme,
-            backgroundColor: homeData.theme.backgroundColor || '#121416',
-            foregroundColor: homeData.theme.foregroundColor || '#F4F1EA',
-            primaryColor: homeData.theme.primaryColor || '#B9783B',
-            surfaceColor: homeData.theme.surfaceColor || '#1E2124',
-            mutedColor: homeData.theme.mutedColor || '#D8C7AF',
-            accentColor: homeData.theme.accentColor || '#708C84'
-          });
+        if (!externalTheme) {
+          const homeData = await loadPageData('home');
+          if (homeData?.theme) {
+            setTheme({
+              ...DEFAULT_THEME,
+              ...homeData.theme,
+              backgroundColor: homeData.theme.backgroundColor || '#121416',
+              foregroundColor: homeData.theme.foregroundColor || '#F4F1EA',
+              primaryColor: homeData.theme.primaryColor || '#B9783B',
+              surfaceColor: homeData.theme.surfaceColor || '#1E2124',
+              mutedColor: homeData.theme.mutedColor || '#D8C7AF',
+              accentColor: homeData.theme.accentColor || '#708C84',
+              header: {
+                ...DEFAULT_THEME.header,
+                ...homeData.theme.header,
+              },
+              footer: {
+                ...DEFAULT_THEME.footer,
+                ...homeData.theme.footer,
+              }
+            });
+          }
         }
 
         // Fetch booking
@@ -329,8 +353,26 @@ function PortalContent() {
           return;
         }
 
+        // Check if the current user is a logged-in admin
+        let adminBypass = false;
+        if (user) {
+          const email = user.email ? user.email.toLowerCase().trim() : '';
+          const isWhitelisted = email === 'ingjohs@gmail.com' || email.endsWith('@motoryachtwhiskey.com') || email.endsWith('@projects.vercel.app');
+          try {
+            const idTokenResult = await user.getIdTokenResult();
+            if (idTokenResult.claims.admin === true || isWhitelisted || process.env.NODE_ENV === 'development') {
+              adminBypass = true;
+            }
+          } catch (e) {
+            console.error('Failed to check admin status for token bypass:', e);
+            if (isWhitelisted) {
+              adminBypass = true;
+            }
+          }
+        }
+
         // Token match validation
-        if (data.token !== token) {
+        if (data.token !== token && !adminBypass) {
           setError('Invalid or expired secure access token.');
           setLoading(false);
           return;
@@ -391,7 +433,7 @@ function PortalContent() {
     }
 
     loadPortalData();
-  }, [bookingId, token]);
+  }, [bookingId, token, user]);
 
   // Set up polling for messages and waiver updates every 5 seconds
   useEffect(() => {
@@ -823,6 +865,7 @@ function PortalContent() {
       }
     }
 
+    setCancelReason('');
     setCancellationRefundEstimate(Math.round(estimate * 100) / 100);
     setCancellationPolicyText(text);
     setShowCancelModal(true);
@@ -841,7 +884,9 @@ function PortalContent() {
         body: JSON.stringify({
           bookingId: booking.id,
           token: booking.token,
-          clientMetadata
+          clientMetadata,
+          cancelReason: cancelReason || 'Cancelled by customer via Guest Portal',
+          cancellationSource: 'customer_portal'
         })
       });
 
@@ -1037,6 +1082,59 @@ function PortalContent() {
         {/* LEFT COLUMN: Booking Details & Liability Waiver Signature */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
+          {booking.status === 'cancelled' && (
+            <div style={{ 
+              background: 'rgba(239, 68, 68, 0.05)', 
+              border: '1px solid rgba(239, 68, 68, 0.2)', 
+              borderRadius: '12px', 
+              padding: '1.5rem', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '0.75rem',
+              animation: 'fadeInUp 0.3s ease-out'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#EF4444', fontWeight: 700, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <AlertTriangle size={18} />
+                <span>Voyage Cancelled</span>
+              </div>
+              
+              <p style={{ color: '#D8C7AF', opacity: 0.9, fontSize: '0.84rem', lineHeight: '1.5', margin: 0 }}>
+                {booking.cancellationSource === 'company_operational' ? (
+                  <>
+                    We sincerely apologize, but this charter has been <strong>cancelled by the Motor Yacht Whiskey team due to operational circumstances</strong> (e.g. adverse weather, vessel maintenance, or captain unavailability).
+                  </>
+                ) : (
+                  <>
+                    This voyage was <strong>cancelled at your request</strong>. We hope to welcome you aboard another time in the future!
+                  </>
+                )}
+              </p>
+
+              {booking.cancelReason && (
+                <div style={{ fontSize: '0.78rem', color: '#D8C7AF', fontStyle: 'italic', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '6px', borderLeft: '3px solid #EF4444' }}>
+                  "{booking.cancelReason}"
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '1.5rem', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.75rem', fontSize: '0.78rem', marginTop: '0.25rem' }}>
+                <div>
+                  <span style={{ opacity: 0.6, color: '#D8C7AF', display: 'block', fontSize: '0.7rem' }}>REFUND POLICY</span>
+                  <span style={{ color: 'white', fontWeight: 600 }}>{booking.cancellationInsurance ? 'Insured Charter Tier' : 'Standard Policy Tier'}</span>
+                </div>
+                <div>
+                  <span style={{ opacity: 0.6, color: '#D8C7AF', display: 'block', fontSize: '0.7rem' }}>REFUND ESTIMATE</span>
+                  <span style={{ color: '#708C84', fontWeight: 700 }}>{formatCost(booking.refundEstimate || 0)}</span>
+                </div>
+                <div>
+                  <span style={{ opacity: 0.6, color: '#D8C7AF', display: 'block', fontSize: '0.7rem' }}>REFUND STATUS</span>
+                  <span style={{ color: 'white', fontWeight: 600, textTransform: 'uppercase' }}>
+                    {booking.refundStatus === 'refunded' ? '✓ Refunded' : 'Pending Review'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 1. Charter Details Block */}
           <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '2rem' }}>
             <h3 style={{ fontSize: '1.4rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1809,6 +1907,28 @@ function PortalContent() {
               </div>
             </div>
 
+            {/* Reason Textarea */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.25rem' }}>
+              <label style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Reason for Cancellation (optional)</label>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                placeholder="e.g. Change of plans, family emergency, scheduling conflict..."
+                style={{
+                  padding: '0.55rem',
+                  background: '#121416',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontSize: '0.78rem',
+                  outline: 'none',
+                  resize: 'none',
+                  minHeight: '60px',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button
                 type="button"
@@ -1975,16 +2095,56 @@ function PortalContent() {
 }
 
 export default function SecureGuestPortal() {
+  const [theme, setTheme] = useState<any>(DEFAULT_THEME);
+
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const homeData = await loadPageData('home');
+        if (homeData?.theme) {
+          setTheme({
+            ...DEFAULT_THEME,
+            ...homeData.theme,
+            backgroundColor: homeData.theme.backgroundColor || '#121416',
+            foregroundColor: homeData.theme.foregroundColor || '#F4F1EA',
+            primaryColor: homeData.theme.primaryColor || '#B9783B',
+            surfaceColor: homeData.theme.surfaceColor || '#1E2124',
+            mutedColor: homeData.theme.mutedColor || '#D8C7AF',
+            accentColor: homeData.theme.accentColor || '#708C84',
+            header: {
+              ...DEFAULT_THEME.header,
+              ...homeData.theme.header,
+            },
+            footer: {
+              ...DEFAULT_THEME.footer,
+              ...homeData.theme.footer,
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load guest portal theme settings:', err);
+      }
+    }
+    loadTheme();
+  }, []);
+
   return (
     <Suspense fallback={
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#121416', color: '#D8C7AF' }}>
         <p>Initializing Secure Connection...</p>
       </div>
     }>
-      <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif" }}>
-        <PublicNavigation theme={DEFAULT_THEME} />
-        <PortalContent />
-        <PublicFooter theme={DEFAULT_THEME} />
+      <main style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        background: theme.backgroundColor || '#121416', 
+        color: theme.foregroundColor || '#F4F1EA', 
+        fontFamily: theme.typography?.bodyFontFamily || "'Inter', sans-serif" 
+      }}>
+        <PublicNavigation theme={theme} />
+        <PortalContent externalTheme={theme} />
+        <PublicFooter theme={theme} />
       </main>
     </Suspense>
   );

@@ -7,13 +7,93 @@ import { useEffect, useState } from 'react';
 import { 
   Anchor, ArrowLeft, Search, Calendar, Ship, Users, CheckCircle, 
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
-  MessageSquare
+  MessageSquare, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
   getAssetBlackouts, getAllCheckoutLocks, deleteAssetBlackout,
-  sendBookingMessage, getBookingById, updateBookingMessageStatus
+  sendBookingMessage, getBookingById, updateBookingMessageStatus,
+  ensureBookingToken
 } from '@/lib/db';
+
+// Helper to format local timezone Date objects as YYYY-MM-DD
+const formatLocalYYYYMMDD = (d: Date) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+// Helper to format currency
+const formatCost = (val: number) => {
+  return `$${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+
+// Helper to get total amount paid today with fallback for active bookings
+const getPaidToday = (b: any) => {
+  if (!b) return 0;
+  const rawPaidToday = b.amountPaidToday || 0;
+  const isActive = b.status !== 'pending' && b.status !== 'cancelled';
+  if (isActive && rawPaidToday === 0) {
+    const grandTotal = b.grandTotal || 0;
+    const rawDueLater = b.amountDueLater || 0;
+    return Math.max(0, grandTotal - rawDueLater);
+  }
+  return rawPaidToday;
+};
+
+const getDueDateString = (dateStr: string) => {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 7);
+    return formatLocalYYYYMMDD(d);
+  } catch {
+    return dateStr;
+  }
+};
+
+const getNormalizedDate = (createdAtStr: string) => {
+  if (!createdAtStr) return 'N/A';
+  try {
+    return formatLocalYYYYMMDD(new Date(createdAtStr));
+  } catch {
+    return 'N/A';
+  }
+};
+
+const getPaymentDueDate = (booking: any) => {
+  if (booking.paymentPlan === 'full') return 'Paid';
+  if (!booking.date) return 'N/A';
+  try {
+    const dateObj = new Date(booking.date + 'T00:00:00');
+    dateObj.setDate(dateObj.getDate() - 7);
+    return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch (err) {
+    return 'N/A';
+  }
+};
+
+// Helper to find the Sunday of the week containing a date
+const getSundayOfWeek = (dateStr: string) => {
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    d.setDate(d.getDate() - day);
+    return formatLocalYYYYMMDD(d);
+  } catch {
+    return dateStr;
+  }
+};
+
+// Helper to find the first day of the month containing a date
+const getFirstDayOfMonth = (dateStr: string) => {
+  try {
+    return dateStr.substring(0, 7) + '-01';
+  } catch {
+    return dateStr;
+  }
+};
 
 export default function BookingsDashboard() {
   const { user } = useAuth();
@@ -67,6 +147,19 @@ export default function BookingsDashboard() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [vesselFilter, setVesselFilter] = useState('all');
 
+  // Sorting states
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc'); // Default to descending for dates/totals on first click
+    }
+  };
+
   // Edit Drawer states
   const [editStatus, setEditStatus] = useState<any>('confirmed');
   const [editTripStatus, setEditTripStatus] = useState('scheduled');
@@ -89,76 +182,413 @@ export default function BookingsDashboard() {
     return new Date().toISOString().split('T')[0];
   });
 
-  const handleSelectBooking = async (b: any) => {
-    setSelectedBooking(b);
-    setEditStatus(b.status || 'confirmed');
-    setEditTripStatus(b.tripStatus || 'scheduled');
-    setEditNotes(b.operationalNotes || '');
+  // Admin Reschedule/Cancellation states
+  const [showAdminReschedule, setShowAdminReschedule] = useState(false);
+  const [adminNewDate, setAdminNewDate] = useState('');
+  const [adminNewTime, setAdminNewTime] = useState('09:30');
+  const [adminBypassAvailability, setAdminBypassAvailability] = useState(false);
+  const [isReschedulingAdmin, setIsReschedulingAdmin] = useState(false);
+
+  const [showAdminCancel, setShowAdminCancel] = useState(false);
+  const [adminRefundOverride, setAdminRefundOverride] = useState<number | ''>('');
+  const [adminCancelReason, setAdminCancelReason] = useState('');
+  const [isCancellingAdmin, setIsCancellingAdmin] = useState(false);
+  const [adminCancelSource, setAdminCancelSource] = useState('customer_call');
+  const [adminAutoProcessRefund, setAdminAutoProcessRefund] = useState(false);
+
+  const START_TIMES = ['08:00', '09:00', '09:30', '10:00', '11:00', '12:00', '13:00', '13:30', '14:00', '15:00', '16:00', '17:00'];
+
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+
+  const isAdminSlotAvailable = (dateStr: string, timeStr: string) => {
+    if (!selectedBooking) return false;
     
-    if (b.messageStatus === 'unread') {
-      setBookings(prev => prev.map(item => item.id === b.id ? { ...item, messageStatus: 'read' } : item));
-      await updateBookingMessageStatus(b.id, 'read');
+    if (dateStr === selectedBooking.date && timeStr === selectedBooking.startTime) {
+      return true;
+    }
+
+    const targetDate = new Date(`${dateStr}T${timeStr}:00`);
+    const now = new Date();
+    if (targetDate.getTime() <= now.getTime()) {
+      return false;
+    }
+
+    const vesselSlug = selectedBooking.vesselSlug;
+
+    // 1. Conflicts
+    const conflict = bookings.find(b => 
+      b.vesselSlug === vesselSlug && 
+      b.date === dateStr && 
+      b.startTime === timeStr && 
+      b.status !== 'cancelled' &&
+      b.id !== selectedBooking.id
+    );
+    if (conflict) {
+      return false;
+    }
+
+    // 2. Blackouts
+    const blackout = blackouts.find(b => {
+      if (b.vesselSlug !== vesselSlug) return false;
+      const bStart = new Date(b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`).getTime();
+      const bEnd = new Date(b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`).getTime();
+      const candStart = targetDate.getTime();
+      const candEnd = candStart + 4 * 60 * 60 * 1000;
+      return candStart < bEnd && candEnd > bStart;
+    });
+    if (blackout) {
+      return false;
+    }
+
+    // 3. Locks
+    const lock = checkoutLocks.find(l => 
+      l.vesselSlug === vesselSlug && 
+      l.date === dateStr && 
+      l.startTime === timeStr && 
+      l.holderEmail.toLowerCase().trim() !== selectedBooking.guestEmail.toLowerCase().trim()
+    );
+    if (lock) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const getDaysInMonth = (monthDate: Date) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const numDays = new Date(year, month + 1, 0).getDate();
+    
+    const days: Array<{ day: number | null; dateStr: string; isAvailable: boolean }> = [];
+    
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push({ day: null, dateStr: '', isAvailable: false });
+    }
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let day = 1; day <= numDays; day++) {
+      const dayDate = new Date(year, month, day);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      const isPast = dayDate.getTime() < today.getTime();
+      
+      let isAvailable = !isPast;
+      
+      if (!adminBypassAvailability && isAvailable && selectedBooking) {
+        const allTimesBlocked = START_TIMES.every(time => {
+          return !isAdminSlotAvailable(dateStr, time);
+        });
+        if (allTimesBlocked) {
+          isAvailable = false;
+        }
+      }
+      
+      days.push({ day, dateStr, isAvailable });
+    }
+    
+    return days;
+  };
+
+  const calculateRefundEstimate = (b: any) => {
+    if (!b) return 0;
+    const subtotal = b.subtotal || 0;
+    const grandTotal = b.grandTotal || 0;
+    const rawPaidToday = b.amountPaidToday || 0;
+    const rawDueLater = b.amountDueLater || 0;
+    
+    const isActive = b.status !== 'pending' && b.status !== 'cancelled';
+    const amountPaidToday = (isActive && rawPaidToday === 0)
+      ? Math.max(0, grandTotal - rawDueLater)
+      : rawPaidToday;
+
+    const hasInsurance = b.cancellationInsurance || false;
+    const insuranceCost = hasInsurance ? subtotal * 0.05 : 0;
+
+    if (!b.date) return amountPaidToday;
+
+    const tripDate = new Date(`${b.date}T${b.startTime || '00:00'}:00`);
+    const now = new Date();
+    const diffTime = tripDate.getTime() - now.getTime();
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const diffDays = diffHours / 24;
+
+    let estimate = 0;
+
+    if (hasInsurance) {
+      if (diffHours >= 48) {
+        estimate = Math.max(0, amountPaidToday - insuranceCost);
+      } else {
+        const liability = 0.5 * (grandTotal - insuranceCost) + insuranceCost;
+        estimate = Math.max(0, amountPaidToday - liability);
+      }
+    } else {
+      if (diffDays >= 14) {
+        estimate = amountPaidToday;
+      } else if (diffDays >= 7 && diffDays < 14) {
+        const liability = 0.5 * grandTotal;
+        estimate = Math.max(0, amountPaidToday - liability);
+      } else {
+        estimate = 0;
+      }
+    }
+
+    return Math.round(estimate * 100) / 100;
+  };
+
+  const getAdminAvailabilityStatus = () => {
+    if (!selectedBooking || !adminNewDate || !adminNewTime) return { available: true, message: '' };
+    
+    if (adminNewDate === selectedBooking.date && adminNewTime === selectedBooking.startTime) {
+      return { available: true, message: 'Current slot selected.' };
+    }
+
+    const targetDate = new Date(`${adminNewDate}T${adminNewTime}:00`);
+    const now = new Date();
+    if (targetDate.getTime() <= now.getTime()) {
+      return { available: false, message: 'Past date/time selected.' };
+    }
+
+    const vesselSlug = selectedBooking.vesselSlug;
+
+    // 1. Conflicts
+    const conflict = bookings.find(b => 
+      b.vesselSlug === vesselSlug && 
+      b.date === adminNewDate && 
+      b.startTime === adminNewTime && 
+      b.status !== 'cancelled' &&
+      b.id !== selectedBooking.id
+    );
+    if (conflict) {
+      return { available: false, message: `Conflict: Already booked by BK-${conflict.id} (${conflict.guestName})` };
+    }
+
+    // 2. Blackouts
+    const blackout = blackouts.find(b => {
+      if (b.vesselSlug !== vesselSlug) return false;
+      const bStart = new Date(b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`).getTime();
+      const bEnd = new Date(b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`).getTime();
+      const candStart = targetDate.getTime();
+      const candEnd = candStart + 4 * 60 * 60 * 1000;
+      return candStart < bEnd && candEnd > bStart;
+    });
+    if (blackout) {
+      return { available: false, message: `Blackout Conflict: ${blackout.title}` };
+    }
+
+    // 3. Locks
+    const lock = checkoutLocks.find(l => 
+      l.vesselSlug === vesselSlug && 
+      l.date === adminNewDate && 
+      l.startTime === adminNewTime && 
+      l.holderEmail.toLowerCase().trim() !== selectedBooking.guestEmail.toLowerCase().trim()
+    );
+    if (lock) {
+      return { available: false, message: `Held in checkout lock by: ${lock.holderEmail}` };
+    }
+
+    return { available: true, message: 'Slot is available.' };
+  };
+
+  const handleAdminRescheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking || isReschedulingAdmin || !adminNewDate || !adminNewTime) return;
+
+    const avail = getAdminAvailabilityStatus();
+    if (!avail.available && !adminBypassAvailability) {
+      alert(`Cannot reschedule: ${avail.message}. Check "Bypass availability checks" to override.`);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to reschedule booking BK-${selectedBooking.id} to ${adminNewDate} at ${adminNewTime}?`)) {
+      return;
+    }
+
+    setIsReschedulingAdmin(true);
+    try {
+      const idToken = await user?.getIdToken();
+      
+      const clientMetadata = {
+        ip: 'Admin Portal',
+        city: 'Admin',
+        region: 'Admin',
+        country: 'Admin',
+        loc: 'Admin',
+        userAgent: navigator.userAgent,
+        browser: 'Admin Console',
+        os: 'Admin Console',
+        device: 'Desktop'
+      };
+
+      const res = await fetch('/api/bookings/reschedule', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          token: selectedBooking.token,
+          newDate: adminNewDate,
+          newStartTime: adminNewTime,
+          clientMetadata,
+          isAdminOverride: true,
+          bypassAvailabilityCheck: adminBypassAvailability
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to reschedule.');
+      }
+
+      showToast('success', 'Booking rescheduled successfully!');
+      fetchDashboardData();
+      
+      const updated = await getBookingById(selectedBooking.id);
+      if (updated) setSelectedBooking(updated);
+      
+      setShowAdminReschedule(false);
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', `Reschedule failed: ${err.message}`);
+    } finally {
+      setIsReschedulingAdmin(false);
     }
   };
 
-  const getDueDateString = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
+  const handleAdminCancelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking || isCancellingAdmin) return;
+
+    const finalOverride = adminRefundOverride === '' ? undefined : Number(adminRefundOverride);
+
+    if (!confirm(`Are you sure you want to cancel booking BK-${selectedBooking.id}? This will cancel all scheduled pre-trip messages and update the reservation status to Cancelled.`)) {
+      return;
+    }
+
+    setIsCancellingAdmin(true);
     try {
-      const d = new Date(dateStr);
-      d.setDate(d.getDate() - 7);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return dateStr;
+      const idToken = await user?.getIdToken();
+
+      const clientMetadata = {
+        ip: 'Admin Portal',
+        city: 'Admin',
+        region: 'Admin',
+        country: 'Admin',
+        loc: 'Admin',
+        userAgent: navigator.userAgent,
+        browser: 'Admin Console',
+        os: 'Admin Console',
+        device: 'Desktop'
+      };
+
+      const res = await fetch('/api/bookings/cancel', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          token: selectedBooking.token,
+          clientMetadata,
+          isAdminOverride: true,
+          refundOverrideAmount: finalOverride,
+          cancelReason: adminCancelReason || (adminCancelSource === 'company_operational' ? 'Cancelled due to company operational reasons' : 'Guest requested cancellation via call/email'),
+          cancellationSource: adminCancelSource,
+          autoProcessRefund: adminAutoProcessRefund
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to cancel booking.');
+      }
+
+      const cancelRes = await res.json();
+      showToast('success', 'Booking cancelled successfully!');
+      if (adminAutoProcessRefund && cancelRes.stripeRefundError) {
+        showToast('error', `Stripe refund failed: ${cancelRes.stripeRefundError}. Process manually.`);
+      } else if (cancelRes.refundStatus === 'refunded') {
+        showToast('success', `Stripe refund of $${cancelRes.refundEstimate} processed.`);
+      }
+
+      fetchDashboardData();
+
+      const updated = await getBookingById(selectedBooking.id);
+      if (updated) setSelectedBooking(updated);
+
+      setShowAdminCancel(false);
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', `Cancellation failed: ${err.message}`);
+    } finally {
+      setIsCancellingAdmin(false);
     }
   };
 
-  const getNormalizedDate = (createdAtStr: string) => {
-    if (!createdAtStr) return 'N/A';
-    try {
-      return new Date(createdAtStr).toISOString().split('T')[0];
-    } catch {
-      return 'N/A';
+  const handleSelectBooking = async (b: any) => {
+    let activeBooking = b;
+    if (!b.token || b.token === 'undefined') {
+      try {
+        const secureToken = await ensureBookingToken(b.id, b.token);
+        if (secureToken) {
+          activeBooking = { ...b, token: secureToken };
+          setBookings(prev => prev.map(item => item.id === b.id ? { ...item, token: secureToken } : item));
+        }
+      } catch (err) {
+        console.error('Failed to auto-generate secure token on select:', err);
+      }
+    }
+
+    setSelectedBooking(activeBooking);
+    setEditStatus(activeBooking.status || 'confirmed');
+    setEditTripStatus(activeBooking.tripStatus || 'scheduled');
+    setEditNotes(activeBooking.operationalNotes || '');
+
+    // Initialize admin reschedule and cancel values
+    setAdminNewDate(activeBooking.date || '');
+    setAdminNewTime(activeBooking.startTime || '09:30');
+    setAdminBypassAvailability(false);
+    setShowAdminReschedule(false);
+    if (activeBooking.date) {
+      const activeD = new Date(activeBooking.date + 'T00:00:00');
+      if (!isNaN(activeD.getTime())) {
+        setCalendarMonth(activeD);
+      }
+    }
+    
+    setAdminCancelReason('');
+    setShowAdminCancel(false);
+    setAdminCancelSource('customer_call');
+    setAdminAutoProcessRefund(false);
+    
+    // Pre-calculate refund estimate for admin view
+    const calculatedRefund = calculateRefundEstimate(activeBooking);
+    setAdminRefundOverride(calculatedRefund);
+    
+    if (activeBooking.messageStatus === 'unread') {
+      setBookings(prev => prev.map(item => item.id === activeBooking.id ? { ...item, messageStatus: 'read' } : item));
+      await updateBookingMessageStatus(activeBooking.id, 'read');
     }
   };
 
-  const getPaymentDueDate = (booking: any) => {
-    if (booking.paymentPlan === 'full') return 'Paid';
-    if (!booking.date) return 'N/A';
-    try {
-      const dateObj = new Date(booking.date);
-      dateObj.setDate(dateObj.getDate() - 7);
-      return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch (err) {
-      return 'N/A';
-    }
-  };
-
-  // Helper to find the Sunday of the week containing a date
-  const getSundayOfWeek = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      const day = d.getDay();
-      d.setDate(d.getDate() - day);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Helper to find the first day of the month containing a date
-  const getFirstDayOfMonth = (dateStr: string) => {
-    try {
-      return dateStr.substring(0, 7) + '-01';
-    } catch {
-      return dateStr;
-    }
-  };
+  // Helpers migrated to outer scope
 
   // Calculate timeframe bounds and interval type based on selection
   const getActiveRangeAndGrouping = () => {
     const today = new Date();
-    let start = new Date();
-    let end = new Date();
+    // Normalize today to midnight local time
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let start = new Date(todayMidnight);
+    let end = new Date(todayMidnight);
     let grouping: 'day' | 'week' | 'month' = 'day';
 
     switch (timeScope) {
@@ -168,9 +598,9 @@ export default function BookingsDashboard() {
         grouping = 'day';
         break;
       case 'last-30-days':
-        start = new Date(today);
-        start.setDate(today.getDate() - 29);
-        end = new Date(today);
+        start = new Date(todayMidnight);
+        start.setDate(todayMidnight.getDate() - 29);
+        end = new Date(todayMidnight);
         grouping = 'day';
         break;
       case 'next-month':
@@ -179,22 +609,22 @@ export default function BookingsDashboard() {
         grouping = 'day';
         break;
       case 'next-30-days':
-        start = new Date(today);
-        end = new Date(today);
-        end.setDate(today.getDate() + 29);
+        start = new Date(todayMidnight);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 29);
         grouping = 'day';
         break;
       case 'next-90-days':
-        start = new Date(today);
-        end = new Date(today);
-        end.setDate(today.getDate() + 89);
+        start = new Date(todayMidnight);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 89);
         grouping = 'week';
         break;
       case 'current-period':
-        start = new Date(today);
-        start.setDate(today.getDate() - 30);
-        end = new Date(today);
-        end.setDate(today.getDate() + 60);
+        start = new Date(todayMidnight);
+        start.setDate(todayMidnight.getDate() - 30);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 60);
         grouping = 'week';
         break;
       case 'this-quarter': {
@@ -217,9 +647,9 @@ export default function BookingsDashboard() {
       case 'all-time': {
         if (bookings.length > 0) {
           const dates = bookings
-            .map(b => b.date || b.createdAt)
+            .map(b => b.date || (b.createdAt ? b.createdAt.split('T')[0] : null))
             .filter(Boolean)
-            .map(dStr => new Date(dStr));
+            .map(dStr => new Date(dStr + 'T00:00:00'));
           if (dates.length > 0) {
             const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
             const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
@@ -254,28 +684,29 @@ export default function BookingsDashboard() {
   // Generate continuous date intervals
   const generateIntervals = (start: Date, end: Date, grouping: 'day' | 'week' | 'month') => {
     const intervals: string[] = [];
-    const current = new Date(start);
+    const current = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const targetEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
 
     if (grouping === 'day') {
-      while (current <= end) {
-        intervals.push(current.toISOString().split('T')[0]);
+      while (current <= targetEnd) {
+        intervals.push(formatLocalYYYYMMDD(current));
         current.setDate(current.getDate() + 1);
       }
     } else if (grouping === 'week') {
-      const startSunday = new Date(start);
+      const startSunday = new Date(current);
       startSunday.setDate(startSunday.getDate() - startSunday.getDay());
       const temp = new Date(startSunday);
       
-      while (temp <= end || (temp.getTime() - end.getTime()) < 7 * 24 * 60 * 60 * 1000) {
-        intervals.push(temp.toISOString().split('T')[0]);
+      while (temp <= targetEnd || (temp.getTime() - targetEnd.getTime()) < 7 * 24 * 60 * 60 * 1000) {
+        intervals.push(formatLocalYYYYMMDD(temp));
         temp.setDate(temp.getDate() + 7);
       }
     } else if (grouping === 'month') {
-      const temp = new Date(start.getFullYear(), start.getMonth(), 1);
-      const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+      const temp = new Date(current.getFullYear(), current.getMonth(), 1);
+      const endMonth = new Date(targetEnd.getFullYear(), targetEnd.getMonth(), 1);
       
       while (temp <= endMonth) {
-        intervals.push(temp.toISOString().split('T')[0]);
+        intervals.push(formatLocalYYYYMMDD(temp));
         temp.setMonth(temp.getMonth() + 1);
       }
     }
@@ -331,7 +762,14 @@ export default function BookingsDashboard() {
       (b.guestName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.guestEmail || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
+    const matchesStatus = (() => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'pending') {
+        return (b.status || '').toLowerCase().startsWith('pending');
+      }
+      return b.status === statusFilter;
+    })();
+
     const matchesVessel = vesselFilter === 'all' || b.vesselTitle === vesselFilter;
 
     const { start: dateScopeStart, end: dateScopeEnd } = getActiveRangeAndGrouping();
@@ -340,8 +778,8 @@ export default function BookingsDashboard() {
       if (!dateStr || dateStr === 'N/A') return false;
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        const s = new Date(dateScopeStart.toISOString().split('T')[0] + 'T00:00:00');
-        const e = new Date(dateScopeEnd.toISOString().split('T')[0] + 'T23:59:59');
+        const s = new Date(dateScopeStart.getFullYear(), dateScopeStart.getMonth(), dateScopeStart.getDate());
+        const e = new Date(dateScopeEnd.getFullYear(), dateScopeEnd.getMonth(), dateScopeEnd.getDate(), 23, 59, 59);
         return d >= s && d <= e;
       } catch {
         return false;
@@ -349,6 +787,7 @@ export default function BookingsDashboard() {
     };
 
     const matchesDateScope = (() => {
+      if (timeScope === 'all-time') return true;
       if (chartDateType === 'booking') {
         return isWithinBounds(getNormalizedDate(b.createdAt));
       } else if (chartDateType === 'excursion') {
@@ -364,6 +803,42 @@ export default function BookingsDashboard() {
     return matchesSearch && matchesStatus && matchesVessel && matchesDateScope;
   });
 
+  // Sort filteredBookings
+  const sortedBookings = [...filteredBookings].sort((a, b) => {
+    let aVal: any = a[sortField];
+    let bVal: any = b[sortField];
+
+    if (sortField === 'id') {
+      aVal = a.id || '';
+      bVal = b.id || '';
+    } else if (sortField === 'guestName') {
+      aVal = (a.guestName || '').toLowerCase();
+      bVal = (b.guestName || '').toLowerCase();
+    } else if (sortField === 'createdAt') {
+      aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    } else if (sortField === 'date') {
+      aVal = a.date ? new Date(a.date + 'T' + (a.startTime || '00:00')).getTime() : 0;
+      bVal = b.date ? new Date(b.date + 'T' + (b.startTime || '00:00')).getTime() : 0;
+    } else if (sortField === 'grandTotal') {
+      aVal = a.grandTotal || 0;
+      bVal = b.grandTotal || 0;
+    } else if (sortField === 'paidToday') {
+      aVal = getPaidToday(a);
+      bVal = getPaidToday(b);
+    } else if (sortField === 'amountDueLater') {
+      aVal = a.amountDueLater || 0;
+      bVal = b.amountDueLater || 0;
+    } else if (sortField === 'status') {
+      aVal = (a.status || '').toLowerCase();
+      bVal = (b.status || '').toLowerCase();
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const getGroupedChartData = () => {
     const { start, end, grouping } = getActiveRangeAndGrouping();
     const intervals = generateIntervals(start, end, grouping);
@@ -377,8 +852,8 @@ export default function BookingsDashboard() {
       if (!dateStr || dateStr === 'N/A') return false;
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        const s = new Date(start.toISOString().split('T')[0] + 'T00:00:00');
-        const e = new Date(end.toISOString().split('T')[0] + 'T23:59:59');
+        const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        const e = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59);
         return d >= s && d <= e;
       } catch {
         return false;
@@ -398,9 +873,9 @@ export default function BookingsDashboard() {
 
         if (dataMap[key]) {
           if (b.paymentPlan === 'full') {
-            dataMap[key].cat1 += (b.amountPaidToday || 0);
+            dataMap[key].cat1 += getPaidToday(b);
           } else {
-            dataMap[key].cat2 += (b.amountPaidToday || 0);
+            dataMap[key].cat2 += getPaidToday(b);
             dataMap[key].cat3 += (b.amountDueLater || 0);
           }
         }
@@ -414,9 +889,9 @@ export default function BookingsDashboard() {
 
         if (dataMap[key]) {
           if (b.paymentPlan === 'full') {
-            dataMap[key].cat1 += (b.amountPaidToday || 0);
+            dataMap[key].cat1 += getPaidToday(b);
           } else {
-            dataMap[key].cat2 += (b.amountPaidToday || 0);
+            dataMap[key].cat2 += getPaidToday(b);
             dataMap[key].cat3 += (b.amountDueLater || 0);
           }
         }
@@ -429,9 +904,9 @@ export default function BookingsDashboard() {
 
           if (dataMap[key]) {
             if (b.paymentPlan === 'full') {
-              dataMap[key].cat1 += (b.amountPaidToday || 0);
+              dataMap[key].cat1 += getPaidToday(b);
             } else {
-              dataMap[key].cat2 += (b.amountPaidToday || 0);
+              dataMap[key].cat2 += getPaidToday(b);
             }
           }
         }
@@ -675,26 +1150,86 @@ export default function BookingsDashboard() {
     }
   };
 
-  // Helper to format currency
-  const formatCost = (val: number) => {
-    return `$${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  // Helpers migrated to outer scope
+
+  // Helper to guarantee single BK- prefix
+  const formatBookingId = (id: string) => {
+    if (!id) return '';
+    return id.startsWith('BK-') ? id : `BK-${id}`;
+  };
+
+  // Helper to render table headers with client-side sorting capabilities
+  const renderSortableHeader = (label: string, field: string) => {
+    const isSorted = sortField === field;
+    return (
+      <th 
+        onClick={() => handleSort(field)} 
+        style={{ padding: '0.85rem 1rem', cursor: 'pointer', userSelect: 'none', transition: 'color 0.15s' }}
+        onMouseOver={e => e.currentTarget.style.color = '#B9783B'}
+        onMouseOut={e => e.currentTarget.style.color = isSorted ? '#B9783B' : '#D8C7AF'}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ color: isSorted ? '#B9783B' : 'inherit', fontWeight: isSorted ? 700 : 500 }}>{label}</span>
+          {isSorted ? (
+            sortDirection === 'asc' ? <span style={{ color: '#B9783B', fontSize: '0.65rem' }}>▲</span> : <span style={{ color: '#B9783B', fontSize: '0.65rem' }}>▼</span>
+          ) : (
+            <span style={{ opacity: 0.25, fontSize: '0.65rem' }}>⇅</span>
+          )}
+        </div>
+      </th>
+    );
   };
 
 
 
+  // Decoupled statsBookings that are only filtered by date scope and vessel selection (ignoring status filter and search term)
+  const statsBookings = bookings.filter(b => {
+    const matchesVessel = vesselFilter === 'all' || b.vesselTitle === vesselFilter;
+
+    const { start: dateScopeStart, end: dateScopeEnd } = getActiveRangeAndGrouping();
+    
+    const isWithinBounds = (dateStr: string) => {
+      if (!dateStr || dateStr === 'N/A') return false;
+      try {
+        const d = new Date(dateStr + 'T00:00:00');
+        const s = new Date(dateScopeStart.getFullYear(), dateScopeStart.getMonth(), dateScopeStart.getDate());
+        const e = new Date(dateScopeEnd.getFullYear(), dateScopeEnd.getMonth(), dateScopeEnd.getDate(), 23, 59, 59);
+        return d >= s && d <= e;
+      } catch {
+        return false;
+      }
+    };
+
+    const matchesDateScope = (() => {
+      if (timeScope === 'all-time') return true;
+      if (chartDateType === 'booking') {
+        return isWithinBounds(getNormalizedDate(b.createdAt));
+      } else if (chartDateType === 'excursion') {
+        return isWithinBounds(b.date);
+      } else if (chartDateType === 'payment') {
+        const payDate1 = getNormalizedDate(b.createdAt);
+        const payDate2 = b.paymentPlan === 'deposit' ? getDueDateString(b.date) : 'N/A';
+        return isWithinBounds(payDate1) || (payDate2 !== 'N/A' && isWithinBounds(payDate2));
+      }
+      return false;
+    })();
+
+    return matchesVessel && matchesDateScope;
+  });
+
   // Calculate timeframe filtered bookings for summary stats (excluding cancelled ones)
-  const timeframeBookings = filteredBookings.filter(b => b.status !== 'cancelled');
+  const timeframeBookings = statsBookings.filter(b => b.status !== 'cancelled');
 
   const unreadMessagesCount = bookings.filter(b => b.messageStatus === 'unread').length;
 
   const confirmedCount = timeframeBookings.filter(b => b.status === 'confirmed').length;
-  const pendingWaiverCount = timeframeBookings.filter(b => b.status === 'pending waiver').length;
+  const pendingWaiverCount = timeframeBookings.filter(b => !b.waiverSigned).length;
   
   const totalBookingValue = timeframeBookings
-    .reduce((sum, b) => sum + (b.amountPaidToday || 0) + (b.amountDueLater || 0), 0);
+    .reduce((sum, b) => sum + getPaidToday(b) + (b.amountDueLater || 0), 0);
     
   const totalRevenue = timeframeBookings
-    .reduce((sum, b) => sum + (b.amountPaidToday || 0), 0);
+    .reduce((sum, b) => sum + getPaidToday(b), 0);
 
   // Unique list of vessels for dropdown filter
   const vesselOptions = Array.from(new Set(bookings.map(b => b.vesselTitle).filter(Boolean)));
@@ -1449,8 +1984,10 @@ export default function BookingsDashboard() {
             >
               <option value="all">All Statuses</option>
               <option value="confirmed">Confirmed</option>
+              <option value="pending">Pending (All)</option>
               <option value="pending waiver">Pending Waiver</option>
-              <option value="pending">Pending</option>
+              <option value="pending_funds_verification">Pending Funds Verification</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
 
@@ -1487,15 +2024,17 @@ export default function BookingsDashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#121416', borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#D8C7AF', opacity: 0.8, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>Booking ID</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Guest / Contact</th>
+                  {renderSortableHeader('Booking ID', 'id')}
+                  {renderSortableHeader('Booking Date', 'createdAt')}
+                  {renderSortableHeader('Guest / Contact', 'guestName')}
                   <th style={{ padding: '0.85rem 1rem' }}>Vessel & Captain</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Schedule</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Paid Today</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Balance Due</th>
+                  {renderSortableHeader('Schedule', 'date')}
+                  {renderSortableHeader('Total Value', 'grandTotal')}
+                  {renderSortableHeader('Paid Today', 'paidToday')}
+                  {renderSortableHeader('Balance Due', 'amountDueLater')}
                   <th style={{ padding: '0.85rem 1rem' }}>Due Date</th>
                   <th style={{ padding: '0.85rem 1rem' }}>Waiver</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Status</th>
+                  {renderSortableHeader('Status', 'status')}
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
@@ -1506,15 +2045,20 @@ export default function BookingsDashboard() {
                     <div style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Bookings</div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{filteredBookings.length}</div>
                   </td>
+                  <td style={{ padding: '0.75rem 1rem' }}></td>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <div style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Guests</div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{filteredBookings.reduce((sum, b) => sum + (b.guestCount || 1), 0)}</div>
                   </td>
                   <td style={{ padding: '0.75rem 1rem' }}></td>
                   <td style={{ padding: '0.75rem 1rem' }}></td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#E2A15E', fontWeight: 700, fontSize: '0.85rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Value</div>
+                    <div>{formatCost(filteredBookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0))}</div>
+                  </td>
                   <td style={{ padding: '0.75rem 1rem', color: '#B9783B', fontWeight: 700, fontSize: '0.85rem' }}>
                     <div style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Paid</div>
-                    <div>{formatCost(filteredBookings.reduce((sum, b) => sum + (b.amountPaidToday || 0), 0))}</div>
+                    <div>{formatCost(filteredBookings.reduce((sum, b) => sum + getPaidToday(b), 0))}</div>
                   </td>
                   <td style={{ padding: '0.75rem 1rem', color: '#ef4444', fontWeight: 700, fontSize: '0.85rem' }}>
                     <div style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Due</div>
@@ -1526,7 +2070,7 @@ export default function BookingsDashboard() {
                   <td style={{ padding: '0.75rem 1rem' }}></td>
                 </tr>
 
-                {filteredBookings.map(b => (
+                {sortedBookings.map(b => (
                   <tr 
                     key={b.id} 
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'all 0.15s' }}
@@ -1534,7 +2078,8 @@ export default function BookingsDashboard() {
                     onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
                     onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td style={{ padding: '1rem', fontWeight: 700, color: 'white', fontFamily: 'monospace' }}>BK-{b.id}</td>
+                    <td style={{ padding: '1rem', fontWeight: 700, color: 'white', fontFamily: 'monospace' }}>{formatBookingId(b.id)}</td>
+                    <td style={{ padding: '1rem', color: '#D8C7AF', opacity: 0.9 }}>{b.createdAt ? new Date(b.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ fontWeight: 600, color: 'white' }}>{b.guestName}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: 0.6, fontSize: '0.74rem', color: '#D8C7AF' }}>
@@ -1587,7 +2132,8 @@ export default function BookingsDashboard() {
                       <div style={{ color: 'white', fontWeight: 500 }}>{b.date}</div>
                       <div style={{ opacity: 0.6, fontSize: '0.74rem', color: '#D8C7AF' }}>@{b.startTime}</div>
                     </td>
-                    <td style={{ padding: '1rem', color: '#B9783B', fontWeight: 600 }}>{formatCost(b.amountPaidToday)}</td>
+                    <td style={{ padding: '1rem', color: '#E2A15E', fontWeight: 600 }}>{formatCost(b.grandTotal)}</td>
+                    <td style={{ padding: '1rem', color: '#B9783B', fontWeight: 600 }}>{formatCost(getPaidToday(b))}</td>
                     <td style={{ padding: '1rem', color: '#ef4444', fontWeight: 600 }}>{formatCost(b.amountDueLater)}</td>
                     <td style={{ padding: '1rem', color: '#D8C7AF' }}>{getPaymentDueDate(b)}</td>
                     <td style={{ padding: '1rem' }}>
@@ -1603,16 +2149,46 @@ export default function BookingsDashboard() {
                       </span>
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      <span style={{ 
-                        fontSize: '0.68rem', 
-                        padding: '0.15rem 0.45rem', 
-                        borderRadius: '4px', 
-                        fontWeight: 700,
-                        background: b.status === 'confirmed' ? 'rgba(185,120,59,0.15)' : 'rgba(255,255,255,0.06)', 
-                        color: b.status === 'confirmed' ? '#B9783B' : '#D8C7AF' 
-                      }}>
-                        {b.status}
-                      </span>
+                      {b.status === 'cancelled' ? (
+                        <span style={{ 
+                          fontSize: '0.68rem', 
+                          padding: '0.15rem 0.45rem', 
+                          borderRadius: '4px', 
+                          fontWeight: 700,
+                          background: b.cancellationSource === 'company_operational' 
+                            ? 'rgba(220, 38, 38, 0.15)' 
+                            : b.cancellationSource === 'customer_call'
+                              ? 'rgba(249, 115, 22, 0.15)' 
+                              : 'rgba(239, 68, 68, 0.15)', 
+                          color: b.cancellationSource === 'company_operational' 
+                            ? '#ef4444' 
+                            : b.cancellationSource === 'customer_call'
+                              ? '#fdba74' 
+                              : '#f87171',
+                          border: b.cancellationSource === 'company_operational' 
+                            ? '1px solid rgba(220, 38, 38, 0.3)' 
+                            : b.cancellationSource === 'customer_call'
+                              ? '1px solid rgba(249, 115, 22, 0.3)' 
+                              : 'none'
+                        }}>
+                          {b.cancellationSource === 'company_operational' 
+                            ? 'Cancelled (Operational)' 
+                            : b.cancellationSource === 'customer_call'
+                              ? 'Cancelled (Guest Called)' 
+                              : 'Cancelled (Guest Portal)'}
+                        </span>
+                      ) : (
+                        <span style={{ 
+                          fontSize: '0.68rem', 
+                          padding: '0.15rem 0.45rem', 
+                          borderRadius: '4px', 
+                          fontWeight: 700,
+                          background: b.status === 'confirmed' ? 'rgba(185,120,59,0.15)' : 'rgba(255,255,255,0.06)', 
+                          color: b.status === 'confirmed' ? '#B9783B' : '#D8C7AF' 
+                        }}>
+                          {b.status}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                       <button 
@@ -2230,7 +2806,7 @@ export default function BookingsDashboard() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.25rem', background: 'rgba(0,0,0,0.15)', padding: '0.75rem', borderRadius: '6px' }}>
                     <div>
                       <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>Upfront Deposit Paid</span>
-                      <strong style={{ color: 'white', display: 'block', fontSize: '1rem' }}>{formatCost(selectedGanttItem.amountPaidToday)}</strong>
+                      <strong style={{ color: 'white', display: 'block', fontSize: '1rem' }}>{formatCost(getPaidToday(selectedGanttItem))}</strong>
                     </div>
                     <div>
                       <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>Due At Charter Date</span>
@@ -2363,7 +2939,7 @@ export default function BookingsDashboard() {
               </div>
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.35rem', fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Paid: <strong style={{ color: '#708C84' }}>{formatCost(hoveredGanttItem.amountPaidToday)}</strong></span>
+                <span>Paid: <strong style={{ color: '#708C84' }}>{formatCost(getPaidToday(hoveredGanttItem))}</strong></span>
                 <span>Due: <strong style={{ color: hoveredGanttItem.amountDueLater > 0 ? '#F97316' : '#10B981' }}>{formatCost(hoveredGanttItem.amountDueLater)}</strong></span>
               </div>
             </div>
@@ -2411,7 +2987,7 @@ export default function BookingsDashboard() {
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: 0 }}>Manage Booking</h3>
-                <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.6, fontFamily: 'monospace' }}>Booking ID: BK-{selectedBooking.id}</span>
+                <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.6, fontFamily: 'monospace' }}>Booking ID: {formatBookingId(selectedBooking.id)}</span>
               </div>
               <button onClick={() => setSelectedBooking(null)} style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer' }}>
                 <X size={20} />
@@ -2434,7 +3010,7 @@ export default function BookingsDashboard() {
                     <span style={{ opacity: 0.6 }}>Guest Portal:</span>
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                       <a 
-                        href={`/guest/portal?id=${selectedBooking.id}&token=${selectedBooking.token}`}
+                        href={`/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: '#B9783B', textDecoration: 'underline', fontWeight: 600 }}
@@ -2444,7 +3020,7 @@ export default function BookingsDashboard() {
                       <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
                       <button
                         onClick={() => {
-                          const link = `${window.location.origin}/guest/portal?id=${selectedBooking.id}&token=${selectedBooking.token}`;
+                          const link = `${window.location.origin}/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`;
                           navigator.clipboard.writeText(link);
                           setToast({ type: 'success', message: 'Guest Portal link copied to clipboard!' });
                           setTimeout(() => setToast(null), 3000);
@@ -2481,7 +3057,7 @@ export default function BookingsDashboard() {
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.65rem 0' }}>Financial Split Ledger</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Grand Total Invoice:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.grandTotal)}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Paid Today:</span><strong style={{ color: '#708C84' }}>{formatCost(selectedBooking.amountPaidToday)}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Paid Today:</span><strong style={{ color: '#708C84' }}>{formatCost(getPaidToday(selectedBooking))}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Due Later:</span><strong style={{ color: '#ef4444' }}>{formatCost(selectedBooking.amountDueLater)}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Cancellation Protection:</span><strong style={{ color: 'white' }}>{selectedBooking.cancellationInsurance ? 'Yes (5% paid)' : 'No'}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Payment Plan:</span><strong style={{ color: 'white', textTransform: 'capitalize' }}>{selectedBooking.paymentPlan}</strong></div>
@@ -2499,6 +3075,316 @@ export default function BookingsDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Reschedule & Cancellation Actions */}
+              {selectedBooking.status !== 'cancelled' ? (
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Administrative Charter Actions</h4>
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => { setShowAdminReschedule(!showAdminReschedule); setShowAdminCancel(false); }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminReschedule ? '#B9783B' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <Calendar size={14} /> Change Date
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => { setShowAdminCancel(!showAdminCancel); setShowAdminReschedule(false); }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminCancel ? '#EF4444' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <AlertCircle size={14} /> Cancel Charter
+                    </button>
+                  </div>
+
+                  {/* Reschedule Sub-form */}
+                  {showAdminReschedule && (
+                    <form onSubmit={handleAdminRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(185, 120, 59, 0.2)', animation: 'fadeIn 0.2s ease-out' }}>
+                      {/* Bypass availability check toggle */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', paddingBottom: '0.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <input 
+                          type="checkbox"
+                          checked={adminBypassAvailability}
+                          onChange={e => {
+                            setAdminBypassAvailability(e.target.checked);
+                          }}
+                        />
+                        <span>Bypass availability checks (Force Reschedule)</span>
+                      </label>
+
+                      {/* Interactive Month-Grid Calendar */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select New Date</label>
+                        <div style={{ padding: '0.5rem', background: '#1E2124', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prevMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+                                setCalendarMonth(prevMonth);
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                            >
+                              <ChevronLeft size={16} />
+                            </button>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white' }}>
+                              {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                            >
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+
+                          {/* Calendar Weekday Names */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem', textAlign: 'center', marginBottom: '0.3rem' }}>
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayName => (
+                              <span key={dayName} style={{ fontSize: '0.62rem', color: '#D8C7AF', opacity: 0.5, fontWeight: 600 }}>{dayName}</span>
+                            ))}
+                          </div>
+
+                          {/* Calendar Days Grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem' }}>
+                            {getDaysInMonth(calendarMonth).map((dayObj, idx) => {
+                              if (dayObj.day === null) {
+                                return <div key={`empty-${idx}`} />;
+                              }
+                              const isSelected = adminNewDate === dayObj.dateStr;
+                              const isAvailable = adminBypassAvailability ? true : dayObj.isAvailable;
+                              return (
+                                <button
+                                  key={`day-${dayObj.dateStr}`}
+                                  type="button"
+                                  disabled={!isAvailable}
+                                  onClick={() => {
+                                    setAdminNewDate(dayObj.dateStr);
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    background: isSelected 
+                                      ? '#B9783B' 
+                                      : 'transparent',
+                                    color: isSelected 
+                                      ? 'white' 
+                                      : isAvailable 
+                                        ? '#D8C7AF' 
+                                        : 'rgba(255,255,255,0.15)',
+                                    padding: '0.35rem 0',
+                                    borderRadius: '4px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: isSelected ? 700 : 500,
+                                    cursor: isAvailable ? 'pointer' : 'not-allowed',
+                                    textDecoration: isAvailable ? 'none' : 'line-through',
+                                    position: 'relative'
+                                  }}
+                                  title={isAvailable ? undefined : 'Fully Booked / Unavailable'}
+                                >
+                                  {dayObj.day}
+                                  <span style={{
+                                    position: 'absolute',
+                                    bottom: '2px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    width: '3px',
+                                    height: '3px',
+                                    borderRadius: '50%',
+                                    background: isSelected 
+                                      ? 'white' 
+                                      : isAvailable 
+                                        ? '#708C84' 
+                                        : '#ef4444'
+                                  }} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Interactive Time Slots Grid */}
+                      {adminNewDate && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select Boarding Time</label>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
+                            {START_TIMES.map(time => {
+                              const isSelected = adminNewTime === time;
+                              const isTimeAvailable = adminBypassAvailability ? true : isAdminSlotAvailable(adminNewDate, time);
+                              
+                              return (
+                                <button
+                                  key={time}
+                                  type="button"
+                                  disabled={!isTimeAvailable}
+                                  onClick={() => setAdminNewTime(time)}
+                                  style={{
+                                    padding: '0.4rem 0.2rem',
+                                    borderRadius: '4px',
+                                    border: isSelected 
+                                      ? '1px solid #B9783B' 
+                                      : !isTimeAvailable 
+                                        ? '1px dashed rgba(255,255,255,0.04)' 
+                                        : '1px solid rgba(255, 255, 255, 0.1)',
+                                    background: isSelected 
+                                      ? 'rgba(185, 120, 59, 0.2)' 
+                                      : !isTimeAvailable
+                                        ? 'rgba(255,255,255,0.02)'
+                                        : '#1E2124',
+                                    color: isSelected 
+                                      ? 'white' 
+                                      : isTimeAvailable 
+                                        ? '#D8C7AF' 
+                                        : 'rgba(255,255,255,0.2)',
+                                    fontSize: '0.7rem',
+                                    fontWeight: isSelected ? 600 : 400,
+                                    cursor: isTimeAvailable ? 'pointer' : 'not-allowed',
+                                    textDecoration: isTimeAvailable ? 'none' : 'line-through',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  title={isTimeAvailable ? undefined : 'Slot is not available'}
+                                >
+                                  {time}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Live availability check info */}
+                      {adminNewDate && adminNewTime && (() => {
+                        const status = getAdminAvailabilityStatus();
+                        return (
+                          <div style={{ fontSize: '0.7rem', color: status.available ? '#708C84' : '#EF4444', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0' }}>
+                            <AlertCircle size={12} />
+                            <span>{status.message || 'Checking...'}</span>
+                          </div>
+                        );
+                      })()}
+
+                      <button 
+                        type="submit"
+                        disabled={isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)}
+                        style={{ background: '#B9783B', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: (isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                      >
+                        {isReschedulingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Date Change'}
+                      </button>
+                    </form>
+                  )}
+
+                  {/* Cancellation Sub-form */}
+                  {showAdminCancel && (
+                    <form onSubmit={handleAdminCancelSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.25)', animation: 'fadeIn 0.2s ease-out' }}>
+                      <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '0.5rem 0.75rem', borderRadius: '4px', fontSize: '0.7rem' }}>
+                        <div style={{ fontWeight: 600, color: '#FCA5A5', marginBottom: '0.15rem' }}>Estimated Policy Refund</div>
+                        <div style={{ color: '#F4F1EA', opacity: 0.9 }}>
+                          Estimated Refund: <strong style={{ color: '#EF4444' }}>{formatCost(calculateRefundEstimate(selectedBooking))}</strong>
+                        </div>
+                        <div style={{ color: '#D8C7AF', opacity: 0.7, fontSize: '0.65rem', marginTop: '0.25rem' }}>
+                          Based on rules: {selectedBooking.cancellationInsurance ? 'Has cancellation insurance.' : 'No insurance.'}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Cancellation Source</label>
+                        <select 
+                          value={adminCancelSource}
+                          onChange={e => setAdminCancelSource(e.target.value)}
+                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                        >
+                          <option value="customer_call">Customer Request (Called/Emailed concierge)</option>
+                          <option value="company_operational">Company / Operational (Weather, vessel issue, captain issue)</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Refund Override ($)</label>
+                        <input 
+                          type="number"
+                          value={adminRefundOverride}
+                          onChange={e => setAdminRefundOverride(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder={calculateRefundEstimate(selectedBooking).toString()}
+                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                        />
+                      </div>
+
+                      {selectedBooking.stripePaymentIntentId && (adminRefundOverride === '' ? calculateRefundEstimate(selectedBooking) : Number(adminRefundOverride)) > 0 && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', margin: '0.15rem 0' }}>
+                          <input 
+                            type="checkbox"
+                            checked={adminAutoProcessRefund}
+                            onChange={e => setAdminAutoProcessRefund(e.target.checked)}
+                          />
+                          <span>Process refund automatically in Stripe</span>
+                        </label>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Reason for Cancellation</label>
+                        <input 
+                          type="text"
+                          value={adminCancelReason}
+                          onChange={e => setAdminCancelReason(e.target.value)}
+                          placeholder="e.g. Guest requested change of plans"
+                          required
+                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                        />
+                      </div>
+
+                      <button 
+                        type="submit"
+                        disabled={isCancellingAdmin}
+                        style={{ background: '#EF4444', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: isCancellingAdmin ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                      >
+                        {isCancellingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Cancellation'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              ) : (
+                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <AlertCircle size={14} /> Voyage Cancelled
+                  </h4>
+                  <div style={{ fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ opacity: 0.6 }}>Cancellation Source:</span>
+                      <strong style={{ color: 'white' }}>
+                        {selectedBooking.cancellationSource === 'company_operational' 
+                          ? 'Company / Operational' 
+                          : selectedBooking.cancellationSource === 'customer_call' 
+                            ? 'Customer Request (Call/Email)' 
+                            : 'Guest (via Portal)'}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund status:</span><strong style={{ color: 'white', textTransform: 'uppercase' }}>{selectedBooking.refundStatus || 'N/A'}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund estimate:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.refundEstimate)}</strong></div>
+                    {selectedBooking.amountRefunded > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Actual refunded:</span><strong style={{ color: '#708C84' }}>{formatCost(selectedBooking.amountRefunded)}</strong></div>
+                    )}
+                    {selectedBooking.changeHistory && selectedBooking.changeHistory.length > 0 && (
+                      <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
+                        <span style={{ opacity: 0.6, display: 'block', marginBottom: '0.15rem' }}>Audit Trail Notes:</span>
+                        {selectedBooking.changeHistory.map((history: any, idx: number) => {
+                          if (history.action === 'cancel') {
+                            return (
+                              <div key={idx} style={{ fontSize: '0.7rem', color: '#D8C7AF', fontStyle: 'italic', marginBottom: '0.25rem' }}>
+                                "{history.cancelReason || 'No reason provided'}" — initiated by {history.initiatedBy === 'admin' ? 'Administrator' : 'Guest'} on {new Date(history.timestamp).toLocaleDateString()}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Operational log modifier form */}
               <form onSubmit={handleUpdateOperational} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem' }}>
@@ -2649,7 +3535,7 @@ export default function BookingsDashboard() {
         </div>
       )}
 
-      {/* Styled slideIn animation */}
+      {/* Styled slideIn and fadeIn animations */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes slideInRight {
           from {
@@ -2657,6 +3543,16 @@ export default function BookingsDashboard() {
           }
           to {
             transform: translateX(0);
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-5px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
           }
         }
       ` }} />
