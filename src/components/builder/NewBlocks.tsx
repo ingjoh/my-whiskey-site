@@ -1626,7 +1626,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
   }, [contentType, filterSubtype, limit, preFetchedItems, node.props.filterByItemSlug]);
 
   const currentConfig = configs.find(c => c.id === contentType);
-  const prefix = currentConfig?.slugPrefix || (contentType === 'adventure' ? 'experiences' : contentType === 'asset' ? 'fleet' : 'crew');
+  const prefix = currentConfig?.slugPrefix || (contentType === 'adventure' ? 'experiences' : contentType === 'asset' ? 'fleet' : contentType === 'location' ? 'locations' : 'crew');
   const gridTemplateColumns = `repeat(auto-fit, minmax(${columns === 1 ? '100%' : columns === 2 ? '450px' : columns === 4 ? '240px' : '300px'}, 1fr))`;
 
   const getButtonText = () => {
@@ -1634,6 +1634,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
       case 'adventure': return 'Explore Experience';
       case 'asset': return 'View Details';
       case 'staff': return 'Meet Member';
+      case 'location': return 'Explore Destination';
       default: return 'Learn More';
     }
   };
@@ -1729,6 +1730,26 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <LucideIcons.Award size={14} color={eyebrowColor} />
                 <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{certs}</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'location': {
+        const anchor = item.anchorStatus || '';
+        const bestTime = item.bestTime || '';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
+            {anchor && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <LucideIcons.Anchor size={14} color={eyebrowColor} />
+                <span>{anchor}</span>
+              </div>
+            )}
+            {bestTime && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <LucideIcons.Clock size={14} color={eyebrowColor} />
+                <span>Best: {bestTime}</span>
               </div>
             )}
           </div>

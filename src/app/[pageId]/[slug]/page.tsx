@@ -80,6 +80,15 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
     linkedAdventuresList = allAdventures.filter(adv => 
       (adv.linkedAssets || []).includes(slug)
     );
+    
+    // Find all locations connected to these adventures
+    const locationSlugs = Array.from(new Set(
+      linkedAdventuresList.flatMap(adv => adv.linkedLocations || [])
+    ));
+    const allLocations = await getContentItems('location');
+    linkedLocationsList = allLocations.filter(loc => 
+      locationSlugs.includes(loc.slug)
+    );
   }
 
   if (config.id === 'adventure') {
@@ -197,7 +206,12 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
       )}
 
       {config.id === 'asset' && (
-        <AssetDetailView item={item} theme={theme} linkedAdventures={linkedAdventuresList} />
+        <AssetDetailView 
+          item={item} 
+          theme={theme} 
+          linkedAdventures={linkedAdventuresList} 
+          linkedLocations={linkedLocationsList} 
+        />
       )}
 
       {config.id === 'staff' && (
@@ -212,7 +226,17 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
 // -----------------------------------------------------------------------------
 // ASSET DETAIL VIEW
 // -----------------------------------------------------------------------------
-function AssetDetailView({ item, theme, linkedAdventures = [] }: { item: any; theme: any; linkedAdventures?: any[] }) {
+function AssetDetailView({ 
+  item, 
+  theme, 
+  linkedAdventures = [], 
+  linkedLocations = [] 
+}: { 
+  item: any; 
+  theme: any; 
+  linkedAdventures?: any[]; 
+  linkedLocations?: any[]; 
+}) {
   const category = item.category || 'Luxury Asset';
   const make = item.make || '';
   const model = item.model || '';
@@ -363,6 +387,39 @@ function AssetDetailView({ item, theme, linkedAdventures = [] }: { item: any; th
               children: []
             }}
             preFetchedItems={linkedAdventures}
+          />
+        </div>
+      )}
+
+      {linkedLocations.length > 0 && (
+        <div style={{ marginTop: '5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4rem' }}>
+          <DynamicCardBlock 
+            node={{
+              id: 'asset-locations-grid',
+              type: 'DynamicCardBlock',
+              props: {
+                contentType: 'location',
+                eyebrow: 'Destinations',
+                headline: `Where We Visit Aboard ${item.title}`,
+                columns: 3,
+                limit: 6,
+                showImage: true,
+                showTitle: true,
+                showDescription: true,
+                showLocation: true,
+                showDuration: false,
+                showPrice: false,
+                showRating: false,
+                showCerts: false,
+                showButton: true,
+                cardBgColor: '#1E2124',
+                headlineFontSize: '2.25rem',
+                mobileLayout: 'swipe',
+                style: { padding: '0 0 2rem 0' }
+              },
+              children: []
+            }}
+            preFetchedItems={linkedLocations}
           />
         </div>
       )}
