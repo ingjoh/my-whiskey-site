@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 
 const ADMIN_EMAIL_WHITELIST = [
-  'ingjohs@gmail.com'
+  'ingjohs@gmail.com',
+  'ingjoh@gmail.com',
+  'ingemar.johnsson@gmail.com',
+  'ingemar.johnsson@tribes.co'
 ];
 
 function isWhitelisted(email?: string): boolean {

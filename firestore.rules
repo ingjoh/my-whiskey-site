@@ -8,6 +8,9 @@ service cloud.firestore {
         || request.auth.token.email.matches('.*@motoryachtwhiskey\\.com')
         || request.auth.token.email.matches('.*@projects\\.vercel\\.app')
         || request.auth.token.email == 'ingjohs@gmail.com'
+        || request.auth.token.email == 'ingjoh@gmail.com'
+        || request.auth.token.email == 'ingemar.johnsson@gmail.com'
+        || request.auth.token.email == 'ingemar.johnsson@tribes.co'
       );
     }
 
