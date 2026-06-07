@@ -1167,7 +1167,7 @@ export default function AdventureDetailView({
       return;
     }
 
-    const apiKey = firebaseConfig.apiKey || '';
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey || '';
     if (!apiKey) {
       setMapsApiError('No API key provided.');
       return;
@@ -1637,7 +1637,7 @@ export default function AdventureDetailView({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', overflowX: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', overflowX: 'clip' }}>
       {/* Dynamic styles for hover states and animations */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeInUp {
