@@ -166,7 +166,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
 
         <div className="desktop-nav">
           {dynamicLinks.map((link: any, idx: number) => {
-            const hasChildren = link.children && link.children.length > 0;
+            const hasChildren = (link.children && link.children.length > 0) || !!link.dynamicSublinks;
             const isPrimary = link.linkStyle === 'primary';
             const isSecondary = link.linkStyle === 'secondary';
             const isText = !isPrimary && !isSecondary;
@@ -288,7 +288,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                       display: 'flex',
                       flexDirection: 'column',
                     }}>
-                      {link.children.map((child: any, cIdx: number) => (
+                      {(link.children || []).map((child: any, cIdx: number) => (
                         <SmartLink
                           key={cIdx}
                           href={isEditorMode ? '#' : child.url}
@@ -441,7 +441,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2rem' }}>
             {dynamicLinks.map((link: any, idx: number) => {
-              const hasChildren = link.children && link.children.length > 0;
+              const hasChildren = (link.children && link.children.length > 0) || !!link.dynamicSublinks;
               return (
                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <SmartLink 
@@ -463,7 +463,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                   </SmartLink>
                   {hasChildren && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingLeft: '1.5rem', borderLeft: '2px solid rgba(255,255,255,0.1)' }}>
-                      {link.children.map((child: any, cIdx: number) => (
+                      {(link.children || []).map((child: any, cIdx: number) => (
                         <SmartLink
                           key={cIdx}
                           href={isEditorMode ? '#' : child.url}

@@ -36,7 +36,32 @@ export default function WeatherWidget({ location }: { location: string }) {
     fetchWeather();
   }, [location]);
 
-  if (error || !weather) return null;
+  if (error) return null;
+
+  if (!weather) {
+    return (
+      <div 
+        style={{ 
+          display: 'inline-flex', 
+          alignItems: 'center', 
+          width: '76px',
+          height: '29px',
+          background: 'rgba(255,255,255,0.08)', 
+          borderRadius: '2rem', 
+          border: '1px solid rgba(255,255,255,0.1)',
+          animation: 'pulse-weather 1.5s infinite ease-in-out'
+        }}
+      >
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes pulse-weather {
+            0% { opacity: 0.6; }
+            50% { opacity: 0.3; }
+            100% { opacity: 0.6; }
+          }
+        `}} />
+      </div>
+    );
+  }
 
   const getWeatherIcon = (code: number, size = 18) => {
     if (code === 0 || code === 1) return <Sun size={size} />;
