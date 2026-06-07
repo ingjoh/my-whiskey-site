@@ -16,6 +16,7 @@ import {
   acquireCheckoutLock, releaseCheckoutLock, getAllCheckoutLocks, CheckoutLock,
   getContentItems, checkSignatureMatch, getBookingById
 } from '@/lib/db';
+import { firebaseConfig } from '@/lib/firebase';
 
 interface ItineraryStep {
   title: string;
@@ -1151,7 +1152,7 @@ export default function AdventureDetailView({
       return;
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
+    const apiKey = firebaseConfig.apiKey || '';
     if (!apiKey) {
       setMapsApiError('No API key provided.');
       return;

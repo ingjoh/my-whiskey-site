@@ -19,6 +19,7 @@ import { useAuth } from '@/components/AuthProvider';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
 import { uploadFile } from '@/lib/storage';
 import ReactMarkdown from 'react-markdown';
+import { firebaseConfig } from '@/lib/firebase';
 
 const DatePicker = ({ 
   value, 
@@ -339,7 +340,7 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
     if (typeof window === 'undefined') return;
 
     // Diagnose key presence
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey;
     console.log('Google Maps Script Loader - Key Detected:', apiKey ? (apiKey.substring(0, 8) + '...') : 'undefined');
 
     // Register global init callback

@@ -31,7 +31,7 @@ const getFirebaseConfig = () => {
   return stagingConfig;
 };
 
-const firebaseConfig = getFirebaseConfig();
+export const firebaseConfig = getFirebaseConfig();
 
 // Singleton pattern to prevent duplicate initializations during Next.js hot-reloading in dev.
 const globalForFirebase = globalThis as unknown as {
