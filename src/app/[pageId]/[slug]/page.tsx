@@ -6,6 +6,7 @@ import AdventureDetailView from '@/components/public/AdventureDetailView';
 import LocationDetailView from '@/components/public/LocationDetailView';
 import { SwipeScrollContainer } from '@/components/builder/SwipeScrollContainer';
 import ReactMarkdown from 'react-markdown';
+import { DynamicCardBlock } from '@/components/builder/NewBlocks';
 import { notFound } from 'next/navigation';
 import { 
   MapPin, Clock, Users, Check, Calendar, ArrowRight, 
@@ -71,6 +72,13 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
     const allAdventures = await getContentItems('adventure');
     linkedAdventuresList = allAdventures.filter(adv => 
       (adv.linkedLocations || []).includes(slug)
+    );
+  }
+
+  if (config.id === 'asset') {
+    const allAdventures = await getContentItems('adventure');
+    linkedAdventuresList = allAdventures.filter(adv => 
+      (adv.linkedAssets || []).includes(slug)
     );
   }
 
@@ -189,7 +197,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
       )}
 
       {config.id === 'asset' && (
-        <AssetDetailView item={item} theme={theme} />
+        <AssetDetailView item={item} theme={theme} linkedAdventures={linkedAdventuresList} />
       )}
 
       {config.id === 'staff' && (
@@ -204,7 +212,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
 // -----------------------------------------------------------------------------
 // ASSET DETAIL VIEW
 // -----------------------------------------------------------------------------
-function AssetDetailView({ item, theme }: { item: any; theme: any }) {
+function AssetDetailView({ item, theme, linkedAdventures = [] }: { item: any; theme: any; linkedAdventures?: any[] }) {
   const category = item.category || 'Luxury Asset';
   const make = item.make || '';
   const model = item.model || '';
@@ -325,6 +333,39 @@ function AssetDetailView({ item, theme }: { item: any; theme: any }) {
         </div>
 
       </div>
+
+      {linkedAdventures.length > 0 && (
+        <div style={{ marginTop: '5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4rem' }}>
+          <DynamicCardBlock 
+            node={{
+              id: 'asset-adventures-grid',
+              type: 'DynamicCardBlock',
+              props: {
+                contentType: 'adventure',
+                eyebrow: 'Experiences',
+                headline: `Adventures Aboard ${item.title}`,
+                columns: 3,
+                limit: 6,
+                showImage: true,
+                showTitle: true,
+                showDescription: true,
+                showLocation: true,
+                showDuration: true,
+                showPrice: true,
+                showRating: true,
+                showCerts: true,
+                showButton: true,
+                cardBgColor: '#1E2124',
+                headlineFontSize: '2.25rem',
+                mobileLayout: 'swipe',
+                style: { padding: '0 0 2rem 0' }
+              },
+              children: []
+            }}
+            preFetchedItems={linkedAdventures}
+          />
+        </div>
+      )}
     </div>
   );
 }

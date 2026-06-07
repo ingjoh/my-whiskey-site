@@ -1523,7 +1523,7 @@ export const ContentGridBlock = ({ node }: { node: PageNode }) => {
 
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────
-export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
+export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; preFetchedItems?: ContentItem[] }) => {
   const {
     contentType = 'adventure',
     filterSubtype = 'all',
@@ -1557,6 +1557,30 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
     let active = true;
     setLoading(true);
 
+    if (preFetchedItems) {
+      let filtered = preFetchedItems.filter(item => item.status === 'published');
+      
+      // Filter by connected item slug if specified
+      if (node.props.filterByItemSlug) {
+        const slug = node.props.filterByItemSlug;
+        filtered = filtered.filter(adv => 
+          (Array.isArray(adv.linkedAssets) && adv.linkedAssets.includes(slug)) ||
+          (Array.isArray(adv.linkedStaff) && adv.linkedStaff.includes(slug)) ||
+          (Array.isArray(adv.linkedLocations) && adv.linkedLocations.includes(slug))
+        );
+      }
+
+      setItems(filtered.slice(0, limit));
+      setLoading(false);
+
+      // Fetch configs on mount for correct slugPrefix/prefix routing
+      getContentTypeConfigs().then(fetchedConfigs => {
+        if (active) setConfigs(fetchedConfigs);
+      }).catch(err => console.error('Error fetching dynamic card configs:', err));
+
+      return () => { active = false; };
+    }
+
     Promise.all([
       getContentItems(contentType),
       getContentTypeConfigs()
@@ -1580,6 +1604,16 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
         });
       }
 
+      // Filter by connected item slug if specified
+      if (node.props.filterByItemSlug) {
+        const slug = node.props.filterByItemSlug;
+        filtered = filtered.filter(adv => 
+          (Array.isArray(adv.linkedAssets) && adv.linkedAssets.includes(slug)) ||
+          (Array.isArray(adv.linkedStaff) && adv.linkedStaff.includes(slug)) ||
+          (Array.isArray(adv.linkedLocations) && adv.linkedLocations.includes(slug))
+        );
+      }
+
       setItems(filtered.slice(0, limit));
       setConfigs(fetchedConfigs);
       setLoading(false);
@@ -1589,7 +1623,7 @@ export const DynamicCardBlock = ({ node }: { node: PageNode }) => {
     });
 
     return () => { active = false; };
-  }, [contentType, filterSubtype, limit]);
+  }, [contentType, filterSubtype, limit, preFetchedItems, node.props.filterByItemSlug]);
 
   const currentConfig = configs.find(c => c.id === contentType);
   const prefix = currentConfig?.slugPrefix || (contentType === 'adventure' ? 'experiences' : contentType === 'asset' ? 'fleet' : 'crew');

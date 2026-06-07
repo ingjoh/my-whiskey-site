@@ -2225,6 +2225,17 @@ export default function BuilderRightPanel() {
                     )}
 
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                      Filter by Connected Item (Slug)
+                      <input 
+                        type="text" 
+                        placeholder="e.g. motoryacht-whiskey"
+                        value={selectedNode.props.filterByItemSlug || ''} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { filterByItemSlug: e.target.value })} 
+                        style={inputStyle} 
+                      />
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Eyebrow
                       <input type="text" value={selectedNode.props.eyebrow || ''} onChange={(e) => updateNodeProps(selectedNodeId, { eyebrow: e.target.value })} style={inputStyle} />
                     </label>
