@@ -4,7 +4,8 @@ import { PageNode } from '@/store/useBuilderStore';
 import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from '@/components/builder/Blocks';
 import { DividerBlock, IconBlock, VideoBlock, MapBlock, AccordionBlock, AmenitiesBlock,
   PricingBlock, CrewBlock, ItineraryBlock, TestimonialsBlock, VideoHeroBlock, GalleryWithLightbox, HtmlBlock,
-  EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock, TextBlock, ContentGridBlock } from '@/components/builder/NewBlocks';
+  EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock, TextBlock, ContentGridBlock,
+  DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock } from '@/components/builder/NewBlocks';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
 
@@ -123,12 +124,24 @@ function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNode
     case 'ContentGrid':
       Content = <ContentGridBlock node={node} />;
       break;
+    case 'DynamicCardBlock':
+      Content = <DynamicCardBlock node={node} />;
+      break;
+    case 'DynamicCarousel':
+      Content = <DynamicCarousel node={node} />;
+      break;
+    case 'BookingWidget':
+      Content = <BookingWidget node={node} />;
+      break;
+    case 'DynamicDetailBlock':
+      Content = <DynamicDetailBlock node={node} />;
+      break;
   }
 
   if (node.type === 'Section') {
     return <div style={node.props.style}>{Content}</div>;
   }
-  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid'].includes(node.type);
+  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock'].includes(node.type);
   return (
     <div style={{ display: isFullWidth ? 'block' : 'inline-block', width: isFullWidth ? '100%' : 'auto' }}>
       {Content}

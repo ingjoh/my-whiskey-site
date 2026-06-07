@@ -7,7 +7,8 @@ import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from '@/compon
 import {
   DividerBlock, IconBlock, VideoBlock, MapBlock, AccordionBlock, AmenitiesBlock,
   PricingBlock, CrewBlock, ItineraryBlock, TestimonialsBlock, VideoHeroBlock, GalleryWithLightbox, HtmlBlock,
-  EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock
+  EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock,
+  ContentGridBlock, DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock
 } from '@/components/builder/NewBlocks';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
@@ -66,12 +67,19 @@ function PreviewNodeRenderer({ node, allNodes }: { node: PageNode; allNodes: Rec
     case 'YachtFeature': Content = <YachtFeatureBlock node={node} />;      break;
     case 'TestimonialsGrid':Content = <TestimonialsGridBlock node={node} />;break;
     case 'CTA':          Content = <CTABlock node={node} />;               break;
+    case 'ComparisonTable':Content = <ComparisonTableBlock node={node} />; break;
+    case 'ContentGrid':  Content = <ContentGridBlock node={node} />;       break;
+    case 'DynamicCardBlock':Content = <DynamicCardBlock node={node} />;    break;
+    case 'DynamicCarousel':Content = <DynamicCarousel node={node} />;      break;
+    case 'BookingWidget':Content = <BookingWidget node={node} />;          break;
+    case 'DynamicDetailBlock':Content = <DynamicDetailBlock node={node} />;break;
     default:           return null;
   }
 
   const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map',
     'Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html',
-    'EnhancedHero', 'TextMedia', 'ExperiencesGrid', 'YachtFeature', 'TestimonialsGrid', 'CTA', 'ComparisonTable'
+    'EnhancedHero', 'TextMedia', 'ExperiencesGrid', 'YachtFeature', 'TestimonialsGrid', 'CTA', 'ComparisonTable',
+    'ContentGrid', 'DynamicCardBlock', 'DynamicCarousel', 'BookingWidget', 'DynamicDetailBlock'
   ].includes(node.type);
 
   return (
