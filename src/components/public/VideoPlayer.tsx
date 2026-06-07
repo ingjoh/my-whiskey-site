@@ -208,7 +208,6 @@ export default function VideoPlayer({
           ref={iframeRef}
           src={embedUrl} 
           allow="autoplay; fullscreen" 
-          allowFullScreen 
           style={iframeStyle} 
         />
       )}
