@@ -396,8 +396,8 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
     if (!(window as any).google || !(window as any).google.maps) {
       return;
     }
-    if (!(window as any).google.maps.places) {
-      setMapsApiError('Places library is missing from the Google Maps SDK. Check query parameters.');
+    if (!(window as any).google.maps.places || !(window as any).google.maps.places.Autocomplete) {
+      setMapsApiError('Places library or Autocomplete constructor is missing from the Google Maps SDK. Check query parameters.');
       return;
     }
 
