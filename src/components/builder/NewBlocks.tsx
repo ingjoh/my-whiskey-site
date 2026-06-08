@@ -607,7 +607,24 @@ export const EnhancedHeroBlock = ({ node }: { node: PageNode }) => {
     <section style={{
       width: '100%',
       ...node.props.style
-    }}>
+    }} className="enhanced-hero-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .hero-buttons-container {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 0.75rem !important;
+          }
+          .hero-buttons-container > a {
+            display: block !important;
+            width: 100% !important;
+          }
+          .hero-buttons-container button {
+            width: 100% !important;
+            text-align: center !important;
+          }
+        }
+      `}} />
       <div style={{
         position: 'relative',
         width: '100%',
@@ -662,7 +679,7 @@ export const EnhancedHeroBlock = ({ node }: { node: PageNode }) => {
               <ReactMarkdown components={{ p: (({children}: any) => <p style={{ fontSize: 'inherit', margin: 0 }}>{children}</p>) as any }}>{subheadline}</ReactMarkdown>
             </div>
           )}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '3rem' }}>
+          <div className="hero-buttons-container" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '3rem' }}>
             {primaryButtonText && (
               <SmartLink href={node.props.primaryButtonLink || '#'} target={node.props.primaryButtonTarget} style={{ textDecoration: 'none' }}>
                 <button style={{ padding: '0.875rem 2rem', background: primaryButtonBgColor, color: primaryButtonTextColor, border: 'none', borderRadius: '4px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-sans)' }}>
