@@ -594,7 +594,7 @@ export const EnhancedHeroBlock = ({ node }: { node: PageNode }) => {
     secondaryButtonTextColor = 'white',
     contentBgColor = 'transparent',
     innerBorderRadius = fullWidth ? '0' : 'var(--base-radius)',
-    headlineFontSize = 'clamp(3rem, 5vw, 4.5rem)',
+    headlineFontSize = 'clamp(2rem, 6vw, 4.5rem)',
     subheadlineFontSize = '1.2rem',
   } = node.props;
 
@@ -705,7 +705,7 @@ export const TextMediaBlock = ({ node }: { node: PageNode }) => {
     headlineColor = 'var(--color-foreground)',
     descriptionColor = 'var(--color-foreground)',
     linkColor = 'var(--color-primary)',
-    headlineFontSize = '2.5rem',
+    headlineFontSize = 'clamp(1.75rem, 5vw, 2.5rem)',
     descriptionFontSize = '1.05rem',
     autoPlay = true,
     muted = true,
@@ -719,7 +719,7 @@ export const TextMediaBlock = ({ node }: { node: PageNode }) => {
   const isVideo = imageUrl?.match(/\.(mp4|webm|ogg|mov)/i) || imageUrl?.includes('video') || imageUrl?.includes('youtube.com') || imageUrl?.includes('youtu.be') || imageUrl?.includes('vimeo.com');
 
   const content = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: imagePosition === 'page-width' ? '0' : '2rem' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: imagePosition === 'page-width' ? '0' : 'clamp(1rem, 3vw, 2rem)' }}>
       {eyebrow && <div style={{ color: eyebrowColor, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1.5rem', fontFamily: 'var(--font-sans)' }}><ReactMarkdown remarkPlugins={[remarkBreaks]} components={{ p: (({children}: any) => <>{children}</>) as any }}>{eyebrow}</ReactMarkdown></div>}
       {headline && <h2 style={{ marginBottom: '1.5rem', color: headlineColor, fontSize: headlineFontSize, lineHeight: 1.2, fontFamily: 'var(--font-heading)' }}><ReactMarkdown remarkPlugins={[remarkBreaks]} components={{ p: (({children}: any) => <>{children}</>) as any }}>{headline}</ReactMarkdown></h2>}
       {imagePosition !== 'page-width' && description && <div style={{ color: descriptionColor, fontSize: descriptionFontSize, lineHeight: 1.6, marginBottom: '2rem', fontFamily: 'var(--font-sans)' }}><ReactMarkdown remarkPlugins={[remarkBreaks]}>{description}</ReactMarkdown></div>}
@@ -754,7 +754,14 @@ export const TextMediaBlock = ({ node }: { node: PageNode }) => {
   );
 
   return (
-    <div style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }}>
+    <div style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }} className="text-media-block-wrapper">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .text-media-block-wrapper {
+            padding: 3rem 1rem !important;
+          }
+        }
+      `}} />
       {imagePosition === 'page-width' ? (
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '3rem', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ maxWidth: '800px' }}>
@@ -792,18 +799,25 @@ export const ExperiencesGridBlock = ({ node }: { node: PageNode }) => {
     cardTextColor = 'var(--color-foreground)',
     cardBorderRadius = '4px',
     bottomTextColor = 'var(--color-foreground)',
-    headlineFontSize = '2.5rem',
+    headlineFontSize = 'clamp(1.75rem, 5vw, 2.5rem)',
   } = node.props;
 
   return (
-    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }}>
+    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }} className="experiences-grid-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .experiences-grid-section {
+            padding: 3rem 1rem !important;
+          }
+        }
+      `}} />
       <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
         {eyebrow && <div style={{ color: eyebrowColor, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1rem', fontFamily: 'var(--font-sans)' }}>{eyebrow}</div>}
         {headline && <h2 style={{ marginBottom: '3rem', color: headlineColor, fontSize: headlineFontSize, fontFamily: 'var(--font-heading)' }}><ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{headline}</ReactMarkdown></h2>}
         
         <SwipeScrollContainer
           active={node.props.mobileLayout === 'swipe'}
-          gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+          gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))"
           gap="1.5rem"
           arrowColor={eyebrowColor}
           style={{ marginBottom: '4rem', textAlign: 'center' }}
@@ -855,14 +869,27 @@ export const YachtFeatureBlock = ({ node }: { node: PageNode }) => {
     headlineColor = 'var(--color-foreground)',
     descriptionColor = 'var(--color-foreground)',
     linkColor = 'var(--color-primary)',
-    headlineFontSize = '2.5rem',
+    headlineFontSize = 'clamp(1.75rem, 5vw, 2.5rem)',
   } = node.props;
 
   return (
-    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: '4rem', alignItems: 'center' }}>
+    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }} className="yacht-feature-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .yacht-feature-section {
+            padding: 3rem 1rem !important;
+          }
+          .yacht-feature-media-grid {
+            aspect-ratio: 1.25 !important;
+          }
+          .yacht-feature-inner-wrap {
+            gap: 2rem !important;
+          }
+        }
+      `}} />
+      <div className="yacht-feature-inner-wrap" style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: '4rem', alignItems: 'center' }}>
         {/* Left side: Images */}
-        <div style={{ flex: '1 1 min(500px, 100%)', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '1rem', aspectRatio: '1' }}>
+        <div className="yacht-feature-media-grid" style={{ flex: '1 1 min(500px, 100%)', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '1rem', aspectRatio: '1' }}>
           <div style={{ gridColumn: '1 / 2', gridRow: '1 / 3', overflow: 'hidden' }}>
             {images[0] ? <img src={images[0]} alt="Yacht main" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: 'var(--color-background)' }} />}
           </div>
@@ -936,18 +963,32 @@ export const TestimonialsGridBlock = ({ node }: { node: PageNode }) => {
   };
 
   return (
-    <div style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }}>
+    <div style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }} className="testimonials-grid-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .testimonials-grid-section {
+            padding: 3rem 1rem !important;
+          }
+          .testimonials-header-right {
+            align-items: flex-start !important;
+            text-align: left !important;
+          }
+          .testimonial-card-item {
+            padding: 1.5rem !important;
+          }
+        }
+      `}} />
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         
         {/* Split Header */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3rem', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4rem' }}>
           <div style={{ flex: '1 1 500px' }}>
             {eyebrow && <div style={{ color: eyebrowColor, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1rem', fontFamily: 'var(--font-sans)' }}>{eyebrow}</div>}
-            {headline && <h2 style={{ fontSize: '3rem', margin: '0 0 1rem', lineHeight: 1.2, color: textColor }}>{headline}</h2>}
+            {headline && <h2 style={{ fontSize: 'clamp(1.85rem, 5vw, 3rem)', margin: '0 0 1rem', lineHeight: 1.2, color: textColor }}>{headline}</h2>}
             {description && <p style={{ fontSize: '1.125rem', color: descriptionColor, margin: 0, maxWidth: '600px' }}>{description}</p>}
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1.5rem', textAlign: 'right' }}>
+          <div className="testimonials-header-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1.5rem', textAlign: 'right' }}>
             {overallRating > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{ fontSize: '3.5rem', fontWeight: 700, lineHeight: 1, fontFamily: 'serif', color: textColor }}>{Number(overallRating).toFixed(1)}</div>
@@ -972,7 +1013,7 @@ export const TestimonialsGridBlock = ({ node }: { node: PageNode }) => {
         
         <SwipeScrollContainer
           active={node.props.mobileLayout === 'swipe'}
-          gridTemplateColumns="repeat(auto-fit, minmax(300px, 1fr))"
+          gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))"
           gap="2rem"
           arrowColor={eyebrowColor}
         >
@@ -980,7 +1021,7 @@ export const TestimonialsGridBlock = ({ node }: { node: PageNode }) => {
             const numStars = typeof q.stars === 'number' ? q.stars : 5;
             
             return (
-              <div key={i} style={{ 
+              <div key={i} className="testimonial-card-item" style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 background: cardBgColor, 
@@ -1040,7 +1081,7 @@ export const CTABlock = ({ node }: { node: PageNode }) => {
     subheadlineColor = '#e0e0e0',
     buttonBgColor = 'var(--color-primary)',
     buttonTextColor = 'white',
-    headlineFontSize = '2.5rem',
+    headlineFontSize = 'clamp(1.85rem, 5vw, 2.5rem)',
     subheadlineFontSize = '1.1rem',
   } = node.props;
 
@@ -1059,7 +1100,14 @@ export const CTABlock = ({ node }: { node: PageNode }) => {
       backgroundPosition: 'center',
       color: 'white',
       ...node.props.style
-    }}>
+    }} className="cta-block-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .cta-block-section {
+            padding: 3rem 1rem !important;
+          }
+        }
+      `}} />
       {bgImage && (
         <div style={{
           position: 'absolute',
@@ -1545,7 +1593,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
     cardBgColor = '#192D3B',
     cardTextColor = 'var(--color-foreground)',
     cardBorderRadius = '4px',
-    headlineFontSize = '2.5rem',
+    headlineFontSize = 'clamp(1.75rem, 5vw, 2.5rem)',
   } = node.props;
 
   const [items, setItems] = useState<ContentItem[]>([]);
@@ -1627,7 +1675,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
 
   const currentConfig = configs.find(c => c.id === contentType);
   const prefix = currentConfig?.slugPrefix || (contentType === 'adventure' ? 'experiences' : contentType === 'asset' ? 'fleet' : contentType === 'location' ? 'locations' : 'crew');
-  const gridTemplateColumns = `repeat(auto-fit, minmax(${columns === 1 ? '100%' : columns === 2 ? '450px' : columns === 4 ? '240px' : '300px'}, 1fr))`;
+  const gridTemplateColumns = `repeat(auto-fit, minmax(${columns === 1 ? '100%' : columns === 2 ? 'clamp(280px, 50%, 450px)' : columns === 4 ? '240px' : '280px'}, 1fr))`;
 
   const getButtonText = () => {
     switch (contentType) {
@@ -1761,7 +1809,14 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
   };
 
   return (
-    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }}>
+    <section style={{ width: '100%', padding: '6rem 2rem', ...node.props.style }} className="dynamic-card-grid-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .dynamic-card-grid-section {
+            padding: 3rem 1rem !important;
+          }
+        }
+      `}} />
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {(eyebrow || headline) && (
           <div style={{ textAlign: 'center', marginBottom: '4rem' }}>

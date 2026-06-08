@@ -487,6 +487,11 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
               );
             })}
           </div>
+          {theme?.header?.showWeather && (
+            <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '2rem' }}>
+              <WeatherWidget location={theme.header.weatherLocation || 'Destin, FL, USA'} />
+            </div>
+          )}
         </div>
       )}
 

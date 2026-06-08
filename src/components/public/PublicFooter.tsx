@@ -85,7 +85,21 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
         padding: '5rem 3rem 3rem 3rem',
         marginTop: 'auto',
         fontFamily: "'Inter', sans-serif"
-      }}>
+      }} className="public-footer-section">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media (max-width: 767px) {
+            .public-footer-section {
+              padding: 3rem 1.5rem !important;
+            }
+            .public-footer-columns-grid {
+              gap: 2rem !important;
+            }
+            .public-footer-bottom-right {
+              align-items: flex-start !important;
+              text-align: left !important;
+            }
+          }
+        `}} />
         <div style={{
           maxWidth: '1200px',
           margin: '0 auto',
@@ -94,7 +108,7 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
           gap: '4rem'
         }}>
           {/* Top Row: Brand Info + Site Map Columns */}
-          <div style={{
+          <div className="public-footer-columns-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: '3rem',
@@ -321,7 +335,7 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
               <div />
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end', textAlign: 'right' }}>
+            <div className="public-footer-bottom-right" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end', textAlign: 'right' }}>
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {footerLinks.map((link: any, idx: number) => (
                   <SmartLink
