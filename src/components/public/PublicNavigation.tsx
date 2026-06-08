@@ -439,11 +439,11 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
               <X size={32} />
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '2rem' }}>
             {dynamicLinks.map((link: any, idx: number) => {
               const hasChildren = (link.children && link.children.length > 0) || !!link.dynamicSublinks;
               return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <SmartLink 
                     href={isEditorMode ? '#' : link.url}
                     target={link.target}
@@ -453,7 +453,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                     style={{
                       color: theme?.header?.textColor || 'white',
                       textDecoration: 'none',
-                      fontSize: '1.5rem',
+                      fontSize: '1.25rem',
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em'
@@ -462,7 +462,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                     {link.label}
                   </SmartLink>
                   {hasChildren && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingLeft: '1.5rem', borderLeft: '2px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingLeft: '1.25rem', borderLeft: '2px solid rgba(255, 255, 255, 0.08)' }}>
                       {(link.children || []).map((child: any, cIdx: number) => (
                         <SmartLink
                           key={cIdx}
@@ -474,8 +474,9 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                           style={{
                             color: theme?.header?.textColor ? `${theme.header.textColor}b3` : 'rgba(255,255,255,0.7)',
                             textDecoration: 'none',
-                            fontSize: '1.2rem',
-                            fontWeight: 400
+                            fontSize: '0.95rem',
+                            fontWeight: 400,
+                            lineHeight: 1.3
                           }}
                         >
                           {child.label}
