@@ -2721,10 +2721,31 @@ export const DynamicDetailBlock = ({ node }: { node: PageNode }) => {
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={innerStyle}>
+    <div style={containerStyle} className="dynamic-detail-block-section">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .dynamic-detail-block-section {
+            padding: 3rem 1rem !important;
+          }
+          .dynamic-detail-block-inner {
+            grid-template-columns: 1fr !important;
+            gap: 2rem !important;
+            padding: 1.5rem !important;
+          }
+          .dynamic-detail-block-image {
+            height: 250px !important;
+            order: 1 !important;
+          }
+          .dynamic-detail-block-content {
+            order: 2 !important;
+            align-items: center !important;
+            text-align: center !important;
+          }
+        }
+      `}} />
+      <div className="dynamic-detail-block-inner" style={innerStyle}>
         {showImage && item.heroImage && (
-          <div style={imageContainerStyle}>
+          <div className="dynamic-detail-block-image" style={imageContainerStyle}>
             <img 
               src={item.heroImage} 
               alt={item.title} 
@@ -2752,7 +2773,7 @@ export const DynamicDetailBlock = ({ node }: { node: PageNode }) => {
           </div>
         )}
 
-        <div style={contentContainerStyle}>
+        <div className="dynamic-detail-block-content" style={contentContainerStyle}>
           {item.role && (
             <span style={{ 
               color: accentColor, 
@@ -2768,7 +2789,7 @@ export const DynamicDetailBlock = ({ node }: { node: PageNode }) => {
           
           {showTitle && (
             <h2 style={{ 
-              fontSize: '2.5rem', 
+              fontSize: 'clamp(1.85rem, 5vw, 2.5rem)', 
               fontFamily: "'Cormorant Garamond', serif", 
               fontWeight: 700, 
               color: 'white', 
