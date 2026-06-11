@@ -839,7 +839,7 @@ export interface ContentItem {
   address?: string;
   latitude?: number;
   longitude?: number;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   createdAt: string;
   updatedAt: string;
   description?: string; // markdown detailed description
@@ -1834,6 +1834,7 @@ export interface BookingRecord {
   cancelReason?: string;
   refundEstimate?: number;
   changeHistory?: any[];
+  isArchived?: boolean;
 }
 
 export interface BookingMessage {
@@ -1893,6 +1894,7 @@ export interface CustomerProfile {
     author: string;
     note: string;
   }>;
+  isArchived?: boolean;
 }
 
 /**
@@ -2600,6 +2602,261 @@ export async function ensureBookingToken(bookingId: string, currentToken?: strin
     console.error('Error ensuring booking token:', error);
   }
   return '';
+}
+
+/**
+ * Soft-archives a booking record.
+ */
+export async function archiveBooking(bookingId: string): Promise<boolean> {
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    await setDoc(bookingRef, {
+      isArchived: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error archiving booking:', error);
+    return false;
+  }
+}
+
+/**
+ * Hard-deletes a booking record and removes its reference from the customer profile.
+ */
+export async function deleteBooking(bookingId: string): Promise<boolean> {
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    
+    // Fetch booking to find guest email
+    const bookingSnap = await getDoc(bookingRef);
+    if (!bookingSnap.exists()) return false;
+    const bookingData = bookingSnap.data() as BookingRecord;
+    
+    // Delete booking document
+    await deleteDoc(bookingRef);
+    
+    // Remove reference from customer profile
+    if (bookingData.guestEmail) {
+      const emailSanitized = bookingData.guestEmail.toLowerCase().trim();
+      const customerDocId = `customer-${emailSanitized.replace(/[^a-z0-9]/g, '-')}`;
+      const customerRef = doc(db, PAGE_COLLECTION, customerDocId);
+      const customerSnap = await getDoc(customerRef);
+      if (customerSnap.exists()) {
+        const customerData = customerSnap.data() as CustomerProfile;
+        const updatedBookingIds = (customerData.bookingIds || []).filter(id => id !== bookingId);
+        const updatedWaivers = (customerData.waiverSignatures || []).filter(w => w.bookingId !== bookingId);
+        await setDoc(customerRef, {
+          bookingIds: updatedBookingIds,
+          waiverSignatures: updatedWaivers,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error deleting booking:', error);
+    return false;
+  }
+}
+
+/**
+ * Soft-archives a customer profile.
+ */
+export async function archiveCustomer(customerId: string): Promise<boolean> {
+  try {
+    const customerRef = doc(db, PAGE_COLLECTION, customerId);
+    await setDoc(customerRef, {
+      isArchived: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error archiving customer:', error);
+    return false;
+  }
+}
+
+/**
+ * Permanently deletes a customer profile, deletes their waivers, and anonymizes associated bookings (GDPR).
+ */
+export async function deleteCustomer(customerId: string): Promise<boolean> {
+  try {
+    const customerRef = doc(db, PAGE_COLLECTION, customerId);
+    const customerSnap = await getDoc(customerRef);
+    if (!customerSnap.exists()) return false;
+    const customerData = customerSnap.data() as CustomerProfile;
+    
+    // Delete customer profile document
+    await deleteDoc(customerRef);
+    
+    // 1. Delete associated waivers
+    const bookingIds = customerData.bookingIds || [];
+    for (const bId of bookingIds) {
+      const waiverRef = doc(db, PAGE_COLLECTION, `waiver-${bId}`);
+      try {
+        await deleteDoc(waiverRef);
+      } catch (e) {
+        console.warn(`Could not delete waiver for booking ${bId}:`, e);
+      }
+    }
+    
+    // 2. Anonymize guest details in all associated bookings to satisfy GDPR while maintaining accounting totals
+    for (const bId of bookingIds) {
+      const bookingRef = doc(db, PAGE_COLLECTION, `booking-${bId}`);
+      try {
+        const bookingSnap = await getDoc(bookingRef);
+        if (bookingSnap.exists()) {
+          await setDoc(bookingRef, {
+            guestName: 'GDPR Erasure',
+            guestFirstName: 'GDPR',
+            guestLastName: 'Erasure',
+            guestMiddleInitial: '',
+            guestEmail: 'gdpr-erasure@motoryachtwhiskey.com',
+            guestPhone: '000-000-0000',
+            specialConsiderations: 'Erased per customer GDPR request.',
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.error(`Error anonymizing booking BK-${bId}:`, e);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    return false;
+  }
+}
+
+/**
+ * Checks if a content item (staff, asset, location, owner) is in use and returns validation info.
+ */
+export async function checkContentItemUsage(id: string, contentType: string): Promise<{ inUse: boolean; message: string; details?: string[] }> {
+  try {
+    const details: string[] = [];
+    const nowStr = new Date().toISOString().split('T')[0]; // Current date YYYY-MM-DD
+    
+    if (contentType === 'staff') {
+      // Check if captain is scheduled for future bookings
+      const bookings = await getAllBookings();
+      const futureBookings = bookings.filter(b => 
+        b.captainId === id && 
+        b.status !== 'cancelled' && 
+        b.date >= nowStr
+      );
+      if (futureBookings.length > 0) {
+        futureBookings.forEach(b => details.push(`Future Booking BK-${b.id} on ${b.date}`));
+        return {
+          inUse: true,
+          message: `This staff member has ${futureBookings.length} future booking(s) assigned.`,
+          details
+        };
+      }
+    } else if (contentType === 'asset') {
+      // Check if asset is used in future bookings (vessel or gear)
+      const bookings = await getAllBookings();
+      const futureBookings = bookings.filter(b => 
+        b.status !== 'cancelled' && 
+        b.date >= nowStr && 
+        (b.vesselSlug === id || (b.gearSlugs || []).includes(id))
+      );
+      if (futureBookings.length > 0) {
+        futureBookings.forEach(b => details.push(`Future Booking BK-${b.id} on ${b.date} (${b.vesselSlug === id ? 'as vessel' : 'as gear'})`));
+        return {
+          inUse: true,
+          message: `This asset is reserved in ${futureBookings.length} future booking(s).`,
+          details
+        };
+      }
+      
+      // Check if asset is linked to any active adventures/experiences
+      const adventures = await getContentItems('adventure');
+      const linkedAdventures = adventures.filter(adv => 
+        (adv.linkedAssets || []).includes(id) || 
+        (adv.addonAssetSlugs || []).includes(id)
+      );
+      if (linkedAdventures.length > 0) {
+        linkedAdventures.forEach(adv => details.push(`Linked Adventure: "${adv.title}"`));
+        return {
+          inUse: true,
+          message: `This asset is linked to ${linkedAdventures.length} adventure experience(s).`,
+          details
+        };
+      }
+      
+      // Check if crew is certified for this vessel
+      const staff = await getContentItems('staff');
+      const certifiedCrew = staff.filter(s => (s.certifiedVessels || []).includes(id));
+      if (certifiedCrew.length > 0) {
+        certifiedCrew.forEach(s => details.push(`Certified Crew: "${s.title}"`));
+        return {
+          inUse: true,
+          message: `This vessel is certified for ${certifiedCrew.length} crew member(s).`,
+          details
+        };
+      }
+
+      // Check for blackouts
+      const blackouts = await getAssetBlackouts(id);
+      const activeBlackouts = blackouts.filter(bl => bl.endDate >= nowStr);
+      if (activeBlackouts.length > 0) {
+        activeBlackouts.forEach(bl => details.push(`Blackout: "${bl.title}" (${bl.startDate} to ${bl.endDate})`));
+        return {
+          inUse: true,
+          message: `This asset has ${activeBlackouts.length} active or future blackout period(s).`,
+          details
+        };
+      }
+    } else if (contentType === 'location') {
+      // Check if location is linked to any adventures/experiences
+      const adventures = await getContentItems('adventure');
+      const linkedAdventures = adventures.filter(adv => (adv.linkedLocations || []).includes(id));
+      if (linkedAdventures.length > 0) {
+        linkedAdventures.forEach(adv => details.push(`Linked Adventure: "${adv.title}"`));
+        return {
+          inUse: true,
+          message: `This location is part of the itinerary for ${linkedAdventures.length} adventure experience(s).`,
+          details
+        };
+      }
+      
+      // Check if location is start/end of any active assets
+      const assets = await getContentItems('asset');
+      const linkedAssets = assets.filter(a => 
+        a.homeLocation === id || 
+        a.startLocation === id || 
+        a.endLocation === id
+      );
+      if (linkedAssets.length > 0) {
+        linkedAssets.forEach(a => details.push(`Linked Asset: "${a.title}"`));
+        return {
+          inUse: true,
+          message: `This location is set as the home or start/end location for ${linkedAssets.length} asset(s).`,
+          details
+        };
+      }
+    } else if (contentType === 'owner') {
+      // Check if owner is linked to any active assets
+      const assets = await getContentItems('asset');
+      const ownedAssets = assets.filter(a => a.ownerId === id);
+      if (ownedAssets.length > 0) {
+        ownedAssets.forEach(a => details.push(`Owned Asset: "${a.title}"`));
+        return {
+          inUse: true,
+          message: `This owner is associated with ${ownedAssets.length} asset(s).`,
+          details
+        };
+      }
+    }
+    
+    return { inUse: false, message: 'Item is not currently in use by any other active records.' };
+  } catch (error) {
+    console.error('Error checking content item usage:', error);
+    return { inUse: true, message: 'Error occurred during dependency validation.' };
+  }
 }
 
 

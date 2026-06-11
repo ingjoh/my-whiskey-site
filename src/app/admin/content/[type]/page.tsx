@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   getContentItems, deleteContentItem, getContentTypeConfigs, 
+  saveContentItem, checkContentItemUsage,
   ContentItem, ContentTypeConfig 
 } from '@/lib/db';
 import { 
   Compass, Ship, Users, Sliders, ChevronLeft, Plus, 
-  Trash2, Edit, Loader2, FileText, AlertCircle, ArrowRight, MapPin, Eye
+  Trash2, Edit, Loader2, FileText, AlertCircle, ArrowRight, MapPin, Eye, Archive
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -24,6 +25,8 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [isArchiving, setIsArchiving] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,6 +74,14 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
     if (!deleteConfirmId) return;
     setIsDeleting(true);
     try {
+      // Validate dependency constraints before delete
+      const usage = await checkContentItemUsage(deleteConfirmId, type);
+      if (usage.inUse) {
+        alert(`Cannot Delete: ${usage.message}\n\nDependencies / Conflicts:\n${(usage.details || []).map(d => `• ${d}`).join('\n')}\n\nPlease archive this item instead.`);
+        setDeleteConfirmId(null);
+        return;
+      }
+      
       await deleteContentItem(deleteConfirmId);
       setItems(prev => prev.filter(item => item.id !== deleteConfirmId));
       showToast('success', 'Item deleted successfully');
@@ -80,6 +91,27 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
       showToast('error', 'Failed to delete item');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleArchiveItem = async (item: ContentItem) => {
+    if (item.status === 'archived') return;
+    if (!confirm(`Are you sure you want to archive "${item.title}"? This hides it from public lists but preserves its references.`)) return;
+    
+    setIsArchiving(item.id);
+    try {
+      await saveContentItem({
+        ...item,
+        status: 'archived',
+        updatedAt: new Date().toISOString()
+      });
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'archived' } : i));
+      showToast('success', 'Item archived successfully');
+    } catch (error) {
+      console.error('Error archiving item:', error);
+      showToast('error', 'Failed to archive item');
+    } finally {
+      setIsArchiving(null);
     }
   };
 
@@ -95,6 +127,8 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
         return <Sliders size={24} color="#B9783B" />;
     }
   };
+
+  const visibleItems = items.filter(item => showArchived || item.status !== 'archived');
 
   return (
     <div style={{ minHeight: '100vh', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif" }}>
@@ -170,6 +204,16 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
             </p>
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            {/* Show Archived toggle check */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.825rem', color: '#D8C7AF', cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem' }}>
+              <input 
+                type="checkbox"
+                checked={showArchived}
+                onChange={e => setShowArchived(e.target.checked)}
+                style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+              />
+              <span>Show Archived</span>
+            </label>
             {typeConfig && (
               <a 
                 href={`/${typeConfig.slugPrefix}`}
@@ -224,7 +268,7 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
             <Loader2 size={36} className="animate-spin" style={{ color: '#B9783B' }} />
             <span style={{ color: '#D8C7AF' }}>Loading items...</span>
           </div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div style={{
             background: '#1E2124',
             border: '1px solid rgba(255,255,255,0.06)',
@@ -259,7 +303,7 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
         ) : (
           /* Items Grid */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <div 
                 key={item.id}
                 style={{
@@ -296,8 +340,8 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <div style={{ 
                         fontSize: '0.7rem', 
-                        background: item.status === 'published' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', 
-                        color: item.status === 'published' ? '#10B981' : '#F59E0B', 
+                        background: item.status === 'published' ? 'rgba(16,185,129,0.1)' : item.status === 'archived' ? 'rgba(255,255,255,0.06)' : 'rgba(245,158,11,0.1)', 
+                        color: item.status === 'published' ? '#10B981' : item.status === 'archived' ? '#D8C7AF' : '#F59E0B', 
                         padding: '0.2rem 0.5rem', 
                         borderRadius: '4px',
                         textTransform: 'uppercase',
@@ -332,6 +376,21 @@ export default function ContentItemsList({ params }: { params: Promise<{ type: s
                         >
                           <Edit size={15} />
                         </Link>
+                        {item.status !== 'archived' ? (
+                          <button 
+                            type="button"
+                            onClick={() => handleArchiveItem(item)}
+                            disabled={isArchiving === item.id}
+                            style={{ background: 'transparent', border: 'none', color: '#B9783B', opacity: 0.7, cursor: isArchiving === item.id ? 'not-allowed' : 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center' }}
+                            title="Archive Item"
+                          >
+                            <Archive size={15} />
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', color: '#708C84', fontWeight: 600, padding: '0.25rem' }}>
+                            Archived
+                          </span>
+                        )}
                         <button 
                           onClick={() => setDeleteConfirmId(item.id)}
                           style={{ background: 'transparent', border: 'none', color: '#EF4444', opacity: 0.7, cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center' }}

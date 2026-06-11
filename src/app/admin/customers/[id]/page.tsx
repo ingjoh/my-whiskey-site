@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { 
   getCustomerProfileById, getAllBookings, getAllWaiverSignatures, 
-  addCustomerPrivateNote, CustomerProfile, BookingRecord, WaiverSignature 
+  addCustomerPrivateNote, archiveCustomer, deleteCustomer,
+  CustomerProfile, BookingRecord, WaiverSignature 
 } from '@/lib/db';
 
 export default function CustomerProfileDetailView({ params }: { params: Promise<{ id: string }> }) {
@@ -100,6 +101,70 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
       showToast('error', 'Error occurred while saving note.');
     } finally {
       setIsSubmittingNote(false);
+    }
+  };
+
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleArchiveCustomer = async () => {
+    if (!customer) return;
+    if (!confirm(`Are you sure you want to archive the profile for ${fullName}? This hides them from active lists, but keeps past trips and notes.`)) return;
+
+    setIsArchiving(true);
+    try {
+      const ok = await archiveCustomer(customer.id);
+      if (ok) {
+        showToast('success', 'Customer profile archived.');
+        setCustomer(prev => prev ? { ...prev, isArchived: true } : null);
+      } else {
+        showToast('error', 'Failed to archive customer.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'An error occurred.');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!customer) return;
+    
+    // Check if customer has future/active bookings
+    const nowStr = new Date().toISOString().split('T')[0];
+    const futureBookings = bookings.filter(b => b.status !== 'cancelled' && b.date >= nowStr);
+    if (futureBookings.length > 0) {
+      alert(`Cannot delete customer: This client has ${futureBookings.length} upcoming/active booking(s). You must cancel or reschedule them first.`);
+      return;
+    }
+
+    if (!confirm(`WARNING: You are about to permanently delete the profile for ${fullName} to satisfy a GDPR Erasure Request.\n\nThis will permanently delete their CRM profile, private staff notes, and all digital liability waivers.\n\nAssociated booking records will be anonymized to protect their privacy but kept for tax and financial reports.\n\nThis action CANNOT be undone. Do you wish to continue?`)) {
+      return;
+    }
+    
+    const confirmText = prompt(`FINAL CONFIRMATION: Type "ERASE" to permanently delete ${customer.email}'s profile and erase all personal information:`);
+    if (confirmText !== 'ERASE') {
+      showToast('error', 'Deletion cancelled. Confirmation phrase did not match.');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const ok = await deleteCustomer(customer.id);
+      if (ok) {
+        showToast('success', 'GDPR account erasure completed successfully.');
+        setTimeout(() => {
+          router.push('/admin/customers');
+        }, 1500);
+      } else {
+        showToast('error', 'Failed to delete customer profile.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'An error occurred.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -281,6 +346,44 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
                     Call Phone Line
                   </a>
                 )}
+              </div>
+            </div>
+
+            {/* Account Actions */}
+            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.25rem', marginTop: '1.5rem' }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                Account Controls
+              </h3>
+              <p style={{ margin: '0 0 1rem 0', fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.8, lineHeight: '1.4' }}>
+                Archiving hides this client from searches while preserving their history. Deleting is a GDPR request that permanently removes all records.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {!customer.isArchived ? (
+                  <button 
+                    type="button"
+                    onClick={handleArchiveCustomer}
+                    disabled={isArchiving}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'white', padding: '0.55rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: isArchiving ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  >
+                    {isArchiving ? 'Archiving...' : 'Archive Profile'}
+                  </button>
+                ) : (
+                  <div style={{ background: 'rgba(112, 140, 132, 0.1)', color: '#708C84', padding: '0.55rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, textAlign: 'center' }}>
+                    ✓ Archived Profile
+                  </div>
+                )}
+                <button 
+                  type="button"
+                  onClick={handleDeleteCustomer}
+                  disabled={isDeleting}
+                  style={{ background: '#EF4444', color: 'white', border: 'none', padding: '0.55rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: isDeleting ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+                  onMouseOver={e => e.currentTarget.style.background = '#d93838'}
+                  onMouseOut={e => e.currentTarget.style.background = '#EF4444'}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Profile (GDPR)'}
+                </button>
               </div>
             </div>
           </div>

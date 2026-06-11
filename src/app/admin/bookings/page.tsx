@@ -13,7 +13,7 @@ import {
   getAllBookings, updateBookingOperationalFields, getContentItems, 
   getAssetBlackouts, getAllCheckoutLocks, deleteAssetBlackout,
   sendBookingMessage, getBookingById, updateBookingMessageStatus,
-  ensureBookingToken
+  ensureBookingToken, archiveBooking, deleteBooking
 } from '@/lib/db';
 
 // Helper to format local timezone Date objects as YYYY-MM-DD
@@ -33,7 +33,7 @@ const formatCost = (val: number) => {
 const getPaidToday = (b: any) => {
   if (!b) return 0;
   const rawPaidToday = b.amountPaidToday || 0;
-  const isActive = b.status !== 'pending' && b.status !== 'cancelled';
+  const isActive = b.status !== 'pending' && b.status !== 'cancelled' && !b.isArchived;
   if (isActive && rawPaidToday === 0) {
     const grandTotal = b.grandTotal || 0;
     const rawDueLater = b.amountDueLater || 0;
@@ -146,6 +146,7 @@ export default function BookingsDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [vesselFilter, setVesselFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
 
   // Sorting states
   const [sortField, setSortField] = useState<string>('createdAt');
@@ -225,6 +226,7 @@ export default function BookingsDashboard() {
       b.date === dateStr && 
       b.startTime === timeStr && 
       b.status !== 'cancelled' &&
+      !b.isArchived &&
       b.id !== selectedBooking.id
     );
     if (conflict) {
@@ -303,7 +305,7 @@ export default function BookingsDashboard() {
     const rawPaidToday = b.amountPaidToday || 0;
     const rawDueLater = b.amountDueLater || 0;
     
-    const isActive = b.status !== 'pending' && b.status !== 'cancelled';
+    const isActive = b.status !== 'pending' && b.status !== 'cancelled' && !b.isArchived;
     const amountPaidToday = (isActive && rawPaidToday === 0)
       ? Math.max(0, grandTotal - rawDueLater)
       : rawPaidToday;
@@ -363,6 +365,7 @@ export default function BookingsDashboard() {
       b.date === adminNewDate && 
       b.startTime === adminNewTime && 
       b.status !== 'cancelled' &&
+      !b.isArchived &&
       b.id !== selectedBooking.id
     );
     if (conflict) {
@@ -531,6 +534,59 @@ export default function BookingsDashboard() {
       showToast('error', `Cancellation failed: ${err.message}`);
     } finally {
       setIsCancellingAdmin(false);
+    }
+  };
+
+  const [isArchivingBooking, setIsArchivingBooking] = useState(false);
+  const [isDeletingBooking, setIsDeletingBooking] = useState(false);
+
+  const handleArchiveBooking = async () => {
+    if (!selectedBooking) return;
+    if (!confirm(`Are you sure you want to archive booking BK-${selectedBooking.id}? This will remove it from active listings but retain the financial records.`)) return;
+    
+    setIsArchivingBooking(true);
+    try {
+      const ok = await archiveBooking(selectedBooking.id);
+      if (ok) {
+        showToast('success', `Booking BK-${selectedBooking.id} archived successfully.`);
+        setBookings(prev => prev.map(b => b.id === selectedBooking.id ? { ...b, isArchived: true } : b));
+        setSelectedBooking((prev: any) => prev ? { ...prev, isArchived: true } : null);
+      } else {
+        showToast('error', 'Failed to archive booking.');
+      }
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'An error occurred.');
+    } finally {
+      setIsArchivingBooking(false);
+    }
+  };
+
+  const handleDeleteBooking = async () => {
+    if (!selectedBooking) return;
+    
+    if (selectedBooking.stripePaymentIntentId && selectedBooking.status !== 'cancelled') {
+      const proceed = confirm(`Warning: This booking has an associated Stripe Payment (ID: ${selectedBooking.stripePaymentIntentId}) and is NOT cancelled. Deleting this booking will NOT automatically refund the customer. Are you sure you want to proceed without refunding?`);
+      if (!proceed) return;
+    }
+    
+    if (!confirm(`Are you sure you want to PERMANENTLY delete booking BK-${selectedBooking.id}? This action will completely erase the booking document and cannot be undone.`)) return;
+    
+    setIsDeletingBooking(true);
+    try {
+      const ok = await deleteBooking(selectedBooking.id);
+      if (ok) {
+        showToast('success', `Booking BK-${selectedBooking.id} deleted successfully.`);
+        setBookings(prev => prev.filter(b => b.id !== selectedBooking.id));
+        setSelectedBooking(null);
+      } else {
+        showToast('error', 'Failed to delete booking.');
+      }
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'An error occurred.');
+    } finally {
+      setIsDeletingBooking(false);
     }
   };
 
@@ -757,6 +813,7 @@ export default function BookingsDashboard() {
 
   // Filters calculation (includes date scope, search text, status, and vessel matching)
   const filteredBookings = bookings.filter(b => {
+    if (!showArchived && b.isArchived) return false;
     const matchesSearch = 
       (b.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.guestName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1091,7 +1148,7 @@ export default function BookingsDashboard() {
   };
 
   const getGearAllocationsForDate = (dateStr: string) => {
-    const activeBookings = bookings.filter(b => b.date === dateStr && b.status !== 'cancelled');
+    const activeBookings = bookings.filter(b => b.date === dateStr && b.status !== 'cancelled' && !b.isArchived);
     const allocated: Record<string, number> = {};
     
     activeBookings.forEach(b => {
@@ -1184,6 +1241,7 @@ export default function BookingsDashboard() {
 
   // Decoupled statsBookings that are only filtered by date scope and vessel selection (ignoring status filter and search term)
   const statsBookings = bookings.filter(b => {
+    if (!showArchived && b.isArchived) return false;
     const matchesVessel = vesselFilter === 'all' || b.vesselTitle === vesselFilter;
 
     const { start: dateScopeStart, end: dateScopeEnd } = getActiveRangeAndGrouping();
@@ -1220,7 +1278,7 @@ export default function BookingsDashboard() {
   // Calculate timeframe filtered bookings for summary stats (excluding cancelled ones)
   const timeframeBookings = statsBookings.filter(b => b.status !== 'cancelled');
 
-  const unreadMessagesCount = bookings.filter(b => b.messageStatus === 'unread').length;
+  const unreadMessagesCount = bookings.filter(b => b.messageStatus === 'unread' && !b.isArchived).length;
 
   const confirmedCount = timeframeBookings.filter(b => b.status === 'confirmed').length;
   const pendingWaiverCount = timeframeBookings.filter(b => !b.waiverSigned).length;
@@ -2005,6 +2063,19 @@ export default function BookingsDashboard() {
               ))}
             </select>
           </div>
+
+          {/* Archived selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#D8C7AF', cursor: 'pointer', userSelect: 'none' }}>
+              <input 
+                type="checkbox"
+                checked={showArchived}
+                onChange={e => setShowArchived(e.target.checked)}
+                style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+              />
+              <span>Show Archived</span>
+            </label>
+          </div>
         </div>
 
         {/* Data Grid Table */}
@@ -2273,7 +2344,7 @@ export default function BookingsDashboard() {
 
           const parsedVesselData = vessels.map(vessel => {
             const dayDataList = weekDates.map(dateStr => {
-              const cellBookings = bookings.filter(b => b.vesselSlug === vessel.slug && b.date === dateStr && b.status !== 'cancelled');
+              const cellBookings = bookings.filter(b => b.vesselSlug === vessel.slug && b.date === dateStr && b.status !== 'cancelled' && !b.isArchived);
               const cellBlackouts = blackouts.filter(b => b.vesselSlug === vessel.slug && dateStr >= b.startDate && dateStr <= b.endDate);
               const cellLocks = checkoutLocks.filter(l => l.vesselSlug === vessel.slug && l.date === dateStr);
 
@@ -3528,6 +3599,38 @@ export default function BookingsDashboard() {
                     Reply
                   </button>
                 </form>
+              </div>
+
+              {/* Archival / Erasure Controls */}
+              <div style={{ background: 'rgba(239, 68, 68, 0.03)', border: '1px solid rgba(239, 68, 68, 0.12)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Archive & Deletion</h4>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.8, lineHeight: '1.4' }}>
+                  Soft-archiving hides the trip from lists but keeps reports intact. Hard-deleting permanently erases the booking and cleans CRM refs.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {!selectedBooking.isArchived ? (
+                    <button
+                      type="button"
+                      onClick={handleArchiveBooking}
+                      disabled={isArchivingBooking}
+                      style={{ flex: 1, padding: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: isArchivingBooking ? 'not-allowed' : 'pointer' }}
+                    >
+                      {isArchivingBooking ? 'Archiving...' : 'Archive Booking'}
+                    </button>
+                  ) : (
+                    <span style={{ flex: 1, padding: '0.5rem', background: 'rgba(255,255,255,0.05)', color: '#708C84', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 700, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      ✓ Archived
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDeleteBooking}
+                    disabled={isDeletingBooking}
+                    style={{ flex: 1, padding: '0.5rem', background: '#EF4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: isDeletingBooking ? 'not-allowed' : 'pointer' }}
+                  >
+                    {isDeletingBooking ? 'Deleting...' : 'Delete Booking'}
+                  </button>
+                </div>
               </div>
 
             </div>

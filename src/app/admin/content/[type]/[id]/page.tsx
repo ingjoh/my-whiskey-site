@@ -198,7 +198,7 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
   const [locationInputElement, setLocationInputElement] = useState<HTMLInputElement | null>(null);
   const [nominatimSuggestions, setNominatimSuggestions] = useState<any[]>([]);
   const [isSearchingNominatim, setIsSearchingNominatim] = useState(false);
-  const [status, setStatus] = useState<'draft' | 'published'>('draft');
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft');
   const [createdAt, setCreatedAt] = useState('');
   const [description, setDescription] = useState('');
   const [gallery, setGallery] = useState<Array<{ url: string; type: 'image' | 'video' | 'document'; name?: string }>>([]);
@@ -1429,11 +1429,12 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
                   Publishing Status
                   <select 
                     value={status}
-                    onChange={e => setStatus(e.target.value as any)}
+                    onChange={e => setStatus(e.target.value as 'draft' | 'published' | 'archived')}
                     style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', cursor: 'pointer' }}
                   >
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
+                    <option value="archived">Archived</option>
                   </select>
                 </label>
                 <div></div>

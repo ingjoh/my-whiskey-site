@@ -25,6 +25,7 @@ export default function CustomersDashboard() {
   const [waiverFilter, setWaiverFilter] = useState('all');
   const [sortField, setSortField] = useState<'name' | 'ltv' | 'trips' | 'createdAt'>('ltv');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showArchived, setShowArchived] = useState(false);
   
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -111,6 +112,7 @@ export default function CustomersDashboard() {
       waiverStatus
     };
   }).filter(c => {
+    if (!showArchived && c.isArchived) return false;
     const matchesSearch = 
       c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -258,6 +260,19 @@ export default function CustomersDashboard() {
               <option value="pending">Pending Signature</option>
               <option value="no_trips">No Bookings Yet</option>
             </select>
+          </div>
+
+          {/* Archived selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#D8C7AF', cursor: 'pointer', userSelect: 'none' }}>
+              <input 
+                type="checkbox"
+                checked={showArchived}
+                onChange={e => setShowArchived(e.target.checked)}
+                style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+              />
+              <span>Show Archived</span>
+            </label>
           </div>
         </div>
 
