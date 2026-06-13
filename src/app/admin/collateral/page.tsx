@@ -495,6 +495,7 @@ export default function AdvancedCollateralBuilder() {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.75rem',
+                      justifyContent: zone.verticalAlign === 'top' ? 'flex-start' : zone.verticalAlign === 'middle' ? 'center' : zone.verticalAlign === 'bottom' ? 'flex-end' : zone.verticalAlign === 'space-between' ? 'space-between' : 'flex-start',
                       pointerEvents: interactive ? 'auto' : 'none',
                       cursor: interactive ? 'pointer' : 'default',
                       backgroundColor: zone.backgroundColor || ((interactive && isSelected) ? 'rgba(185,120,59,0.03)' : 'transparent'),
@@ -3046,16 +3047,30 @@ export default function AdvancedCollateralBuilder() {
                   {selectedZone.backgroundImage && (
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
                       Darkened Overlay Opacity ({selectedZone.backgroundOverlayOpacity ?? 50}%)
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={selectedZone.backgroundOverlayOpacity ?? 50}
-                        onChange={e => updateZoneProps(selectedPageId, selectedZone.id, { backgroundOverlayOpacity: Number(e.target.value) })}
-                        style={{ accentColor: '#B9783B', cursor: 'pointer', width: '100%' }}
-                      />
-                    </label>
-                  )}
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={selectedZone.backgroundOverlayOpacity ?? 50}
+                      onChange={e => updateZoneProps(selectedPageId, selectedZone.id, { backgroundOverlayOpacity: Number(e.target.value) })}
+                      style={{ accentColor: '#B9783B', cursor: 'pointer', width: '100%' }}
+                    />
+                  </label>
+                )}
+
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.5rem' }}>
+                    Vertical Alignment
+                    <select
+                      value={selectedZone.verticalAlign || 'top'}
+                      onChange={e => updateZoneProps(selectedPageId, selectedZone.id, { verticalAlign: e.target.value as any })}
+                      style={inputStyle}
+                    >
+                      <option value="top">Top</option>
+                      <option value="middle">Middle (Center)</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="space-between">Space Between</option>
+                    </select>
+                  </label>
                 </div>
 
                 <button
@@ -3221,6 +3236,30 @@ export default function AdvancedCollateralBuilder() {
                               value={repeatLayout.rows}
                               onChange={e => updateRepeatConfig({ rows: Number(e.target.value) })}
                               style={inputStyle}
+                            />
+                          </label>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <label style={{ fontSize: '0.75rem' }}>
+                            Page Margins (e.g., 0.3in)
+                            <input
+                              type="text"
+                              value={repeatLayout.margins}
+                              onChange={e => updateRepeatConfig({ margins: e.target.value })}
+                              style={inputStyle}
+                              placeholder="0.3in"
+                            />
+                          </label>
+
+                          <label style={{ fontSize: '0.75rem' }}>
+                            Item Spacing (e.g., 0.1in)
+                            <input
+                              type="text"
+                              value={repeatLayout.spacing}
+                              onChange={e => updateRepeatConfig({ spacing: e.target.value })}
+                              style={inputStyle}
+                              placeholder="0.1in"
                             />
                           </label>
                         </div>

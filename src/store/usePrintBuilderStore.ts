@@ -16,6 +16,7 @@ export interface PrintZone {
   backgroundColor?: string;
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
+  verticalAlign?: 'top' | 'middle' | 'bottom' | 'space-between';
 }
 
 export interface PrintPage {
@@ -117,8 +118,8 @@ export const usePrintBuilderStore = create<PrintBuilderState>((set, get) => ({
     paperHeight: '11in',
     rows: 4,
     cols: 2,
-    margins: '0.5in',
-    spacing: '0.25in'
+    margins: '0.3in',
+    spacing: '0.1in'
   },
   printTheme: 'dark',
   hideGuides: false,
@@ -396,8 +397,8 @@ export const usePrintBuilderStore = create<PrintBuilderState>((set, get) => ({
       paperHeight: '11in',
       rows: 4,
       cols: 2,
-      margins: '0.5in',
-      spacing: '0.25in'
+      margins: '0.3in',
+      spacing: '0.1in'
     },
     printTheme: design.printTheme || 'dark'
   })

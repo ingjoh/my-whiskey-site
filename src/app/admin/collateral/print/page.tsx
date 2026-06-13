@@ -24,6 +24,7 @@ interface PrintZone {
   backgroundColor?: string;
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
+  verticalAlign?: 'top' | 'middle' | 'bottom' | 'space-between';
 }
 
 interface PrintPage {
@@ -1241,7 +1242,7 @@ function CollateralPrintContent() {
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '0.25rem',
-                            justifyContent: 'center',
+                            justifyContent: zone.verticalAlign === 'top' ? 'flex-start' : zone.verticalAlign === 'middle' ? 'center' : zone.verticalAlign === 'bottom' ? 'flex-end' : zone.verticalAlign === 'space-between' ? 'space-between' : 'center',
                             height: '100%',
                             backgroundColor: zone.backgroundColor || 'transparent',
                             position: 'relative',
@@ -1361,7 +1362,7 @@ function CollateralPrintContent() {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.35rem',
-                    justifyContent: 'space-between',
+                    justifyContent: zone.verticalAlign === 'top' ? 'flex-start' : zone.verticalAlign === 'middle' ? 'center' : zone.verticalAlign === 'bottom' ? 'flex-end' : zone.verticalAlign === 'space-between' ? 'space-between' : 'space-between',
                     borderRight: (design.preset === 'letter-landscape' && zone.columnStart + zone.columnSpan - 1 < design.gridCols) ? `1px solid ${borderStyle}` : 'none',
                     backgroundColor: zone.backgroundColor || 'transparent',
                     position: 'relative',
