@@ -18,7 +18,7 @@ function isWhitelisted(email?: string): boolean {
   }
   
   // Domains
-  if (cleanEmail.endsWith('@motoryachtwhiskey.com') || cleanEmail.endsWith('@projects.vercel.app')) {
+  if (cleanEmail.endsWith('@motoryachtwhiskey.com') || cleanEmail.endsWith('@mywhiskey.com') || cleanEmail.endsWith('@projects.vercel.app')) {
     return true;
   }
   

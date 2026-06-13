@@ -6,7 +6,7 @@ import {
   MapPin, Clock, Users, Check, ArrowRight, Compass, Shield, Info, Calendar, AlertCircle, Star,
   FileText, Film, Image as ImageIcon, Download, ExternalLink, X,
   Utensils, GlassWater, Wifi, Music, DollarSign, Sparkles, Waves, Fuel, Ship, ChevronLeft, ChevronRight, CreditCard, CheckCircle,
-  ChevronDown, ChevronUp, Anchor
+  ChevronDown, ChevronUp, Anchor, Tag
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SwipeScrollContainer } from '../builder/SwipeScrollContainer';
@@ -14,7 +14,7 @@ import {
   saveBookingData, saveWaiverSignature, loadPageData, getCustomerProfile, getContentItem,
   getAllBookings, getAssetBlackouts, BookingRecord, AssetBlackout,
   acquireCheckoutLock, releaseCheckoutLock, getAllCheckoutLocks, CheckoutLock,
-  getContentItems, checkSignatureMatch, getBookingById
+  getContentItems, checkSignatureMatch, getBookingById, getDiscountCode, DiscountCode
 } from '@/lib/db';
 import { firebaseConfig } from '@/lib/firebase';
 
@@ -517,6 +517,116 @@ export default function AdventureDetailView({
   const [guestCount, setGuestCount] = useState<number>(1);
   const [specialConsiderations, setSpecialConsiderations] = useState<string>('');
   const [passengersList, setPassengersList] = useState<Array<{ name: string; relationship: string }>>([]);
+
+  // Discount/Promo states
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<DiscountCode | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<boolean>(false);
+  const [isApplyingPromo, setIsApplyingPromo] = useState<boolean>(false);
+
+  const handleApplyPromoCode = async (codeToApply?: string) => {
+    const code = (codeToApply || promoCodeInput).toUpperCase().trim();
+    if (!code) {
+      setPromoError('Please enter a promo code.');
+      setPromoSuccess(false);
+      return;
+    }
+    
+    setIsApplyingPromo(true);
+    setPromoError(null);
+    try {
+      const discount = await getDiscountCode(code);
+      if (!discount) {
+        setPromoError('Invalid promo code.');
+        setPromoSuccess(false);
+        setAppliedPromo(null);
+        return;
+      }
+      
+      if (!discount.active) {
+        setPromoError('This promo code is no longer active.');
+        setPromoSuccess(false);
+        setAppliedPromo(null);
+        return;
+      }
+      
+      if (discount.expirationDate) {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const expDate = new Date(discount.expirationDate + 'T23:59:59');
+        if (today.getTime() > expDate.getTime()) {
+          setPromoError('This promo code has expired.');
+          setPromoSuccess(false);
+          setAppliedPromo(null);
+          return;
+        }
+      }
+      
+      setAppliedPromo(discount);
+      setPromoSuccess(true);
+      setPromoError(null);
+      
+      // Save in session storage / cookies just in case
+      try {
+        localStorage.setItem('whiskey_promo_code', discount.code);
+        document.cookie = `whiskey_promo_code=${discount.code}; path=/; max-age=2592000; SameSite=Lax`;
+      } catch (e) {}
+      
+    } catch (err) {
+      console.error('Error applying promo code:', err);
+      setPromoError('Error validating coupon. Please try again.');
+      setPromoSuccess(false);
+    } finally {
+      setIsApplyingPromo(false);
+    }
+  };
+
+  const handleRemovePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoSuccess(false);
+    setPromoCodeInput('');
+    setPromoError(null);
+    try {
+      localStorage.removeItem('whiskey_promo_code');
+      document.cookie = `whiskey_promo_code=; path=/; max-age=0; SameSite=Lax`;
+    } catch (e) {}
+  };
+
+  // Load and auto-apply promo code on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Check URL parameters first
+    const params = new URLSearchParams(window.location.search);
+    let code = params.get('promo') || params.get('discount') || '';
+    
+    // If not in URL, check cookies
+    if (!code) {
+      const cookieValue = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('whiskey_promo_code='))
+        ?.split('=')[1];
+      if (cookieValue) {
+        code = decodeURIComponent(cookieValue);
+      }
+    }
+    
+    // If still not found, check localStorage
+    if (!code) {
+      try {
+        code = localStorage.getItem('whiskey_promo_code') || '';
+      } catch (e) {}
+    }
+    
+    if (code) {
+      setPromoCodeInput(code.toUpperCase());
+      // Wait a tiny bit for component to initialize database listeners
+      setTimeout(() => {
+        handleApplyPromoCode(code);
+      }, 500);
+    }
+  }, []);
 
   // Sync structured name fields to guestName
   useEffect(() => {
@@ -1044,10 +1154,20 @@ export default function AdventureDetailView({
   }, 0);
 
   const subtotal = baseExperienceCost + vesselCost + gearTotal + addonsTotal;
-  const insuranceCost = cancellationInsurance ? subtotal * 0.05 : 0;
+  
+  // Calculate Promo Code Discount
+  const discountAmount = appliedPromo 
+    ? (appliedPromo.discountType === 'percent' 
+        ? subtotal * (appliedPromo.value / 100) 
+        : Math.min(subtotal, appliedPromo.value))
+    : 0;
+
+  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+  
+  const insuranceCost = cancellationInsurance ? discountedSubtotal * 0.05 : 0;
   // Insurance premium is tax-free. Tax is only on subtotal.
-  const salesTax = subtotal * 0.075;
-  const grandTotalWithoutInsurance = subtotal + salesTax + captainFee;
+  const salesTax = discountedSubtotal * 0.075;
+  const grandTotalWithoutInsurance = discountedSubtotal + salesTax + captainFee;
   const grandTotal = grandTotalWithoutInsurance + insuranceCost;
 
   // Verify if date is within deposit cutoff period
@@ -1577,6 +1697,8 @@ export default function AdventureDetailView({
         salesTax,
         grandTotal: isEft ? grandTotal : grandTotal + convenienceFeeTotal,
         amountPaidToday: 0,
+        discountCode: appliedPromo?.code || '',
+        discountAmount: discountAmount,
         amountDueLater: paymentPlan === 'deposit' ? amountDueLater : 0,
         paymentPlan,
         cancellationInsurance,
@@ -4010,6 +4132,102 @@ export default function AdventureDetailView({
                     <strong>Bareboat Regulation Notice:</strong> Under federal law, this vessel is chartered bareboat. The captain is an independent contractor. Estimated captain fees are included below for convenience, but selection remains at your discretion.
                   </div>
 
+                  {/* Promo / Discount Code Input */}
+                  <div style={{ 
+                    borderTop: '1px solid rgba(255,255,255,0.06)', 
+                    paddingTop: '0.75rem',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '0.5rem' 
+                  }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'white', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Have a Promo Code?
+                    </span>
+                    
+                    {!appliedPromo ? (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                          type="text"
+                          placeholder="ENTER CODE"
+                          value={promoCodeInput}
+                          onChange={e => setPromoCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                          style={{
+                            flex: 1,
+                            padding: '0.45rem 0.6rem',
+                            background: '#121416',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '6px',
+                            color: 'white',
+                            fontSize: '0.75rem',
+                            outline: 'none',
+                            textTransform: 'uppercase',
+                            fontFamily: 'monospace'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleApplyPromoCode()}
+                          disabled={isApplyingPromo}
+                          style={{
+                            background: '#B9783B',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '0.45rem 1rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'background 0.2s',
+                          }}
+                        >
+                          {isApplyingPromo ? 'Applying...' : 'Apply'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        background: 'rgba(112, 140, 132, 0.08)',
+                        border: '1px solid rgba(112, 140, 132, 0.2)',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem'
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#D8C7AF' }}>
+                          <Tag size={12} color="#708C84" />
+                          <span>Code <strong>{appliedPromo.code}</strong> Applied</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemovePromoCode}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '0.1rem 0.3rem'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+
+                    {promoError && (
+                      <span style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '0.1rem' }}>
+                        ⚠️ {promoError}
+                      </span>
+                    )}
+                    {promoSuccess && appliedPromo && (
+                      <span style={{ fontSize: '0.7rem', color: '#708C84', marginTop: '0.1rem' }}>
+                        ✓ {appliedPromo.discountType === 'percent' ? `${appliedPromo.value}%` : `$${appliedPromo.value}`} discount applied!
+                      </span>
+                    )}
+                  </div>
+
                   {/* Invoice Summary */}
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'white', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -4041,6 +4259,16 @@ export default function AdventureDetailView({
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                         <span style={{ color: '#D8C7AF', opacity: 0.7 }}>Selected Add-ons:</span>
                         <span style={{ color: 'white' }}>+{formatCost(addonsTotal)}</span>
+                      </div>
+                    )}
+
+                    {discountAmount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#708C84' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Tag size={12} />
+                          Discount ({appliedPromo?.code}):
+                        </span>
+                        <span>-{formatCost(discountAmount)}</span>
                       </div>
                     )}
 

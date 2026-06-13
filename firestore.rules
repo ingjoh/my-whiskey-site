@@ -6,6 +6,7 @@ service cloud.firestore {
       return request.auth != null && (
         request.auth.token.admin == true 
         || request.auth.token.email.matches('.*@motoryachtwhiskey\\.com')
+        || request.auth.token.email.matches('.*@mywhiskey\\.com')
         || request.auth.token.email.matches('.*@projects\\.vercel\\.app')
         || request.auth.token.email == 'ingjohs@gmail.com'
         || request.auth.token.email == 'ingjoh@gmail.com'
@@ -63,7 +64,8 @@ service cloud.firestore {
       allow read: if true;
 
       // Clients can create new booking requests, passenger waivers, checkout locks, or customer profiles
-      allow create: if request.resource.data.type == 'booking' 
+      allow create: if isAdmin()
+                    || request.resource.data.type == 'booking' 
                     || request.resource.data.type == 'waiver_signature'
                     || request.resource.data.type == 'lock'
                     || (request.resource.data.type == 'customer' 

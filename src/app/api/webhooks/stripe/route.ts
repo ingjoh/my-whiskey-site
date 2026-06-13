@@ -56,6 +56,12 @@ export async function POST(request: NextRequest) {
         const isBalancePayment = session.metadata?.isBalancePayment === 'true';
         const paymentIntentId = session.payment_intent as string;
 
+        const referredById = session.metadata?.referredById;
+        const referredByType = session.metadata?.referredByType;
+        const utmSource = session.metadata?.utmSource;
+        const utmMedium = session.metadata?.utmMedium;
+        const utmCampaign = session.metadata?.utmCampaign;
+
         if (!bookingId) {
           console.log('Skipping session: No bookingId found in metadata.');
           break;
@@ -104,9 +110,29 @@ export async function POST(request: NextRequest) {
             targetStatus = 'pending_funds_verification';
           }
         }
+
+        // Calculate commissions if referred (only on initial checkout)
+        let commissionRate = 0;
+        let commissionAmount = 0;
+        let commissionStatus: 'pending_charter' | 'n/a' = 'n/a';
+
+        if (!isBalancePayment && referredById && referredByType) {
+          try {
+            const referrerDoc = await adminDb.collection('pages').doc(`content-item-${referredById}`).get();
+            if (referrerDoc.exists) {
+              const rData = referrerDoc.data() || {};
+              commissionRate = Number(rData.defaultCommissionRate || rData.commissionRate) || 10;
+              const subtotal = existingData.subtotal || 0;
+              commissionAmount = (subtotal * commissionRate) / 100;
+              commissionStatus = 'pending_charter';
+            }
+          } catch (err) {
+            console.error('Error fetching referrer commission settings in webhook:', err);
+          }
+        }
         
         // Update booking document
-        await bookingRef.set({
+        const updatePayload: any = {
           status: targetStatus,
           amountPaidToday: amountPaidTodayCalculated,
           amountDueLater: amountDueLaterCalculated,
@@ -114,7 +140,20 @@ export async function POST(request: NextRequest) {
           stripePaymentIntentId: paymentIntentId || '',
           stripePaymentStatus: paymentStatus,
           updatedAt: new Date().toISOString(),
-        }, { merge: true });
+        };
+
+        if (!isBalancePayment) {
+          updatePayload.referredById = referredById || '';
+          updatePayload.referredByType = referredByType || '';
+          updatePayload.commissionRate = commissionRate;
+          updatePayload.commissionAmount = commissionAmount;
+          updatePayload.commissionStatus = commissionStatus;
+          updatePayload.utmSource = utmSource || '';
+          updatePayload.utmMedium = utmMedium || '';
+          updatePayload.utmCampaign = utmCampaign || '';
+        }
+
+        await bookingRef.set(updatePayload, { merge: true });
 
         console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}". Paid: $${amountPaidTodayCalculated}, Due Later: $${amountDueLaterCalculated}`);
 

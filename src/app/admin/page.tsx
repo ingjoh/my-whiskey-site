@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { 
-  Anchor, Settings, Users, LogOut, FileText, Plus, Trash2, 
+  Anchor, Settings, Users, LogOut, FileText, Plus, Trash2, Building,
   Copy, Layout, AlertCircle, ArrowRight, Loader2, Edit3, Image as ImageIcon,
-  Compass, Sliders, Ship, MapPin, Calendar, MessageSquare
+  Compass, Sliders, Ship, MapPin, Calendar, MessageSquare, Printer, DollarSign,
+  Tag
 } from 'lucide-react';
 import { 
   getAllPagesWithMetadata, PageMetadata, deletePageData, 
@@ -571,13 +572,66 @@ export default function AdminDashboard() {
 
             {/* Secondary CMS Links */}
             <div style={{ marginTop: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', marginBottom: '1rem' }}>CMS Library Assets</h3>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', marginBottom: '1rem' }}>Structured Database Directories</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <Link href="/admin/content/adventure" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Compass size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Adventures Directory</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage itineraries & routes</div>
+                  </div>
+                </Link>
+                <Link href="/admin/content/asset" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Ship size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Assets & Fleet Register</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage boats, gear & rentals</div>
+                  </div>
+                </Link>
+                <Link href="/admin/content/staff" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Users size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Crew & Staff Register</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Captains profiles & crew roles</div>
+                  </div>
+                </Link>
+                <Link href="/admin/content/company" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Building size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Partner Companies Directory</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage brokers, resellers & OTAs</div>
+                  </div>
+                </Link>
+                <Link href="/admin/content/location" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <MapPin size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Home Ports & Stopping Locations</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage stopped ports & locks</div>
+                  </div>
+                </Link>
+              </div>
+
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', marginBottom: '1rem' }}>CMS Library Assets & Engine</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
                 <Link href="/admin/media" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
                   <ImageIcon size={20} color="#B9783B" />
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Media Library Directory</div>
                     <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage banner photos & files</div>
+                  </div>
+                </Link>
+                <Link href="/admin/content" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Sliders size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Type Configuration Settings</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Customize schemas & prefixes</div>
+                  </div>
+                </Link>
+                <Link href="/admin/collateral" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Printer size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Print Collateral Builder</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Design brochures, rack cards & crew business cards</div>
                   </div>
                 </Link>
               </div>
@@ -630,6 +684,13 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Lifetime spend, waivers & notes</div>
                 </div>
               </Link>
+              <Link href="/admin/content/company" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <Building size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Partner Companies Directory</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage brokers, agencies, resellers & OTAs</div>
+                </div>
+              </Link>
               <Link href="/owner/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
                 <Ship size={22} color="#B9783B" />
                 <div>
@@ -649,6 +710,20 @@ export default function AdminDashboard() {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Voyage Flow & Messaging</div>
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage automated emails, SMS & templates</div>
+                </div>
+              </Link>
+              <Link href="/admin/collateral" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <Printer size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Print Collateral Builder</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Generate brochures, rack cards & QR marketing materials</div>
+                </div>
+              </Link>
+              <Link href="/admin/commissions" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <DollarSign size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Commissions & Payouts Ledger</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Track referral fees, UTM attribution & partner payouts</div>
                 </div>
               </Link>
             </div>
@@ -688,6 +763,13 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Captains profiles, roles & licenses</div>
                 </div>
               </Link>
+              <Link href="/admin/content/company" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <Building size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Companies & OTA Register</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Registered partner affiliations & brokers</div>
+                </div>
+              </Link>
             </div>
 
             {/* System Setup */}
@@ -698,6 +780,13 @@ export default function AdminDashboard() {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Site Branding & SEO</div>
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Navigation header, SEO meta & logo</div>
+                </div>
+              </Link>
+              <Link href="/admin/discounts" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <Tag size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Discount Codes Admin</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Create & manage promo code vouchers</div>
                 </div>
               </Link>
               <Link href="/admin/content/owner" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>

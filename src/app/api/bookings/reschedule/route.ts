@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       conflicts = conflictingBookingsSnap.docs.filter(doc => doc.id !== docId && doc.data().status !== 'cancelled').map(d => d.data());
 
       const blackoutsSnap = await adminDb.collection('pages')
-        .where('type', '==', 'asset-blackout')
+        .where('type', '==', 'asset_blackout')
         .get();
       blackouts = blackoutsSnap.docs.map(d => d.data());
 
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
           p.id !== bookingId
         );
         
-        blackouts = allPages.filter((p: any) => p.type === 'asset-blackout');
+        blackouts = allPages.filter((p: any) => p.type === 'asset_blackout');
         
         locks = allPages.filter((p: any) => 
           p.type === 'lock' && 

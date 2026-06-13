@@ -7,13 +7,15 @@ import { useEffect, useState } from 'react';
 import { 
   Anchor, ArrowLeft, Search, Calendar, Ship, Users, CheckCircle, 
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
-  MessageSquare, ChevronLeft, ChevronRight
+  MessageSquare, ChevronLeft, ChevronRight, Plus
 } from 'lucide-react';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
   getAssetBlackouts, getAllCheckoutLocks, deleteAssetBlackout,
   sendBookingMessage, getBookingById, updateBookingMessageStatus,
-  ensureBookingToken, archiveBooking, deleteBooking
+  ensureBookingToken, archiveBooking, deleteBooking,
+  getAllCustomerProfiles, saveAdminInternalBooking, checkBlackoutConflicts,
+  saveAssetBlackout
 } from '@/lib/db';
 
 // Helper to format local timezone Date objects as YYYY-MM-DD
@@ -197,6 +199,61 @@ export default function BookingsDashboard() {
   const [adminCancelSource, setAdminCancelSource] = useState('customer_call');
   const [adminAutoProcessRefund, setAdminAutoProcessRefund] = useState(false);
 
+  // Modal visibility states
+  const [showInternalBookingModal, setShowInternalBookingModal] = useState(false);
+  const [showBlackoutModal, setShowBlackoutModal] = useState(false);
+
+  // Loaded metadata for selections
+  const [allCustomers, setAllCustomers] = useState<any[]>([]);
+  const [allCompanies, setAllCompanies] = useState<any[]>([]);
+  const [adventures, setAdventures] = useState<any[]>([]);
+
+  // Internal booking form states
+  const [internalBookingGuestEmail, setInternalBookingGuestEmail] = useState('');
+  const [internalBookingGuestName, setInternalBookingGuestName] = useState('');
+  const [internalBookingGuestPhone, setInternalBookingGuestPhone] = useState('');
+  const [internalBookingGuestCount, setInternalBookingGuestCount] = useState<number>(1);
+  const [internalBookingVesselSlug, setInternalBookingVesselSlug] = useState('');
+  const [internalBookingAdventureId, setInternalBookingAdventureId] = useState('');
+  const [internalBookingDate, setInternalBookingDate] = useState('');
+  const [internalBookingTime, setInternalBookingTime] = useState('09:30');
+  const [internalBookingPricingOverridden, setInternalBookingPricingOverridden] = useState(false);
+  const [internalBookingSubtotal, setInternalBookingSubtotal] = useState<number>(0);
+  const [internalBookingSalesTax, setInternalBookingSalesTax] = useState<number>(0);
+  const [internalBookingGrandTotal, setInternalBookingGrandTotal] = useState<number>(0);
+  const [internalBookingPaymentMethod, setInternalBookingPaymentMethod] = useState<'card' | 'eft' | 'none'>('none');
+  const [internalBookingReconciliationRef, setInternalBookingReconciliationRef] = useState('');
+  const [internalBookingSendNotification, setInternalBookingSendNotification] = useState(true);
+  const [internalBookingAgentType, setInternalBookingAgentType] = useState<'person' | 'company' | 'none'>('none');
+  const [internalBookingAgentId, setInternalBookingAgentId] = useState('');
+  const [internalBookingCommissionType, setInternalBookingCommissionType] = useState<'percentage' | 'flat' | 'none'>('none');
+  const [internalBookingCommissionRate, setInternalBookingCommissionRate] = useState<number>(0);
+  const [internalBookingCommissionAmount, setInternalBookingCommissionAmount] = useState<number>(0);
+  const [internalBookingCommissionStatus, setInternalBookingCommissionStatus] = useState<'unpaid' | 'paid' | 'n/a'>('n/a');
+  const [internalBookingBypassConflicts, setInternalBookingBypassConflicts] = useState(false);
+  const [internalBookingConflictWarning, setInternalBookingConflictWarning] = useState<string | null>(null);
+  const [isSavingInternalBooking, setIsSavingInternalBooking] = useState(false);
+  const [internalBookingBookedViaAgent, setInternalBookingBookedViaAgent] = useState(false);
+  const [internalBookingEndTime, setInternalBookingEndTime] = useState('13:30');
+  const [internalBookingCalendarExpanded, setInternalBookingCalendarExpanded] = useState(false);
+  const [internalBookingCalendarMonth, setInternalBookingCalendarMonth] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+
+  // Blackout form states
+  const [blackoutVesselSlug, setBlackoutVesselSlug] = useState('');
+  const [blackoutTitle, setBlackoutTitle] = useState('');
+  const [blackoutStartDate, setBlackoutStartDate] = useState('');
+  const [blackoutEndDate, setBlackoutEndDate] = useState('');
+  const [blackoutStartTime, setBlackoutStartTime] = useState('');
+  const [blackoutEndTime, setBlackoutEndTime] = useState('');
+  const [blackoutNotes, setBlackoutNotes] = useState('');
+  const [blackoutBypassConflicts, setBlackoutBypassConflicts] = useState(false);
+  const [blackoutConflictWarning, setBlackoutConflictWarning] = useState<string | null>(null);
+  const [isSavingBlackout, setIsSavingBlackout] = useState(false);
+
   const START_TIMES = ['08:00', '09:00', '09:30', '10:00', '11:00', '12:00', '13:00', '13:30', '14:00', '15:00', '16:00', '17:00'];
 
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
@@ -287,6 +344,203 @@ export default function BookingsDashboard() {
         const allTimesBlocked = START_TIMES.every(time => {
           return !isAdminSlotAvailable(dateStr, time);
         });
+        if (allTimesBlocked) {
+          isAvailable = false;
+        }
+      }
+      
+      days.push({ day, dateStr, isAvailable });
+    }
+    
+    return days;
+  };
+
+  const getTransitHoursBetween = (fromSlug: string, toSlug: string, speedKnots: number = 15): number => {
+    if (!fromSlug || !toSlug || fromSlug === toSlug) return 0;
+    const fromLoc = allLocations.find(l => l.slug === fromSlug);
+    const toLoc = allLocations.find(l => l.slug === toSlug);
+    if (!fromLoc || !toLoc || !fromLoc.latitude || !fromLoc.longitude || !toLoc.latitude || !toLoc.longitude) {
+      return 1.5; // Default relocation time in hours if coordinates are not resolved
+    }
+    
+    const R = 3440.065; // Earth radius in nautical miles
+    const lat1 = (fromLoc.latitude * Math.PI) / 180;
+    const lat2 = (toLoc.latitude * Math.PI) / 180;
+    const dLat = ((toLoc.latitude - fromLoc.latitude) * Math.PI) / 180;
+    const dLon = ((toLoc.longitude - fromLoc.longitude) * Math.PI) / 180;
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    const speed = speedKnots > 0 ? speedKnots : 15;
+    return distance / speed;
+  };
+
+  const getAdventureLeadTime = (adv: any): number => {
+    if (!adv.itinerary || adv.itinerary.length === 0) return 60; // 1 hour default
+    const publicIndices = adv.itinerary
+      .map((step: any, idx: number) => (!step.isCrewOnly ? idx : -1))
+      .filter((idx: number) => idx !== -1);
+    
+    if (publicIndices.length === 0) return 0;
+    
+    let cumulative = 0;
+    for (let i = 0; i <= publicIndices[0]; i++) {
+      if (i > 0) {
+        cumulative += Number(adv.itinerary[i].offsetMinutes || 0);
+      }
+    }
+    return cumulative;
+  };
+
+  const getDurationMinutes = (start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    let diff = (endH * 60 + endM) - (startH * 60 + startM);
+    if (diff < 0) {
+      // Crossed midnight
+      diff += 24 * 60;
+    }
+    return diff;
+  };
+
+  const checkInternalBookingSlotAvailability = (
+    vesselSlug: string,
+    dateStr: string,
+    timeStr: string,
+    customDurationMinutes?: number
+  ): { blocked: boolean; reason?: string; detail?: string } => {
+    if (!vesselSlug || !dateStr || !timeStr) return { blocked: false };
+
+    const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+    const selectedVessel = vessels.find(v => v.slug === vesselSlug);
+
+    // 1. Blackout checks
+    const matchedBlackout = blackouts.find(b => {
+      if (b.vesselSlug !== vesselSlug) return false;
+      
+      const bStartStr = b.startTime ? `${b.startDate}T${b.startTime}:00` : `${b.startDate}T00:00:00`;
+      const bEndStr = b.endTime ? `${b.endDate}T${b.endTime}:00` : `${b.endDate}T23:59:59`;
+      
+      const bStart = new Date(bStartStr).getTime();
+      const bEnd = new Date(bEndStr).getTime();
+      
+      const leadMins = selectedAdv ? getAdventureLeadTime(selectedAdv) : 60;
+      const crewMins = customDurationMinutes !== undefined
+        ? customDurationMinutes + leadMins + 60
+        : (selectedAdv ? (selectedAdv.crewDurationMinutes || selectedAdv.guestDurationMinutes || 240) : 240);
+      
+      const candStart = new Date(`${dateStr}T${timeStr}:00`).getTime() - leadMins * 60 * 1000;
+      const candEnd = candStart + crewMins * 60 * 1000;
+      
+      return candStart < bEnd && candEnd > bStart;
+    });
+    
+    if (matchedBlackout) {
+      return { blocked: true, reason: 'vessel-blackout', detail: matchedBlackout.title };
+    }
+    
+    // 2. Checkout lock check
+    const hasLock = checkoutLocks.some(
+      l => l.vesselSlug === vesselSlug && 
+           l.date === dateStr && 
+           l.startTime === timeStr
+    );
+    if (hasLock) {
+      return { blocked: true, reason: 'checkout-lock' };
+    }
+    
+    // 3. Overlapping bookings and relocation buffers
+    const candLeadMins = selectedAdv ? getAdventureLeadTime(selectedAdv) : 60;
+    const candCrewMins = customDurationMinutes !== undefined
+      ? customDurationMinutes + candLeadMins + 60
+      : (selectedAdv ? (selectedAdv.crewDurationMinutes || selectedAdv.guestDurationMinutes || 240) : 240);
+    const candStart = new Date(`${dateStr}T${timeStr}:00`).getTime() - candLeadMins * 60 * 1000;
+    const candEnd = candStart + candCrewMins * 60 * 1000;
+    
+    const candStartLoc = selectedAdv?.startLocation || selectedVessel?.homeLocation || 'destin-harbor';
+    const candEndLoc = selectedAdv?.endLocation || selectedVessel?.homeLocation || 'destin-harbor';
+    const vesselSpeed = selectedVessel?.relocationSpeed || 15;
+    
+    const matchedConflict = bookings.find(b => {
+      if (b.vesselSlug !== vesselSlug || b.status === 'cancelled' || b.isArchived) return false;
+      
+      const bLeadMins = b.leadTimeMinutes !== undefined ? b.leadTimeMinutes : 60;
+      const bCrewMins = b.crewDurationMinutes !== undefined ? b.crewDurationMinutes : 360;
+      const bStart = new Date(`${b.date}T${b.startTime}:00`).getTime() - bLeadMins * 60 * 1000;
+      const bEnd = bStart + bCrewMins * 60 * 1000;
+      
+      const bStartLoc = b.startLocation || selectedVessel?.homeLocation || 'destin-harbor';
+      const bEndLoc = b.endLocation || selectedVessel?.homeLocation || 'destin-harbor';
+      
+      // Direct overlap
+      if (candStart < bEnd && candEnd > bStart) {
+        return true;
+      }
+      
+      // Relocation buffer: Candidate starts after B ends
+      if (bEnd <= candStart) {
+        const transitHours = getTransitHoursBetween(bEndLoc, candStartLoc, vesselSpeed);
+        const transitMs = transitHours * 60 * 60 * 1000;
+        if (candStart - bEnd < transitMs) {
+          return true;
+        }
+      }
+      
+      // Relocation buffer: Candidate ends before B starts
+      if (candEnd <= bStart) {
+        const transitHours = getTransitHoursBetween(candEndLoc, bStartLoc, vesselSpeed);
+        const transitMs = transitHours * 60 * 60 * 1000;
+        if (bStart - candEnd < transitMs) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    if (matchedConflict) {
+      return { blocked: true, reason: 'booking-overlap', detail: matchedConflict.guestName };
+    }
+    
+    return { blocked: false };
+  };
+
+  const getInternalBookingDaysInMonth = (monthDate: Date) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const numDays = new Date(year, month + 1, 0).getDate();
+    
+    const days: Array<{ day: number | null; dateStr: string; isAvailable: boolean }> = [];
+    
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push({ day: null, dateStr: '', isAvailable: false });
+    }
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let day = 1; day <= numDays; day++) {
+      const dayDate = new Date(year, month, day);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      const isPast = dayDate.getTime() < today.getTime();
+      let isAvailable = !isPast;
+      
+      if (isAvailable && internalBookingVesselSlug) {
+        const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+        const startTimes = selectedAdv?.startTimes && selectedAdv.startTimes.length > 0 ? selectedAdv.startTimes : START_TIMES;
+        
+        const allTimesBlocked = startTimes.every((time: string) => {
+          const checkResult = checkInternalBookingSlotAvailability(internalBookingVesselSlug, dateStr, time);
+          return checkResult.blocked;
+        });
+        
         if (allTimesBlocked) {
           isAvailable = false;
         }
@@ -1001,13 +1255,19 @@ export default function BookingsDashboard() {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [bookingsList, assetsList, locationsList, blackoutsList, locksList, staffList] = await Promise.all([
+      const [
+        bookingsList, assetsList, locationsList, blackoutsList, locksList, staffList,
+        customersList, companiesList, adventuresList
+      ] = await Promise.all([
         getAllBookings(),
         getContentItems('asset'),
         getContentItems('location'),
         getAssetBlackouts(),
         getAllCheckoutLocks(),
-        getContentItems('staff')
+        getContentItems('staff'),
+        getAllCustomerProfiles(),
+        getContentItems('company'),
+        getContentItems('adventure')
       ]);
       setBookings(bookingsList);
       setVessels(assetsList.filter((a: any) => a.isVessel));
@@ -1016,6 +1276,9 @@ export default function BookingsDashboard() {
       setBlackouts(blackoutsList);
       setCheckoutLocks(locksList);
       setCaptains(staffList.filter((s: any) => s.isCaptain));
+      setAllCustomers(customersList);
+      setAllCompanies(companiesList);
+      setAdventures(adventuresList);
     } catch (err) {
       console.error('Failed to load dashboard operational data:', err);
     } finally {
@@ -1278,6 +1541,356 @@ export default function BookingsDashboard() {
   // Calculate timeframe filtered bookings for summary stats (excluding cancelled ones)
   const timeframeBookings = statsBookings.filter(b => b.status !== 'cancelled');
 
+  // Autocomplete suggestions
+  const [internalBookingGuestSearch, setInternalBookingGuestSearch] = useState('');
+  const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
+
+  const filteredCustomerSuggestions = allCustomers.filter(c => 
+    (c.name || '').toLowerCase().includes(internalBookingGuestSearch.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(internalBookingGuestSearch.toLowerCase())
+  );
+
+  const handleSelectSuggestedGuest = (guest: any) => {
+    setInternalBookingGuestEmail(guest.email || '');
+    setInternalBookingGuestName(guest.name || '');
+    setInternalBookingGuestPhone(guest.phone || '');
+    setInternalBookingGuestSearch(`${guest.name} (${guest.email})`);
+    setShowGuestSuggestions(false);
+  };
+
+  const getAvailableAgents = () => {
+    const agentsList: Array<{ id: string; name: string; type: 'person' | 'company'; defaultCommission?: number }> = [];
+    
+    // 1. Staff Agents
+    captains.forEach((s: any) => {
+      if (s.isAgent || s.isReseller) {
+        agentsList.push({
+          id: s.id,
+          name: `[Crew] ${s.title}`,
+          type: 'person',
+          defaultCommission: 0
+        });
+      }
+    });
+
+    // 2. Customer Agents
+    allCustomers.forEach((c: any) => {
+      if (c.isAgent || c.isReseller) {
+        agentsList.push({
+          id: c.id,
+          name: `[Guest] ${c.name} (${c.email})`,
+          type: 'person',
+          defaultCommission: 0
+        });
+      }
+    });
+
+    // 3. Company Agents
+    allCompanies.forEach((comp: any) => {
+      if (comp.isAgent || comp.isReseller || comp.isOta) {
+        agentsList.push({
+          id: comp.id,
+          name: `[Company] ${comp.title || comp.name}`,
+          type: 'company',
+          defaultCommission: comp.defaultCommissionRate || 0
+        });
+      }
+    });
+
+    return agentsList;
+  };
+
+  const handleAgentChange = (selectedAgentId: string) => {
+    setInternalBookingAgentId(selectedAgentId);
+    if (!selectedAgentId) {
+      setInternalBookingAgentType('none');
+      setInternalBookingCommissionType('none');
+      setInternalBookingCommissionRate(0);
+      setInternalBookingCommissionAmount(0);
+      return;
+    }
+
+    const agents = getAvailableAgents();
+    const agent = agents.find(a => a.id === selectedAgentId);
+    if (!agent) return;
+
+    setInternalBookingAgentType(agent.type);
+
+    let defaultRate = agent.defaultCommission || 0;
+    
+    if (agent.type === 'person') {
+      const personProfile = captains.find(s => s.id === selectedAgentId) || allCustomers.find(c => c.id === selectedAgentId);
+      if (personProfile && personProfile.companyId) {
+        const company = allCompanies.find(c => c.id === personProfile.companyId);
+        if (company && company.defaultCommissionRate) {
+          defaultRate = Number(company.defaultCommissionRate);
+        }
+      }
+    }
+
+    if (defaultRate > 0) {
+      setInternalBookingCommissionType('percentage');
+      setInternalBookingCommissionRate(defaultRate);
+      const amt = Number((internalBookingSubtotal * (defaultRate / 100)).toFixed(2));
+      setInternalBookingCommissionAmount(amt);
+      setInternalBookingCommissionStatus('unpaid');
+    } else {
+      setInternalBookingCommissionType('none');
+      setInternalBookingCommissionRate(0);
+      setInternalBookingCommissionAmount(0);
+      setInternalBookingCommissionStatus('n/a');
+    }
+  };
+
+  const recalculateCommission = (
+    sub: number,
+    type: 'percentage' | 'flat' | 'none',
+    rate: number,
+    amt: number
+  ) => {
+    if (type === 'percentage') {
+      const calculatedAmt = Number((sub * (rate / 100)).toFixed(2));
+      setInternalBookingCommissionAmount(calculatedAmt);
+    } else if (type === 'flat') {
+      // keep flat amount
+    } else {
+      setInternalBookingCommissionAmount(0);
+    }
+  };
+
+  const handleAdventureChange = (advId: string) => {
+    setInternalBookingAdventureId(advId);
+    const adv = adventures.find(a => a.id === advId || a.slug === advId);
+    if (adv) {
+      const durationMinutes = adv.guestDurationMinutes || 240;
+      const [h, m] = internalBookingTime.split(':').map(Number);
+      const totalMinutes = h * 60 + m + durationMinutes;
+      const endH = Math.floor(totalMinutes / 60) % 24;
+      const endM = totalMinutes % 60;
+      setInternalBookingEndTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`);
+
+      if (internalBookingPricingOverridden) return;
+
+      const sub = Number(adv.basePrice || 0);
+      const tax = Number((sub * 0.07).toFixed(2));
+      const total = Number((sub + tax).toFixed(2));
+      setInternalBookingSubtotal(sub);
+      setInternalBookingSalesTax(tax);
+      setInternalBookingGrandTotal(total);
+
+      if (internalBookingAgentId) {
+        recalculateCommission(sub, internalBookingCommissionType, internalBookingCommissionRate, internalBookingCommissionAmount);
+      }
+    }
+  };
+
+  const handlePricingChange = (sub: number, tax: number, total: number) => {
+    setInternalBookingSubtotal(sub);
+    setInternalBookingSalesTax(tax);
+    setInternalBookingGrandTotal(total);
+
+    if (internalBookingAgentId) {
+      recalculateCommission(sub, internalBookingCommissionType, internalBookingCommissionRate, internalBookingCommissionAmount);
+    }
+  };
+
+  const handleSaveInternalBooking = async () => {
+    if (!internalBookingGuestEmail.trim() || !internalBookingGuestName.trim() || !internalBookingDate || !internalBookingVesselSlug || !internalBookingAdventureId) {
+      alert('Please fill in Guest Name, Email, Date, Vessel, and Adventure.');
+      return;
+    }
+
+    setInternalBookingConflictWarning(null);
+
+    const durationMins = getDurationMinutes(internalBookingTime, internalBookingEndTime) || 240;
+
+    // 1. Conflict Check
+    if (!internalBookingBypassConflicts) {
+      const checkResult = checkInternalBookingSlotAvailability(
+        internalBookingVesselSlug, 
+        internalBookingDate, 
+        internalBookingTime,
+        durationMins
+      );
+      if (checkResult.blocked) {
+        let warnMsg = `The selected time slot is not available: `;
+        if (checkResult.reason === 'booking-overlap') {
+          warnMsg += `Overlaps with another booking by ${checkResult.detail || 'another guest'} (or blocked by transit buffer).`;
+        } else if (checkResult.reason === 'vessel-blackout') {
+          warnMsg += `Vessel blackout: ${checkResult.detail || 'blackout'}.`;
+        } else if (checkResult.reason === 'checkout-lock') {
+          warnMsg += `Held in checkout lock.`;
+        } else {
+          warnMsg += `Unknown conflict.`;
+        }
+        setInternalBookingConflictWarning(warnMsg);
+        return;
+      }
+    }
+
+    setIsSavingInternalBooking(true);
+    try {
+      const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+      const selectedVessel = vessels.find(v => v.slug === internalBookingVesselSlug);
+
+      const leadMins = selectedAdv ? getAdventureLeadTime(selectedAdv) : 60;
+      const guestMins = durationMins;
+      const defaultCrewMins = selectedAdv?.crewDurationMinutes || (selectedAdv?.guestDurationMinutes ? selectedAdv.guestDurationMinutes + 120 : 360);
+      const defaultGuestMins = selectedAdv?.guestDurationMinutes || 240;
+      const crewMins = guestMins + (defaultCrewMins - defaultGuestMins);
+
+      const bookingRecord: any = {
+        experienceId: internalBookingAdventureId,
+        experienceTitle: selectedAdv?.title || 'Custom Admin Adventure',
+        vesselSlug: internalBookingVesselSlug,
+        vesselTitle: selectedVessel?.title || 'Custom Admin Vessel',
+        captainId: 'none',
+        captainTitle: 'None',
+        date: internalBookingDate,
+        startTime: internalBookingTime,
+        endTime: internalBookingEndTime,
+        leadTimeMinutes: leadMins,
+        crewDurationMinutes: crewMins,
+        guestDurationMinutes: guestMins,
+        guestName: internalBookingGuestName.trim(),
+        guestEmail: internalBookingGuestEmail.trim().toLowerCase(),
+        guestPhone: internalBookingGuestPhone.trim(),
+        guestCount: Number(internalBookingGuestCount) || 1,
+        subtotal: Number(internalBookingSubtotal) || 0,
+        salesTax: Number(internalBookingSalesTax) || 0,
+        grandTotal: Number(internalBookingGrandTotal) || 0,
+        amountPaidToday: internalBookingPaymentMethod !== 'none' ? Number(internalBookingGrandTotal) : 0,
+        amountDueLater: internalBookingPaymentMethod === 'none' ? Number(internalBookingGrandTotal) : 0,
+        paymentPlan: 'full',
+        cancellationInsurance: false,
+        marketingOptIn: false,
+        status: internalBookingSendNotification ? 'pending waiver' : 'confirmed',
+        isInternal: true,
+        paymentMethod: internalBookingPaymentMethod,
+        externalReconciliationRef: internalBookingReconciliationRef.trim() || undefined,
+        pricingOverridden: internalBookingPricingOverridden,
+        agentType: internalBookingAgentType,
+        agentId: internalBookingAgentId || undefined,
+        commissionType: internalBookingCommissionType,
+        commissionRate: internalBookingCommissionType === 'percentage' ? Number(internalBookingCommissionRate) : undefined,
+        commissionAmount: internalBookingCommissionType !== 'none' ? Number(internalBookingCommissionAmount) : undefined,
+        commissionStatus: internalBookingCommissionType !== 'none' ? internalBookingCommissionStatus : 'n/a',
+      };
+
+      if (internalBookingAgentType === 'company') {
+        const company = allCompanies.find(c => c.id === internalBookingAgentId);
+        bookingRecord.agentName = company?.title || company?.name || 'Unknown Company';
+        bookingRecord.agentRelationship = 'broker';
+      } else if (internalBookingAgentType === 'person') {
+        const staffAgent = captains.find(s => s.id === internalBookingAgentId);
+        const custAgent = allCustomers.find(c => c.id === internalBookingAgentId);
+        bookingRecord.agentName = staffAgent?.title || custAgent?.name || 'Unknown Agent';
+        bookingRecord.agentRelationship = staffAgent ? 'staff_internal' : 'reseller';
+      }
+
+      await saveAdminInternalBooking(bookingRecord);
+      
+      setToast({ type: 'success', message: 'Internal booking created successfully.' });
+      
+      setShowInternalBookingModal(false);
+      resetInternalBookingForm();
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      setToast({ type: 'error', message: 'Failed to save internal booking.' });
+    } finally {
+      setIsSavingInternalBooking(false);
+    }
+  };
+
+  const resetInternalBookingForm = () => {
+    setInternalBookingGuestEmail('');
+    setInternalBookingGuestName('');
+    setInternalBookingGuestPhone('');
+    setInternalBookingGuestCount(1);
+    setInternalBookingVesselSlug('');
+    setInternalBookingAdventureId('');
+    setInternalBookingDate('');
+    setInternalBookingTime('09:30');
+    setInternalBookingEndTime('13:30');
+    setInternalBookingCalendarExpanded(false);
+    setInternalBookingCalendarMonth(() => {
+      const d = new Date();
+      d.setDate(1);
+      return d;
+    });
+    setInternalBookingPricingOverridden(false);
+    setInternalBookingSubtotal(0);
+    setInternalBookingSalesTax(0);
+    setInternalBookingGrandTotal(0);
+    setInternalBookingPaymentMethod('none');
+    setInternalBookingReconciliationRef('');
+    setInternalBookingSendNotification(true);
+    setInternalBookingAgentType('none');
+    setInternalBookingAgentId('');
+    setInternalBookingBookedViaAgent(false);
+    setInternalBookingCommissionType('none');
+    setInternalBookingCommissionRate(0);
+    setInternalBookingCommissionAmount(0);
+    setInternalBookingCommissionStatus('n/a');
+    setInternalBookingBypassConflicts(false);
+    setInternalBookingConflictWarning(null);
+    setInternalBookingGuestSearch('');
+  };
+
+  const handleSaveBlackout = async () => {
+    if (!blackoutTitle.trim() || !blackoutVesselSlug || !blackoutStartDate || !blackoutEndDate) {
+      alert('Please fill in Title, Vessel, Start Date, and End Date.');
+      return;
+    }
+
+    setBlackoutConflictWarning(null);
+
+    // 1. Conflict Check
+    if (!blackoutBypassConflicts) {
+      const conflicts = await checkBlackoutConflicts(blackoutVesselSlug, blackoutStartDate, blackoutEndDate);
+      if (conflicts.length > 0) {
+        const conflictList = conflicts.map(c => `• ${c.guestName} (${c.date}) - ${c.experienceTitle}`).join('\n');
+        setBlackoutConflictWarning(`There are active booking conflicts in this range:\n${conflictList}`);
+        return;
+      }
+    }
+
+    setIsSavingBlackout(true);
+    try {
+      await saveAssetBlackout({
+        vesselSlug: blackoutVesselSlug,
+        title: blackoutTitle.trim(),
+        startDate: blackoutStartDate,
+        endDate: blackoutEndDate,
+        startTime: blackoutStartTime || undefined,
+        endTime: blackoutEndTime || undefined,
+        notes: blackoutNotes.trim() || undefined
+      });
+      setToast({ type: 'success', message: 'Asset blackout period saved.' });
+      setShowBlackoutModal(false);
+      resetBlackoutForm();
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      setToast({ type: 'error', message: 'Failed to save blackout period.' });
+    } finally {
+      setIsSavingBlackout(false);
+    }
+  };
+
+  const resetBlackoutForm = () => {
+    setBlackoutVesselSlug('');
+    setBlackoutTitle('');
+    setBlackoutStartDate('');
+    setBlackoutEndDate('');
+    setBlackoutStartTime('');
+    setBlackoutEndTime('');
+    setBlackoutNotes('');
+    setBlackoutBypassConflicts(false);
+    setBlackoutConflictWarning(null);
+  };
+
   const unreadMessagesCount = bookings.filter(b => b.messageStatus === 'unread' && !b.isArchived).length;
 
   const confirmedCount = timeframeBookings.filter(b => b.status === 'confirmed').length;
@@ -1360,12 +1973,26 @@ export default function BookingsDashboard() {
               Track reservation schedules, verify digital waivers, audit payments, and log trip statuses.
             </p>
           </div>
-          <button 
-            onClick={fetchBookings}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.85rem', borderRadius: '6px', color: '#D8C7AF', cursor: 'pointer', fontSize: '0.8rem' }}
-          >
-            <RefreshCw size={14} /> Refresh Data
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button 
+              onClick={() => setShowInternalBookingModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', border: 'none', background: '#B9783B', padding: '0.5rem 0.85rem', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+            >
+              <Plus size={14} /> Create Internal Booking
+            </button>
+            <button 
+              onClick={() => setShowBlackoutModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', border: '1px solid rgba(185,120,59,0.3)', background: 'rgba(185,120,59,0.1)', padding: '0.5rem 0.85rem', borderRadius: '6px', color: '#D8C7AF', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+            >
+              <Calendar size={14} /> Add Blackout Period
+            </button>
+            <button 
+              onClick={fetchBookings}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.85rem', borderRadius: '6px', color: '#D8C7AF', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              <RefreshCw size={14} /> Refresh Data
+            </button>
+          </div>
         </div>
 
         {/* Global Dashboard Controls */}
@@ -3633,6 +4260,874 @@ export default function BookingsDashboard() {
                 </div>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE INTERNAL BOOKING MODAL */}
+      {showInternalBookingModal && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', padding: '2rem' }}
+          onClick={() => {
+            setShowInternalBookingModal(false);
+            resetInternalBookingForm();
+          }}
+        >
+          <div 
+            style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', animation: 'fadeIn 0.25s ease-out' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <h2 style={{ fontSize: '1.35rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, margin: 0, color: 'white' }}>
+                Create Internal Bareboat Booking
+              </h2>
+              <button 
+                onClick={() => {
+                  setShowInternalBookingModal(false);
+                  resetInternalBookingForm();
+                }} 
+                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Guest Search / Selection (CRM Linking) */}
+              <div style={{ position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>
+                  Search CRM Guests (Optional)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', paddingLeft: '0.5rem' }}>
+                  <Search size={14} color="#B9783B" />
+                  <input
+                    type="text"
+                    value={internalBookingGuestSearch}
+                    onChange={e => {
+                      setInternalBookingGuestSearch(e.target.value);
+                      setShowGuestSuggestions(true);
+                    }}
+                    onFocus={() => setShowGuestSuggestions(true)}
+                    placeholder="Search existing customer by name or email..."
+                    style={{ padding: '0.65rem 0.5rem', background: 'transparent', border: 'none', color: 'white', fontSize: '0.825rem', outline: 'none', flex: 1 }}
+                  />
+                  {internalBookingGuestSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInternalBookingGuestSearch('');
+                        setInternalBookingGuestName('');
+                        setInternalBookingGuestEmail('');
+                        setInternalBookingGuestPhone('');
+                      }}
+                      style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', paddingRight: '0.5rem' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {showGuestSuggestions && internalBookingGuestSearch.trim().length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', boxShadow: '0 10px 20px rgba(0,0,0,0.5)', zIndex: 10, maxHeight: '150px', overflowY: 'auto', marginTop: '0.25rem' }}>
+                    {filteredCustomerSuggestions.length > 0 ? (
+                      filteredCustomerSuggestions.map(cust => (
+                        <div
+                          key={cust.id}
+                          onClick={() => handleSelectSuggestedGuest(cust)}
+                          style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', fontSize: '0.78rem' }}
+                          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{ color: 'white', fontWeight: 600 }}>{cust.name}</div>
+                          <div style={{ color: '#D8C7AF', opacity: 0.6, fontSize: '0.7rem' }}>{cust.email}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: '0.5rem 0.75rem', color: '#888', fontSize: '0.78rem' }}>No matching CRM guests found.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Guest Details */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Guest Full Name *</label>
+                  <input
+                    type="text"
+                    value={internalBookingGuestName}
+                    onChange={e => setInternalBookingGuestName(e.target.value)}
+                    placeholder="e.g. Jane Doe"
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Guest Email *</label>
+                  <input
+                    type="email"
+                    value={internalBookingGuestEmail}
+                    onChange={e => setInternalBookingGuestEmail(e.target.value)}
+                    placeholder="jane@example.com"
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Guest Phone</label>
+                  <input
+                    type="text"
+                    value={internalBookingGuestPhone}
+                    onChange={e => setInternalBookingGuestPhone(e.target.value)}
+                    placeholder="e.g. (555) 123-4567"
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Guest Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={internalBookingGuestCount}
+                    onChange={e => setInternalBookingGuestCount(Number(e.target.value))}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Vessel & Adventure Selection */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Select Vessel *</label>
+                  <select
+                    value={internalBookingVesselSlug}
+                    onChange={e => setInternalBookingVesselSlug(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  >
+                    <option value="">-- Choose Vessel --</option>
+                    {vessels.map(v => (
+                      <option key={v.slug} value={v.slug}>{v.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Select Adventure *</label>
+                  <select
+                    value={internalBookingAdventureId}
+                    onChange={e => handleAdventureChange(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  >
+                    <option value="">-- Choose Adventure --</option>
+                    {adventures.map(a => (
+                      <option key={a.id || a.slug} value={a.id || a.slug}>{a.title} ({formatCost(a.basePrice)})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Interactive Calendar for Date */}
+              {!internalBookingCalendarExpanded && internalBookingDate ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF' }}>Charter Date *</span>
+                  <div 
+                    onClick={() => setInternalBookingCalendarExpanded(true)}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      background: '#121416', 
+                      border: '1px solid rgba(185, 120, 59, 0.3)', 
+                      borderRadius: '8px', 
+                      padding: '0.6rem 0.75rem', 
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#B9783B';
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(185, 120, 59, 0.3)';
+                      e.currentTarget.style.background = '#121416';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span>📅</span>
+                      <span style={{ fontSize: '0.78rem', color: 'white', fontWeight: 600 }}>
+                        {new Date(internalBookingDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: '#B9783B', fontWeight: 600 }}>Change</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF' }}>Charter Date *</span>
+                  <div style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '0.65rem 0.7rem' }}>
+                    {/* Calendar Navigation Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prevMonth = new Date(internalBookingCalendarMonth.getFullYear(), internalBookingCalendarMonth.getMonth() - 1, 1);
+                          const now = new Date();
+                          now.setDate(1);
+                          now.setHours(0,0,0,0);
+                          if (prevMonth.getTime() >= now.getTime()) {
+                            setInternalBookingCalendarMonth(prevMonth);
+                          }
+                        }}
+                        style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'white' }}>
+                        {internalBookingCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {internalBookingDate && (
+                          <button
+                            type="button"
+                            onClick={() => setInternalBookingCalendarExpanded(false)}
+                            style={{ background: 'transparent', border: 'none', color: '#708C84', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 600, padding: '0.1rem 0.3rem' }}
+                          >
+                            Close
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInternalBookingCalendarMonth(new Date(internalBookingCalendarMonth.getFullYear(), internalBookingCalendarMonth.getMonth() + 1, 1));
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Calendar Weekday Names */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem', textAlign: 'center', marginBottom: '0.35rem' }}>
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayName => (
+                        <span key={dayName} style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.5, fontWeight: 600 }}>{dayName}</span>
+                      ))}
+                    </div>
+
+                    {/* Calendar Days Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem' }}>
+                      {getInternalBookingDaysInMonth(internalBookingCalendarMonth).map((dayObj, idx) => {
+                        if (dayObj.day === null) {
+                          return <div key={`empty-${idx}`} />;
+                        }
+                        const isSelected = internalBookingDate === dayObj.dateStr;
+                        return (
+                          <button
+                            key={`day-${dayObj.dateStr}`}
+                            type="button"
+                            disabled={!dayObj.isAvailable}
+                            onClick={() => {
+                              setInternalBookingDate(dayObj.dateStr);
+                              setInternalBookingCalendarExpanded(false);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: isSelected 
+                                ? '#B9783B' 
+                                : 'transparent',
+                              color: isSelected 
+                                ? 'white' 
+                                : dayObj.isAvailable 
+                                  ? '#D8C7AF' 
+                                  : 'rgba(255,255,255,0.15)',
+                              padding: '0.35rem 0',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 700 : 500,
+                              cursor: dayObj.isAvailable ? 'pointer' : 'not-allowed',
+                              textDecoration: dayObj.isAvailable ? 'none' : 'line-through',
+                              position: 'relative'
+                            }}
+                            title={dayObj.isAvailable ? undefined : 'Fully Booked / Unavailable'}
+                          >
+                            {dayObj.day}
+                            <span style={{
+                              position: 'absolute',
+                              bottom: '2px',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              width: '3px',
+                              height: '3px',
+                              borderRadius: '50%',
+                              background: isSelected 
+                                ? 'white' 
+                                : dayObj.isAvailable 
+                                  ? '#708C84' 
+                                  : '#ef4444'
+                            }} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Time Slots (Chips Presentation) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF' }}>Select Departure Time Slot</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {(() => {
+                    const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+                    const startTimes = selectedAdv?.startTimes && selectedAdv.startTimes.length > 0 ? selectedAdv.startTimes : START_TIMES;
+
+                    return startTimes.map((time: string) => {
+                      const isSelected = internalBookingTime === time;
+                      const checkResult = internalBookingDate && internalBookingVesselSlug
+                        ? checkInternalBookingSlotAvailability(internalBookingVesselSlug, internalBookingDate, time)
+                        : { blocked: false };
+                      const isTimeBlocked = checkResult.blocked;
+
+                      let titleText = undefined;
+                      if (isTimeBlocked) {
+                        if (checkResult.reason === 'booking-overlap') {
+                          titleText = `Booked by ${checkResult.detail || 'another guest'} (or blocked by transit buffer)`;
+                        } else if (checkResult.reason === 'vessel-blackout') {
+                          titleText = `Blocked for maintenance: ${checkResult.detail || 'blackout'}`;
+                        } else if (checkResult.reason === 'checkout-lock') {
+                          titleText = "Temporarily held in another guest's checkout";
+                        } else {
+                          titleText = 'Unavailable';
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          disabled={isTimeBlocked && !internalBookingBypassConflicts}
+                          onClick={() => {
+                            setInternalBookingTime(time);
+                            if (selectedAdv) {
+                              const durationMinutes = selectedAdv.guestDurationMinutes || 240;
+                              const [h, m] = time.split(':').map(Number);
+                              const totalMinutes = h * 60 + m + durationMinutes;
+                              const endH = Math.floor(totalMinutes / 60) % 24;
+                              const endM = totalMinutes % 60;
+                              const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+                              setInternalBookingEndTime(endStr);
+                            }
+                          }}
+                          style={{
+                            flex: '1 0 70px',
+                            minWidth: '70px',
+                            padding: '0.5rem 0.6rem',
+                            borderRadius: '6px',
+                            border: isSelected 
+                              ? '1px solid #B9783B' 
+                              : isTimeBlocked 
+                                ? '1px dashed rgba(255,255,255,0.04)' 
+                                : '1px solid rgba(255, 255, 255, 0.1)',
+                            background: isSelected 
+                              ? 'rgba(185, 120, 59, 0.15)' 
+                              : isTimeBlocked 
+                                ? 'rgba(255,255,255,0.01)' 
+                                : 'rgba(255, 255, 255, 0.02)',
+                            color: isSelected 
+                              ? '#B9783B' 
+                              : isTimeBlocked 
+                                ? 'rgba(255,255,255,0.15)' 
+                                : '#D8C7AF',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: (isTimeBlocked && !internalBookingBypassConflicts) ? 'not-allowed' : 'pointer',
+                            textDecoration: (isTimeBlocked && !internalBookingBypassConflicts) ? 'line-through' : 'none',
+                            transition: 'all 0.2s',
+                            textAlign: 'center'
+                          }}
+                          title={titleText}
+                        >
+                          {time}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Start & End Time (Exact Overrides) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Start Time (Exact Override)</label>
+                  <input
+                    type="time"
+                    value={internalBookingTime}
+                    onChange={e => {
+                      const newStart = e.target.value;
+                      setInternalBookingTime(newStart);
+                      
+                      const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+                      if (selectedAdv && newStart && internalBookingEndTime) {
+                        const prevDuration = getDurationMinutes(newStart, internalBookingEndTime) || selectedAdv.guestDurationMinutes || 240;
+                        const [h, m] = newStart.split(':').map(Number);
+                        const totalMinutes = h * 60 + m + prevDuration;
+                        const endH = Math.floor(totalMinutes / 60) % 24;
+                        const endM = totalMinutes % 60;
+                        setInternalBookingEndTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`);
+                      }
+                    }}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>End Time (Exact Override)</label>
+                  <input
+                    type="time"
+                    value={internalBookingEndTime}
+                    onChange={e => setInternalBookingEndTime(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Calculated Duration Display */}
+              {internalBookingTime && internalBookingEndTime && (
+                <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.85, display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <Clock size={12} color="#B9783B" />
+                  <span>
+                    Calculated Duration: <strong>{(() => {
+                      const mins = getDurationMinutes(internalBookingTime, internalBookingEndTime);
+                      const hrs = Math.floor(mins / 60);
+                      const remMins = mins % 60;
+                      if (hrs === 0) return `${remMins}m`;
+                      if (remMins === 0) return `${hrs}h`;
+                      return `${hrs}h ${remMins}m`;
+                    })()}</strong>
+                  </span>
+                  {(() => {
+                    const selectedAdv = adventures.find(a => a.id === internalBookingAdventureId || a.slug === internalBookingAdventureId);
+                    if (selectedAdv) {
+                      const defaultMins = selectedAdv.guestDurationMinutes || 240;
+                      const currentMins = getDurationMinutes(internalBookingTime, internalBookingEndTime);
+                      if (currentMins !== defaultMins) {
+                        const defHrs = Math.floor(defaultMins / 60);
+                        const defMins = defaultMins % 60;
+                        return (
+                          <span style={{ color: '#E2A15E', marginLeft: '0.5rem', fontWeight: 600 }}>
+                            (Custom Override — Default is {defHrs}h{defMins > 0 ? ` ${defMins}m` : ''})
+                          </span>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
+
+              {/* Intermediary / Agent Toggle & Select */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.825rem', color: 'white', cursor: 'pointer', height: '100%' }}>
+                    <input
+                      type="checkbox"
+                      checked={internalBookingBookedViaAgent}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setInternalBookingBookedViaAgent(checked);
+                        if (!checked) {
+                          handleAgentChange('');
+                        } else {
+                          const list = getAvailableAgents();
+                          if (list.length > 0) {
+                            handleAgentChange(list[0].id);
+                          }
+                        }
+                      }}
+                      style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+                    />
+                    <span>Booked via Agent / OTA</span>
+                  </label>
+
+                  {internalBookingBookedViaAgent && (() => {
+                    const list = getAvailableAgents();
+                    if (list.length === 0) {
+                      return (
+                        <div style={{ fontSize: '0.76rem', color: '#E2A15E', alignSelf: 'center', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <AlertCircle size={12} /> No registered agents found.
+                        </div>
+                      );
+                    }
+                    return (
+                      <select
+                        value={internalBookingAgentId}
+                        onChange={e => handleAgentChange(e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none', boxSizing: 'border-box' }}
+                      >
+                        <option value="">-- Choose Partner Agent --</option>
+                        {list.map(ag => (
+                          <option key={ag.id} value={ag.id}>{ag.name}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
+                </div>
+
+                {internalBookingAgentId !== '' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Commission Type</label>
+                      <select
+                        value={internalBookingCommissionType}
+                        onChange={e => {
+                          const type = e.target.value as any;
+                          setInternalBookingCommissionType(type);
+                          recalculateCommission(internalBookingSubtotal, type, internalBookingCommissionRate, internalBookingCommissionAmount);
+                        }}
+                        style={{ width: '100%', padding: '0.45rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.74rem', outline: 'none' }}
+                      >
+                        <option value="none">None</option>
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="flat">Flat Amount ($)</option>
+                      </select>
+                    </div>
+                    {internalBookingCommissionType === 'percentage' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Commission Rate (%)</label>
+                        <input
+                          type="number"
+                          value={internalBookingCommissionRate}
+                          onChange={e => {
+                            const rate = Number(e.target.value);
+                            setInternalBookingCommissionRate(rate);
+                            recalculateCommission(internalBookingSubtotal, 'percentage', rate, internalBookingCommissionAmount);
+                          }}
+                          style={{ width: '100%', padding: '0.45rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.74rem', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    )}
+                    {internalBookingCommissionType !== 'none' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Commission Amt ($)</label>
+                        <input
+                          type="number"
+                          value={internalBookingCommissionAmount}
+                          disabled={internalBookingCommissionType === 'percentage'}
+                          onChange={e => setInternalBookingCommissionAmount(Number(e.target.value))}
+                          style={{ width: '100%', padding: '0.45rem', background: internalBookingCommissionType === 'percentage' ? '#1E2124' : '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.74rem', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    )}
+                    {internalBookingCommissionType !== 'none' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Payout Status</label>
+                        <select
+                          value={internalBookingCommissionStatus}
+                          onChange={e => setInternalBookingCommissionStatus(e.target.value as any)}
+                          style={{ width: '100%', padding: '0.45rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.74rem', outline: 'none' }}
+                        >
+                          <option value="unpaid">Unpaid</option>
+                          <option value="paid">Paid</option>
+                          <option value="n/a">N/A</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Pricing Overrides & Accounting */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.825rem', color: 'white', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={internalBookingPricingOverridden}
+                      onChange={e => setInternalBookingPricingOverridden(e.target.checked)}
+                      style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+                    />
+                    <span>Override default experience pricing</span>
+                  </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Subtotal (USD)</label>
+                    <input
+                      type="number"
+                      value={internalBookingSubtotal}
+                      disabled={!internalBookingPricingOverridden}
+                      onChange={e => {
+                        const sub = Number(e.target.value);
+                        const tax = Number((sub * 0.07).toFixed(2));
+                        handlePricingChange(sub, tax, Number((sub + tax).toFixed(2)));
+                      }}
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', background: internalBookingPricingOverridden ? '#121416' : '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: internalBookingPricingOverridden ? 'white' : '#888', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Sales Tax (7%)</label>
+                    <input
+                      type="number"
+                      value={internalBookingSalesTax}
+                      disabled={!internalBookingPricingOverridden}
+                      onChange={e => {
+                        const tax = Number(e.target.value);
+                        handlePricingChange(internalBookingSubtotal, tax, Number((internalBookingSubtotal + tax).toFixed(2)));
+                      }}
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', background: internalBookingPricingOverridden ? '#121416' : '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: internalBookingPricingOverridden ? 'white' : '#888', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.25rem' }}>Grand Total</label>
+                    <input
+                      type="number"
+                      value={internalBookingGrandTotal}
+                      disabled={!internalBookingPricingOverridden}
+                      onChange={e => {
+                        const total = Number(e.target.value);
+                        handlePricingChange(internalBookingSubtotal, internalBookingSalesTax, total);
+                      }}
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', background: internalBookingPricingOverridden ? '#121416' : '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: internalBookingPricingOverridden ? 'white' : '#888', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payments & External Reconciliation */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Payment Method</label>
+                  <select
+                    value={internalBookingPaymentMethod}
+                    onChange={e => setInternalBookingPaymentMethod(e.target.value as any)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  >
+                    <option value="none">External / Unreconciled</option>
+                    <option value="card">Processed Credit Card</option>
+                    <option value="eft">Wire / Check / EFT</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>External Reconciliation Ref</label>
+                  <input
+                    type="text"
+                    value={internalBookingReconciliationRef}
+                    onChange={e => setInternalBookingReconciliationRef(e.target.value)}
+                    placeholder="e.g. OTA Confirmation ID, Invoice #"
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Notification Loop Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'white', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={internalBookingSendNotification}
+                    onChange={e => setInternalBookingSendNotification(e.target.checked)}
+                    style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+                  />
+                  <span>Send booking confirmation & digital waiver request email to guest</span>
+                </label>
+              </div>
+
+              {/* Conflict Check Warning Loop */}
+              {internalBookingConflictWarning && (
+                <div style={{ padding: '0.75rem', background: 'rgba(226,161,94,0.08)', border: '1px solid rgba(226,161,94,0.3)', borderRadius: '6px', fontSize: '0.75rem', color: '#E2A15E' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Availability Warning:</div>
+                  <div style={{ whiteSpace: 'pre-wrap', marginBottom: '0.5rem' }}>{internalBookingConflictWarning}</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={internalBookingBypassConflicts}
+                      onChange={e => setInternalBookingBypassConflicts(e.target.checked)}
+                      style={{ accentColor: '#E2A15E' }}
+                    />
+                    <span>Ignore conflict (Force bareboat scheduling anyway)</span>
+                  </label>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', background: '#191C1E' }}>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowInternalBookingModal(false);
+                  resetInternalBookingForm();
+                }} 
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#D8C7AF', padding: '0.55rem 1.25rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSaveInternalBooking}
+                disabled={isSavingInternalBooking}
+                style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.55rem 1.25rem', borderRadius: '6px', cursor: isSavingInternalBooking ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                {isSavingInternalBooking ? <Loader2 size={14} className="animate-spin" /> : 'Save Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD BLACKOUT PERIOD MODAL */}
+      {showBlackoutModal && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', padding: '2rem' }}
+          onClick={() => {
+            setShowBlackoutModal(false);
+            resetBlackoutForm();
+          }}
+        >
+          <div 
+            style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', animation: 'fadeIn 0.25s ease-out' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <h2 style={{ fontSize: '1.35rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, margin: 0, color: 'white' }}>
+                Schedule Vessel Blackout Range
+              </h2>
+              <button 
+                onClick={() => {
+                  setShowBlackoutModal(false);
+                  resetBlackoutForm();
+                }} 
+                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Select Vessel *</label>
+                <select
+                  value={blackoutVesselSlug}
+                  onChange={e => setBlackoutVesselSlug(e.target.value)}
+                  style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                >
+                  <option value="">-- Choose Vessel --</option>
+                  {vessels.map(v => (
+                    <option key={v.slug} value={v.slug}>{v.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Blackout Title / Event Name *</label>
+                <input
+                  type="text"
+                  value={blackoutTitle}
+                  onChange={e => setBlackoutTitle(e.target.value)}
+                  placeholder="e.g. Scheduled Engine Overhaul, Haul Out"
+                  style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Start Date *</label>
+                  <input
+                    type="date"
+                    value={blackoutStartDate}
+                    onChange={e => setBlackoutStartDate(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>End Date *</label>
+                  <input
+                    type="date"
+                    value={blackoutEndDate}
+                    onChange={e => setBlackoutEndDate(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Start Time (Optional)</label>
+                  <input
+                    type="time"
+                    value={blackoutStartTime}
+                    onChange={e => setBlackoutStartTime(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>End Time (Optional)</label>
+                  <input
+                    type="time"
+                    value={blackoutEndTime}
+                    onChange={e => setBlackoutEndTime(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#D8C7AF', marginBottom: '0.35rem' }}>Maintenance / Blackout Notes</label>
+                <textarea
+                  value={blackoutNotes}
+                  onChange={e => setBlackoutNotes(e.target.value)}
+                  placeholder="Details about maintenance crew, specific tasks, etc."
+                  rows={3}
+                  style={{ width: '100%', padding: '0.65rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.825rem', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Conflict Check Warning Loop */}
+              {blackoutConflictWarning && (
+                <div style={{ padding: '0.75rem', background: 'rgba(226,161,94,0.08)', border: '1px solid rgba(226,161,94,0.3)', borderRadius: '6px', fontSize: '0.75rem', color: '#E2A15E' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Active Bookings Warning:</div>
+                  <div style={{ whiteSpace: 'pre-wrap', marginBottom: '0.5rem' }}>{blackoutConflictWarning}</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={blackoutBypassConflicts}
+                      onChange={e => setBlackoutBypassConflicts(e.target.checked)}
+                      style={{ accentColor: '#E2A15E' }}
+                    />
+                    <span>Ignore conflicts (Force blackout scheduling anyway)</span>
+                  </label>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', background: '#191C1E' }}>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowBlackoutModal(false);
+                  resetBlackoutForm();
+                }} 
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#D8C7AF', padding: '0.55rem 1.25rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSaveBlackout}
+                disabled={isSavingBlackout}
+                style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.55rem 1.25rem', borderRadius: '6px', cursor: isSavingBlackout ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                {isSavingBlackout ? <Loader2 size={14} className="animate-spin" /> : 'Schedule Blackout'}
+              </button>
             </div>
           </div>
         </div>

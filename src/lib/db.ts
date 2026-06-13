@@ -877,7 +877,8 @@ const DEFAULT_CONTENT_TYPES: ContentTypeConfig[] = [
   { id: 'asset', name: 'Asset', pluralName: 'Assets', slugPrefix: 'fleet', isEnabled: true },
   { id: 'staff', name: 'Staff Member', pluralName: 'Staff', slugPrefix: 'crew', isEnabled: true },
   { id: 'location', name: 'Location', pluralName: 'Locations', slugPrefix: 'locations', isEnabled: true },
-  { id: 'owner', name: 'Owner', pluralName: 'Owners', slugPrefix: 'owners', isEnabled: true, isPublic: false }
+  { id: 'owner', name: 'Owner', pluralName: 'Owners', slugPrefix: 'owners', isEnabled: true, isPublic: false },
+  { id: 'company', name: 'Company', pluralName: 'Companies', slugPrefix: 'companies', isEnabled: true, isPublic: false }
 ];
 
 export async function getContentTypeConfigs(): Promise<ContentTypeConfig[]> {
@@ -1835,6 +1836,26 @@ export interface BookingRecord {
   refundEstimate?: number;
   changeHistory?: any[];
   isArchived?: boolean;
+  isInternal?: boolean;
+  externalReconciliationRef?: string;
+  agentType?: 'person' | 'company' | 'none';
+  agentId?: string;
+  agentName?: string;
+  agentRelationship?: 'broker' | 'ota' | 'reseller' | 'staff_internal' | 'none';
+  commissionRate?: number;
+  commissionAmount?: number;
+  commissionStatus?: 'unpaid' | 'paid' | 'n/a' | 'pending_charter' | 'accrued' | 'cancelled';
+  referredById?: string;
+  referredByType?: 'staff' | 'company' | 'location';
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  pricingOverridden?: boolean;
+  discountCode?: string;
+  discountAmount?: number;
+  updatedAt?: string;
+  endTime?: string;
+  guestDurationMinutes?: number;
 }
 
 export interface BookingMessage {
@@ -1895,6 +1916,9 @@ export interface CustomerProfile {
     note: string;
   }>;
   isArchived?: boolean;
+  isAgent?: boolean;
+  isReseller?: boolean;
+  companyId?: string;
 }
 
 /**
@@ -2858,6 +2882,303 @@ export async function checkContentItemUsage(id: string, contentType: string): Pr
     return { inUse: true, message: 'Error occurred during dependency validation.' };
   }
 }
+
+/**
+ * Checks if there are active bookings overlapping a given date range for a vessel.
+ */
+export async function checkBlackoutConflicts(
+  vesselSlug: string,
+  startDate: string,
+  endDate: string
+): Promise<BookingRecord[]> {
+  try {
+    const bookings = await getAllBookings();
+    return bookings.filter(b => 
+      b.vesselSlug === vesselSlug &&
+      b.status !== 'cancelled' &&
+      !b.isArchived &&
+      b.date >= startDate &&
+      b.date <= endDate
+    );
+  } catch (error) {
+    console.error('Error checking blackout conflicts:', error);
+    return [];
+  }
+}
+
+/**
+ * Creates or updates an administrative internal booking record.
+ */
+export async function saveAdminInternalBooking(booking: BookingRecord): Promise<string> {
+  const bookingId = booking.id || 'BK-' + Math.floor(100000 + Math.random() * 900000);
+  const docId = `booking-${bookingId}`;
+  
+  try {
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    const bookingData: BookingRecord = {
+      ...booking,
+      id: bookingId,
+      createdAt: booking.createdAt || new Date().toISOString(),
+      updatedAt: booking.updatedAt || new Date().toISOString()
+    };
+    
+    await setDoc(bookingRef, {
+      ...bookingData,
+      type: 'booking',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    
+    if (booking.guestEmail) {
+      const emailSanitized = booking.guestEmail.toLowerCase().trim();
+      const customerDocId = `customer-${emailSanitized.replace(/[^a-z0-9]/g, '-')}`;
+      const customerRef = doc(db, PAGE_COLLECTION, customerDocId);
+      const customerSnap = await getDoc(customerRef);
+      
+      if (customerSnap.exists()) {
+        const currentBookings = customerSnap.data().bookingIds || [];
+        await setDoc(customerRef, {
+          bookingIds: currentBookings.includes(bookingId) ? currentBookings : [...currentBookings, bookingId],
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        await setDoc(customerRef, {
+          type: 'customer',
+          id: customerDocId,
+          name: booking.guestName,
+          email: booking.guestEmail,
+          phone: booking.guestPhone,
+          bookingIds: [bookingId],
+          waiverSignatures: [],
+          marketingOptIn: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+    
+    return bookingId;
+  } catch (error) {
+    console.error('Error saving admin internal booking:', error);
+    throw error;
+  }
+}
+
+/**
+ * Updates a customer profile's roles and affiliations.
+ */
+export async function updateCustomerProfileFields(
+  customerId: string,
+  fields: {
+    isAgent?: boolean;
+    isReseller?: boolean;
+    companyId?: string;
+  }
+): Promise<boolean> {
+  try {
+    const customerRef = doc(db, PAGE_COLLECTION, customerId);
+    await setDoc(customerRef, {
+      ...fields,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error updating customer profile fields:', error);
+    return false;
+  }
+}
+
+/**
+ * Retrieves all bookings that have referral/commission tracking parameters.
+ */
+export async function getCommissionLedger(): Promise<BookingRecord[]> {
+  try {
+    const bookings = await getAllBookings();
+    return bookings.filter(b => b.referredById || b.commissionRate !== undefined || b.commissionAmount !== undefined);
+  } catch (error) {
+    console.error('Error fetching commission ledger:', error);
+    return [];
+  }
+}
+
+/**
+ * Updates a booking's commission status.
+ */
+export async function updateBookingCommissionStatus(
+  bookingId: string,
+  commissionStatus: 'pending_charter' | 'accrued' | 'paid' | 'cancelled' | 'unpaid' | 'n/a'
+): Promise<boolean> {
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    await setDoc(bookingRef, {
+      commissionStatus,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error updating booking commission status:', error);
+    return false;
+  }
+}
+
+/**
+ * Saves a print collateral design to Firestore.
+ */
+export async function savePrintDesign(designId: string, name: string, design: any) {
+  try {
+    const docRef = doc(db, PAGE_COLLECTION, `print-design-${designId}`);
+    await setDoc(docRef, {
+      name,
+      ...design,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving print design:', error);
+    throw error;
+  }
+}
+
+/**
+ * Loads a print collateral design from Firestore.
+ */
+export async function loadPrintDesign(designId: string): Promise<any | null> {
+  try {
+    const docRef = doc(db, PAGE_COLLECTION, `print-design-${designId}`);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading print design:', error);
+    throw error;
+  }
+}
+
+/**
+ * Gets all saved print collateral designs from Firestore.
+ */
+export async function getAllPrintDesigns(): Promise<any[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
+    const results: any[] = [];
+    querySnapshot.forEach((doc) => {
+      if (doc.id.startsWith('print-design-')) {
+        results.push({
+          id: doc.id.replace('print-design-', ''),
+          ...doc.data()
+        });
+      }
+    });
+    return results;
+  } catch (error) {
+    console.error('Error getting all print designs:', error);
+    throw error;
+  }
+}
+
+/**
+ * Deletes a print collateral design from Firestore.
+ */
+export async function deletePrintDesign(designId: string) {
+  try {
+    const docRef = doc(db, PAGE_COLLECTION, `print-design-${designId}`);
+    await deleteDoc(docRef);
+    return true;
+  } catch (error) {
+    console.error('Error deleting print design:', error);
+    throw error;
+  }
+}
+
+export interface DiscountCode {
+  id: string;
+  type: 'discount';
+  code: string;
+  discountType: 'percent' | 'flat';
+  value: number;
+  active: boolean;
+  expirationDate: string | null;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Retrieves all discount codes.
+ */
+export async function getAllDiscountCodes(): Promise<DiscountCode[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
+    const discounts: DiscountCode[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.type === 'discount') {
+        discounts.push(data as DiscountCode);
+      }
+    });
+    return discounts;
+  } catch (error) {
+    console.error('Error loading discount codes:', error);
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a discount code.
+ */
+export async function saveDiscountCode(discount: DiscountCode): Promise<void> {
+  try {
+    const docId = `discount-${discount.code.toUpperCase()}`;
+    const docRef = doc(db, PAGE_COLLECTION, docId);
+    await setDoc(docRef, {
+      ...discount,
+      id: docId,
+      code: discount.code.toUpperCase(),
+      type: 'discount',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving discount code:', error);
+    throw error;
+  }
+}
+
+/**
+ * Deletes a discount code.
+ */
+export async function deleteDiscountCode(code: string): Promise<void> {
+  try {
+    const docId = `discount-${code.toUpperCase()}`;
+    const docRef = doc(db, PAGE_COLLECTION, docId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error('Error deleting discount code:', error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieves a single discount code by code.
+ */
+export async function getDiscountCode(code: string): Promise<DiscountCode | null> {
+  try {
+    const docId = `discount-${code.toUpperCase()}`;
+    const docRef = doc(db, PAGE_COLLECTION, docId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists() && docSnap.data().type === 'discount') {
+      return docSnap.data() as DiscountCode;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading discount code:', error);
+    return null;
+  }
+}
+
+
+
 
 
 

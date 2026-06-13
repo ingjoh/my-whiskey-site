@@ -357,7 +357,7 @@ function PortalContent({ externalTheme }: { externalTheme?: any }) {
         let adminBypass = false;
         if (user) {
           const email = user.email ? user.email.toLowerCase().trim() : '';
-          const isWhitelisted = email === 'ingjohs@gmail.com' || email === 'ingjoh@gmail.com' || email === 'ingemar.johnsson@gmail.com' || email === 'ingemar.johnsson@tribes.co' || email.endsWith('@motoryachtwhiskey.com') || email.endsWith('@projects.vercel.app');
+          const isWhitelisted = email === 'ingjohs@gmail.com' || email === 'ingjoh@gmail.com' || email === 'ingemar.johnsson@gmail.com' || email === 'ingemar.johnsson@tribes.co' || email.endsWith('@motoryachtwhiskey.com') || email.endsWith('@mywhiskey.com') || email.endsWith('@projects.vercel.app');
           try {
             const idTokenResult = await user.getIdTokenResult();
             if (idTokenResult.claims.admin === true || isWhitelisted || process.env.NODE_ENV === 'development') {

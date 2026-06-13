@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { AuthProvider } from "@/components/AuthProvider";
 import { SiteSettingsProvider } from "@/components/SiteSettingsProvider";
 import { GlobalOverlayProvider } from "@/components/GlobalOverlayProvider";
+import AttributionTracker from "@/components/AttributionTracker";
+import { Suspense } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,6 +33,9 @@ export default function RootLayout({
         <GlobalOverlayProvider>
           <SiteSettingsProvider>
             <AuthProvider>
+              <Suspense fallback={null}>
+                <AttributionTracker />
+              </Suspense>
               {children}
             </AuthProvider>
           </SiteSettingsProvider>

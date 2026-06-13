@@ -12,7 +12,8 @@ import {
 import { 
   getCustomerProfileById, getAllBookings, getAllWaiverSignatures, 
   addCustomerPrivateNote, archiveCustomer, deleteCustomer,
-  CustomerProfile, BookingRecord, WaiverSignature 
+  updateCustomerProfileFields, getContentItems,
+  CustomerProfile, BookingRecord, WaiverSignature, ContentItem
 } from '@/lib/db';
 
 export default function CustomerProfileDetailView({ params }: { params: Promise<{ id: string }> }) {
@@ -25,6 +26,13 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [waivers, setWaivers] = useState<WaiverSignature[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Roles & Affiliations states
+  const [isAgent, setIsAgent] = useState<boolean>(false);
+  const [isReseller, setIsReseller] = useState<boolean>(false);
+  const [companyId, setCompanyId] = useState<string>('');
+  const [allCompanies, setAllCompanies] = useState<ContentItem[]>([]);
+  const [isSavingFields, setIsSavingFields] = useState<boolean>(false);
   
   // Note form state
   const [noteText, setNoteText] = useState('');
@@ -41,11 +49,16 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
         return;
       }
       setCustomer(customerData);
+      setIsAgent(Boolean(customerData.isAgent || false));
+      setIsReseller(Boolean(customerData.isReseller || false));
+      setCompanyId(customerData.companyId || '');
 
-      const [allBookings, allWaivers] = await Promise.all([
+      const [allBookings, allWaivers, companies] = await Promise.all([
         getAllBookings(),
-        getAllWaiverSignatures()
+        getAllWaiverSignatures(),
+        getContentItems('company')
       ]);
+      setAllCompanies(companies);
 
       // Filter bookings matching this customer's email
       const customerBookings = allBookings.filter(
@@ -165,6 +178,29 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
       showToast('error', 'An error occurred.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSaveRolesAndAffiliations = async () => {
+    if (!customer) return;
+    setIsSavingFields(true);
+    try {
+      const ok = await updateCustomerProfileFields(customer.id, {
+        isAgent,
+        isReseller,
+        companyId: companyId || ''
+      });
+      if (ok) {
+        showToast('success', 'Roles & affiliations updated successfully.');
+        setCustomer(prev => prev ? { ...prev, isAgent, isReseller, companyId } : null);
+      } else {
+        showToast('error', 'Failed to update roles & affiliations.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'An error occurred while saving.');
+    } finally {
+      setIsSavingFields(false);
     }
   };
 
@@ -319,6 +355,63 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Roles & Affiliations Card */}
+            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.25rem' }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                Roles & Affiliations
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'white', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isAgent}
+                    onChange={e => setIsAgent(e.target.checked)}
+                    style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+                  />
+                  <span>Is Agent / Broker</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'white', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isReseller}
+                    onChange={e => setIsReseller(e.target.checked)}
+                    style={{ accentColor: '#B9783B', cursor: 'pointer' }}
+                  />
+                  <span>Is Reseller</span>
+                </label>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <span style={{ opacity: 0.5, fontSize: '0.72rem' }}>Affiliated Company</span>
+                  <select
+                    value={companyId}
+                    onChange={e => setCompanyId(e.target.value)}
+                    style={{ padding: '0.45rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.78rem', outline: 'none', width: '100%' }}
+                  >
+                    <option value="">-- No Affiliated Company --</option>
+                    {allCompanies.map(c => (
+                      <option key={c.id} value={c.id}>{c.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveRolesAndAffiliations}
+                  disabled={isSavingFields}
+                  style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.5rem', borderRadius: '6px', cursor: isSavingFields ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.78rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                >
+                  {isSavingFields ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    'Save Roles & Affiliations'
+                  )}
+                </button>
               </div>
             </div>
 

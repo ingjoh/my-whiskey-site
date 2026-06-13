@@ -1,0 +1,362 @@
+/* print.css - Core styles for print collateral */
+
+/* Reset and fonts */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+  color: #121416;
+  font-family: 'Inter', sans-serif;
+  font-size: 9pt;
+}
+
+/* Page Setup & Media Queries */
+@media print {
+  body {
+    background-color: #ffffff;
+  }
+  
+  /* Hide standard browser page numbers, headers, footers */
+  @page {
+    margin: 0;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Bleed and Crop Container */
+.print-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 0;
+  background-color: #2c2e30;
+}
+
+@media print {
+  .print-container {
+    background-color: transparent;
+    padding: 0;
+    display: block;
+    min-height: auto;
+  }
+}
+
+/* Form Factor Layout Boxes (Includes 0.125in bleed on all sides) */
+.page-sheet {
+  background-color: #121416; /* Gold brand dark bg */
+  color: #F4F1EA;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  margin-bottom: 3rem;
+  page-break-after: always;
+}
+
+@media print {
+  .page-sheet {
+    box-shadow: none;
+    margin-bottom: 0;
+  }
+}
+
+/* Tri-Fold (Letter Landscape: 11" x 8.5" -> plus 0.25" total bleed = 11.25" x 8.75") */
+.page-trifold {
+  width: 11.25in;
+  height: 8.75in;
+}
+
+/* Rack Card (4" x 9" -> plus 0.25" total bleed = 4.25" x 9.25") */
+.page-rackcard {
+  width: 4.25in;
+  height: 9.25in;
+}
+
+/* Business Card (3.5" x 2" -> plus 0.25" total bleed = 3.75" x 2.25") */
+.page-businesscard {
+  width: 3.75in;
+  height: 2.25in;
+}
+
+/* Bleed and Safe Area Overlay Guides */
+.bleed-bleed {
+  position: absolute;
+  top: 0.125in;
+  left: 0.125in;
+  right: 0.125in;
+  bottom: 0.125in;
+  border: 1px dashed rgba(185, 120, 59, 0.4); /* Gold trim guide */
+  pointer-events: none;
+  z-index: 100;
+}
+
+.bleed-safe {
+  position: absolute;
+  top: 0.25in;
+  left: 0.25in;
+  right: 0.25in;
+  bottom: 0.25in;
+  border: 1px dotted rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Hide guides when printing if desired (but often crop guides are kept outside trim) */
+.hide-guides .bleed-bleed,
+.hide-guides .bleed-safe {
+  display: none !important;
+}
+
+/* Crop/Trim Marks (rendered outside the trim box) */
+.crop-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.crop-mark {
+  position: absolute;
+  width: 0.5in;
+  height: 0.5in;
+  border: 0;
+}
+
+/* Crop mark ticks positioning */
+.crop-tl { top: 0; left: 0; border-right: 1px solid #777; border-bottom: 1px solid #777; width: 0.125in; height: 0.125in; }
+.crop-tr { top: 0; right: 0; border-left: 1px solid #777; border-bottom: 1px solid #777; width: 0.125in; height: 0.125in; }
+.crop-bl { bottom: 0; left: 0; border-right: 1px solid #777; border-top: 1px solid #777; width: 0.125in; height: 0.125in; }
+.crop-br { bottom: 0; right: 0; border-left: 1px solid #777; border-top: 1px solid #777; width: 0.125in; height: 0.125in; }
+
+/* Content Wrapper (Positions design inside the trim boundary) */
+.trim-content {
+  position: absolute;
+  top: 0.125in;
+  left: 0.125in;
+  width: calc(100% - 0.25in);
+  height: calc(100% - 0.25in);
+  overflow: hidden;
+  display: flex;
+}
+
+/* Tri-fold layout panels (3 columns of 3.66in width inside the 11in width) */
+.trifold-col {
+  width: 33.333%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.22in;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.trifold-col:last-child {
+  border-right: none;
+}
+
+/* Typography styles */
+.brand-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+}
+
+.gold-accent {
+  color: #B9783B;
+}
+
+.text-gold {
+  color: #B9783B;
+}
+
+.serif-font {
+  font-family: 'Cormorant Garamond', serif;
+}
+
+.sans-font {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Business Card Styling */
+.business-card-front,
+.business-card-back {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25in;
+  position: relative;
+}
+
+.business-card-front {
+  flex-direction: row;
+}
+
+.business-card-back {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.1in;
+  text-align: center;
+}
+
+/* QR Code Image Print Fixes */
+.qr-code-img {
+  width: 100%;
+  height: 100%;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  background-color: white;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+/* Ink-Saver Light Theme Overrides */
+.print-container.print-theme-light .page-sheet {
+  background-color: #F9F8F6;
+  color: #1E2124;
+}
+
+.print-theme-light {
+  background-color: #F9F8F6 !important;
+  color: #1E2124 !important;
+}
+
+.print-theme-light h1,
+.print-theme-light h2,
+.print-theme-light h3,
+.print-theme-light h4,
+.print-theme-light h5,
+.print-theme-light h6 {
+  color: #1E2124 !important;
+}
+
+.print-theme-light .gold-accent,
+.print-theme-light .text-gold {
+  color: #A3642C !important; /* Slightly darker gold for readability on white bg */
+}
+
+/* Adjust lists and description text under light theme */
+.print-theme-light p {
+  color: #2F3337 !important;
+  opacity: 0.9 !important;
+}
+
+.print-theme-light span,
+.print-theme-light div {
+  color: inherit;
+}
+
+/* Back cover details list */
+.print-theme-light div[style*="fontSize: '0.75rem'"] div {
+  color: #2F3337 !important;
+}
+
+/* Specification items */
+.print-theme-light div[style*="borderBottom"] {
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Itinerary Highlights titles */
+.print-theme-light span[style*="ITINERARY HIGHLIGHTS"] {
+  color: #1E2124 !important;
+}
+
+/* QR Code Block shadow adjustment */
+.print-theme-light div[style*="boxShadow"] {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Crop/bleed guide updates for light mode */
+.print-theme-light .bleed-safe {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Multi-Up repeating paper sheets (standard 8.5" x 11" or A4 size without page-break-after) */
+.repeat-sheet {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  margin-bottom: 3rem;
+  page-break-after: always;
+  background-color: transparent;
+}
+
+@media print {
+  .repeat-sheet {
+    box-shadow: none;
+    margin-bottom: 0;
+  }
+}
+
+.repeat-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+
+/* Markdown typography rules inside text elements */
+.collateral-text-block h1 {
+  font-family: inherit;
+  font-size: 1.22em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #B9783B;
+  border-bottom: 1px solid rgba(185, 120, 59, 0.15);
+  padding-bottom: 0.2rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.collateral-text-block h2, 
+.collateral-text-block h3 {
+  font-family: inherit;
+  font-size: 1.08em;
+  font-weight: 600;
+  color: #B9783B;
+  border-left: 3px solid #B9783B;
+  padding-left: 0.5rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.collateral-text-block strong {
+  font-weight: 700;
+}
+.collateral-text-block em {
+  font-style: italic;
+}
+.collateral-text-block ul {
+  padding-left: 1.2rem;
+  margin: 0.4rem 0;
+}
+.collateral-text-block li {
+  list-style-type: none;
+  position: relative;
+  padding-left: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.collateral-text-block li::before {
+  content: "•";
+  color: #B9783B;
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
