@@ -363,10 +363,10 @@ body {
 /* Glassmorphism print fallbacks to guarantee high text contrast/readability without browser backdrop-filter support */
 @media print {
   .print-theme-light .collateral-glass-panel {
-    background-color: rgba(255, 255, 255, var(--glass-print-opacity, 0.92)) !important;
+    background-color: rgba(255, 255, 255, var(--glass-print-opacity, 0.45)) !important;
   }
   .print-theme-dark .collateral-glass-panel {
-    background-color: rgba(18, 20, 22, var(--glass-print-opacity, 0.90)) !important;
+    background-color: rgba(18, 20, 22, var(--glass-print-opacity, 0.45)) !important;
   }
 }
 

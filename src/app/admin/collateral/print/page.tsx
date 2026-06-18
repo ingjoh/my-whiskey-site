@@ -672,8 +672,8 @@ function RenderPrintElement({
                 ? (printTheme === 'light' ? `rgba(255,255,255,${el.props.glassOpacity / 100})` : `rgba(18,20,22,${el.props.glassOpacity / 100})`)
                 : (el.props.style?.backgroundColor || 'transparent'),
               '--glass-print-opacity': el.props.glassOpacity !== undefined 
-                ? Math.max(0.88, el.props.glassOpacity / 100).toString()
-                : '1',
+                ? (el.props.glassOpacity === 0 ? '0' : Math.max(0.45, el.props.glassOpacity / 100).toString())
+                : '0.45',
               ...(el.props.fullPageImage ? {
                 position: 'absolute',
                 inset: 0,
