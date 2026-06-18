@@ -616,14 +616,48 @@ export default function AdvancedCollateralBuilder() {
                               </div>
                             )}
 
-                            {el.type === 'qr' && (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: el.props.style?.color || 'inherit', textAlign: el.props.style?.textAlign || 'center' }}>
-                                <div style={{ width: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, height: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, background: el.props.style?.backgroundColor || 'white', padding: el.props.style?.padding || '4px', borderRadius: el.props.style?.borderRadius || '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <QrCode size={36} color={el.props.style?.color || '#121416'} />
+                            {el.type === 'qr' && (() => {
+                              const logoUrl = siteSettings?.brand?.logoSquareUrl || contextSettings?.brand?.logoSquareUrl;
+                              return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: el.props.style?.color || 'inherit', textAlign: el.props.style?.textAlign || 'center' }}>
+                                  <div style={{ 
+                                    width: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, 
+                                    height: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, 
+                                    backgroundImage: el.props.backgroundImage ? `url("${el.props.backgroundImage}")` : 'none',
+                                    backgroundColor: el.props.style?.backgroundColor || 'white', 
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    padding: el.props.style?.padding || '4px', 
+                                    borderRadius: el.props.style?.borderRadius || '4px', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    position: 'relative'
+                                  }}>
+                                    <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <QrCode size={36} color={el.props.style?.color || '#121416'} />
+                                      {el.props.showLogoInQr !== false && logoUrl && (
+                                        <div style={{
+                                          position: 'absolute',
+                                          width: '24%',
+                                          height: '24%',
+                                          background: '#ffffff',
+                                          padding: '1px',
+                                          borderRadius: '2px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                                        }}>
+                                          <img src={logoUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: '8px', opacity: 0.6 }}>{el.props.labelText || 'Scan QR to Book'}</span>
                                 </div>
-                                <span style={{ fontSize: '8px', opacity: 0.6 }}>{el.props.labelText || 'Scan QR to Book'}</span>
-                              </div>
-                            )}
+                              );
+                            })()}
 
                             {el.type === 'divider' && (
                               <div style={{ borderTop: `${el.props.thickness || '1px'} ${el.props.style || 'solid'} ${el.props.color || '#B9783B'}`, margin: el.props.margin || '0.5rem 0' }} />
@@ -2024,6 +2058,112 @@ export default function AdvancedCollateralBuilder() {
                           </option>
                         ))}
                       </select>
+                    </label>
+
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#B9783B' }}>Design & Styling</span>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedElement.props.showLogoInQr !== false}
+                        onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { showLogoInQr: e.target.checked })}
+                      />
+                      Show Brand Logo in Center
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!selectedElement.props.qrBgTransparent}
+                        onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { qrBgTransparent: e.target.checked })}
+                      />
+                      Transparent QR Code Background
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                      Container Background Image URL
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+                        <input
+                          type="text"
+                          value={selectedElement.props.backgroundImage || ''}
+                          onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { backgroundImage: e.target.value })}
+                          style={{ ...inputStyle, flex: 1 }}
+                        />
+                        <button
+                          onClick={() => {
+                            setMediaTarget({ zoneId: selectedZoneId!, elementId: selectedElement.id });
+                            setIsMediaModalOpen(true);
+                          }}
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          <ImageIcon size={14} />
+                        </button>
+                      </div>
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                        QR Code Color
+                        <input
+                          type="color"
+                          value={selectedElement.props.qrColor || '#121416'}
+                          onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { qrColor: e.target.value })}
+                          style={{ ...inputStyle, padding: '2px', height: '32px' }}
+                        />
+                      </label>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                        QR Code BG Color
+                        <input
+                          type="color"
+                          value={selectedElement.props.qrBgColor || '#ffffff'}
+                          disabled={selectedElement.props.qrBgTransparent || !!selectedElement.props.backgroundImage}
+                          onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { qrBgColor: e.target.value })}
+                          style={{ ...inputStyle, padding: '2px', height: '32px', opacity: (selectedElement.props.qrBgTransparent || !!selectedElement.props.backgroundImage) ? 0.5 : 1 }}
+                        />
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Container BG Color
+                        <input
+                          type="color"
+                          value={selectedElement.props.style?.backgroundColor || '#ffffff'}
+                          onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { 
+                            style: { 
+                              ...(selectedElement.props.style || {}), 
+                              backgroundColor: e.target.value 
+                            } 
+                          })}
+                          style={{ ...inputStyle, padding: '2px', height: '32px' }}
+                        />
+                      </label>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Text Color
+                        <input
+                          type="color"
+                          value={selectedElement.props.style?.color || '#121416'}
+                          onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { 
+                            style: { 
+                              ...(selectedElement.props.style || {}), 
+                              color: e.target.value 
+                            } 
+                          })}
+                          style={{ ...inputStyle, padding: '2px', height: '32px' }}
+                        />
+                      </label>
+                    </div>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                      QR Size (e.g. 1.2in, 80px)
+                      <input
+                        type="text"
+                        value={selectedElement.props.size || '1.1in'}
+                        onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { size: e.target.value })}
+                        style={inputStyle}
+                        placeholder="e.g. 1.1in, 80px"
+                      />
                     </label>
                   </div>
                 )}

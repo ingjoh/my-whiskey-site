@@ -144,12 +144,14 @@ function RenderPrintElement({
         }
       }
 
+      const isTransparent = el.props.qrBgTransparent || !!el.props.backgroundImage;
       QRCode.toDataURL(targetUrl, {
         margin: 1,
         width: 300,
+        errorCorrectionLevel: 'H',
         color: {
-          dark: '#121416',
-          light: '#ffffff'
+          dark: el.props.qrColor || '#121416',
+          light: isTransparent ? '#00000000' : (el.props.qrBgColor || '#ffffff')
         }
       })
       .then(url => setQrUrl(url))
@@ -224,11 +226,43 @@ function RenderPrintElement({
         );
       }
       case 'qr': {
+        const logoUrl = siteSettings?.brand?.logoSquareUrl;
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-            <div style={{ width: el.props.size || '1.2in', height: el.props.size || '1.2in', background: '#ffffff', padding: '6px', borderRadius: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: el.props.style?.color || 'inherit' }}>
+            <div style={{ 
+              width: el.props.size || '1.2in', 
+              height: el.props.size || '1.2in', 
+              backgroundImage: el.props.backgroundImage ? `url("${el.props.backgroundImage}")` : 'none',
+              backgroundColor: el.props.style?.backgroundColor || '#ffffff', 
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              padding: el.props.style?.padding || '6px', 
+              borderRadius: el.props.style?.borderRadius || '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative'
+            }}>
               {qrUrl ? (
-                <img src={qrUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="QR Code" />
+                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src={qrUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="QR Code" />
+                  {el.props.showLogoInQr !== false && logoUrl && (
+                    <div style={{
+                      position: 'absolute',
+                      width: '22%',
+                      height: '22%',
+                      background: '#ffffff',
+                      padding: '1px',
+                      borderRadius: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                    }}>
+                      <img src={logoUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="" />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div style={{ width: '100%', height: '100%', background: '#ccc' }} />
               )}
