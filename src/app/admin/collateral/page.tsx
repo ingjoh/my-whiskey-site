@@ -90,6 +90,7 @@ export default function AdvancedCollateralBuilder() {
     { name: 'Sea Glass', value: '#708C84' }
   ]);
   const [siteSettings, setSiteSettings] = useState<any>(null);
+  const [selectedTemplateStaffSlug, setSelectedTemplateStaffSlug] = useState<string>('');
 
   // Toasts notification state & handler
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }[]>([]);
@@ -620,7 +621,7 @@ export default function AdvancedCollateralBuilder() {
                                 <div style={{ width: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, height: `calc(${el.props.size || '1.1in'} * var(--zoom-scale))`, background: el.props.style?.backgroundColor || 'white', padding: el.props.style?.padding || '4px', borderRadius: el.props.style?.borderRadius || '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <QrCode size={36} color={el.props.style?.color || '#121416'} />
                                 </div>
-                                <span style={{ fontSize: '8px', opacity: 0.6 }}>Scan QR to Book</span>
+                                <span style={{ fontSize: '8px', opacity: 0.6 }}>{el.props.labelText || 'Scan QR to Book'}</span>
                               </div>
                             )}
 
@@ -1958,9 +1959,20 @@ export default function AdvancedCollateralBuilder() {
                       Base Scan Redirect URL
                       <input
                         type="text"
-                        value={selectedElement.props.url}
+                        value={selectedElement.props.url || ''}
                         onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { url: e.target.value })}
                         style={inputStyle}
+                      />
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                      QR Label Text
+                      <input
+                        type="text"
+                        value={selectedElement.props.labelText || ''}
+                        onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { labelText: e.target.value })}
+                        style={inputStyle}
+                        placeholder="e.g. Scan QR to Book, Scan to Connect"
                       />
                     </label>
 
@@ -3267,6 +3279,223 @@ export default function AdvancedCollateralBuilder() {
                     )}
                   </div>
                 </div>
+
+                {/* Generate Staff Business Card template options */}
+                {preset === 'business-card' && (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                    <span style={sidebarHeadingStyle}>Generate Staff Business Card</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 600 }}>
+                        Select Staff Member
+                        <select
+                          value={selectedTemplateStaffSlug}
+                          onChange={e => setSelectedTemplateStaffSlug(e.target.value)}
+                          style={inputStyle}
+                        >
+                          <option value="">-- Select Crew Profile --</option>
+                          {staffList.map(s => (
+                            <option key={s.slug} value={s.slug}>{s.title}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const staff = staffList.find(s => s.slug === selectedTemplateStaffSlug);
+                          if (!staff) {
+                            showNotification('Please select a staff member first.', 'warning');
+                            return;
+                          }
+
+                          const brandColorVal = siteSettings?.brand?.colors?.[0]?.value || '#B9783B';
+                          const headingFont = siteSettings?.typography?.headingFontFamily || "'Cormorant Garamond', serif";
+
+                          loadDesignState({
+                            preset: 'business-card',
+                            width: '3.5in',
+                            height: '2in',
+                            gridCols: 2,
+                            gridRows: 1,
+                            pages: [
+                              {
+                                id: 'card-front',
+                                zones: [
+                                  {
+                                    id: 'front-left',
+                                    columnStart: 1,
+                                    columnSpan: 1,
+                                    rowStart: 1,
+                                    rowSpan: 1,
+                                    verticalAlign: 'middle',
+                                    elements: [
+                                      {
+                                        id: `avatar-${Date.now()}`,
+                                        type: 'image',
+                                        props: {
+                                          src: staff.heroImage || '/placeholder-avatar.png',
+                                          style: {
+                                            width: '50px',
+                                            height: '50px',
+                                            borderRadius: '50%',
+                                            objectFit: 'cover',
+                                            borderWidth: '2px',
+                                            borderColor: brandColorVal,
+                                            borderStyle: 'solid',
+                                            margin: '0 auto 0.25rem auto'
+                                          }
+                                        }
+                                      },
+                                      {
+                                        id: `name-${Date.now()}`,
+                                        type: 'text',
+                                        props: {
+                                          text: staff.title,
+                                          style: {
+                                            fontSize: '10px',
+                                            fontWeight: 'bold',
+                                            color: '#FFFFFF',
+                                            textAlign: 'center',
+                                            fontFamily: headingFont
+                                          }
+                                        }
+                                      },
+                                      {
+                                        id: `role-${Date.now()}`,
+                                        type: 'text',
+                                        props: {
+                                          text: staff.role || (staff.isCaptain ? 'Captain' : 'Crew'),
+                                          style: {
+                                            fontSize: '6px',
+                                            fontWeight: 'bold',
+                                            color: brandColorVal,
+                                            textAlign: 'center',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.1em'
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    id: 'front-right',
+                                    columnStart: 2,
+                                    columnSpan: 1,
+                                    rowStart: 1,
+                                    rowSpan: 1,
+                                    verticalAlign: 'middle',
+                                    elements: [
+                                      {
+                                        id: `qr-${Date.now()}`,
+                                        type: 'qr',
+                                        props: {
+                                          size: '0.8in',
+                                          url: 'https://www.motoryachtwhiskey.com',
+                                          partnerType: 'staff',
+                                          partnerSlug: staff.slug,
+                                          campaign: 'business_card',
+                                          labelText: 'Scan to Book',
+                                          style: {
+                                            color: '#121416',
+                                            backgroundColor: '#FFFFFF',
+                                            padding: '4px',
+                                            borderRadius: '4px',
+                                            margin: '0 auto 0.4rem auto'
+                                          }
+                                        }
+                                      },
+                                      {
+                                        id: `contact-${Date.now()}`,
+                                        type: 'text',
+                                        props: {
+                                          text: `${staff.phone || businessDetails.phone}\n${staff.email || businessDetails.email}`,
+                                          style: {
+                                            fontSize: '6px',
+                                            color: '#D8C7AF',
+                                            textAlign: 'center',
+                                            opacity: 0.8,
+                                            lineHeight: '1.4'
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                id: 'card-back',
+                                zones: [
+                                  {
+                                    id: 'back-center',
+                                    columnStart: 1,
+                                    columnSpan: 2,
+                                    rowStart: 1,
+                                    rowSpan: 1,
+                                    verticalAlign: 'middle',
+                                    elements: [
+                                      {
+                                        id: `logo-${Date.now()}`,
+                                        type: 'logo',
+                                        props: {
+                                          logoType: 'rect',
+                                          style: {
+                                            width: '110px',
+                                            textAlign: 'center',
+                                            margin: '0 auto 0.4rem auto'
+                                          }
+                                        }
+                                      },
+                                      {
+                                        id: `tagline-${Date.now()}`,
+                                        type: 'text',
+                                        props: {
+                                          text: 'DESTIN • FLORIDA',
+                                          style: {
+                                            fontSize: '6px',
+                                            color: '#D8C7AF',
+                                            textAlign: 'center',
+                                            letterSpacing: '0.15em',
+                                            opacity: 0.8
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ],
+                            repeatLayout: {
+                              enabled: true,
+                              paperPreset: 'letter',
+                              paperWidth: '8.5in',
+                              paperHeight: '11in',
+                              rows: 5,
+                              cols: 2,
+                              margins: '0.3in',
+                              spacing: '0.15in'
+                            },
+                            printTheme: 'dark'
+                          });
+
+                          showNotification(`Applied card template for ${staff.title}`, 'success');
+                        }}
+                        style={{
+                          background: '#B9783B',
+                          border: 'none',
+                          color: 'white',
+                          padding: '0.5rem',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '0.8rem',
+                          marginTop: '0.25rem',
+                          textAlign: 'center'
+                        }}
+                      >
+                        Apply Staff Template
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

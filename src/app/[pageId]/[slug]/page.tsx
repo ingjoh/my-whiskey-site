@@ -1,5 +1,6 @@
 import { getContentTypeConfigs, getContentItem, getPublishedCaptains, getContentItems, loadIncludedItems, loadPageData, loadSiteSettings } from '@/lib/db';
 import { DEFAULT_THEME } from '@/lib/pageTemplates';
+import { cookies } from 'next/headers';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
 import AdventureDetailView from '@/components/public/AdventureDetailView';
@@ -39,6 +40,9 @@ export async function generateMetadata({ params }: { params: Promise<{ pageId: s
 
 export default async function ContentItemDetailPage({ params }: { params: Promise<{ pageId: string; slug: string }> }) {
   const { pageId, slug } = await params;
+  const cookieStore = await cookies();
+  const token = cookieStore.get('firebase_token')?.value;
+  const isLoggedIn = !!token;
 
   // 1. Resolve content type config by prefix
   const configs = await getContentTypeConfigs();
@@ -215,7 +219,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
       )}
 
       {config.id === 'staff' && (
-        <StaffDetailView item={item} theme={theme} linkedAdventures={linkedAdventuresList} />
+        <StaffDetailView item={item} theme={theme} linkedAdventures={linkedAdventuresList} isLoggedIn={isLoggedIn} />
       )}
 
       <PublicFooter theme={theme} />
@@ -467,7 +471,7 @@ const DEFAULT_TESTIMONIALS: Testimonial[] = [
   { text: "Professional service that rivaled any five-star resort. Highly recommend sailing with this crew!", author: "James G.", relation: "Private Cruise Guest" }
 ];
 
-function StaffDetailView({ item, theme, linkedAdventures = [] }: { item: any; theme: any; linkedAdventures?: any[] }) {
+function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = false }: { item: any; theme: any; linkedAdventures?: any[]; isLoggedIn?: boolean }) {
   const role = item.role || 'Crew Member';
   const location = item.location || 'Destin, FL';
   const certs = item.certifications || [];
@@ -580,6 +584,41 @@ function StaffDetailView({ item, theme, linkedAdventures = [] }: { item: any; th
                   <span style={{ color: '#D8C7AF', opacity: 0.8, display: 'block', marginBottom: '0.25rem' }}>Languages Spoken:</span>
                   <span style={{ color: 'white', fontWeight: 600 }}>{languages.join(', ')}</span>
                 </div>
+              </div>
+            )}
+
+            {isLoggedIn && (item.phone || item.email) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', fontSize: '0.875rem' }}>
+                <span style={{ color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Contact Details:</span>
+                {item.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#D8C7AF', opacity: 0.6 }}>Phone:</span>
+                    <a href={`tel:${item.phone}`} style={{ color: '#B9783B', textDecoration: 'none', marginLeft: 'auto', fontWeight: 600 }}>{item.phone}</a>
+                  </div>
+                )}
+                {item.email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#D8C7AF', opacity: 0.6 }}>Email:</span>
+                    <a href={`mailto:${item.email}`} style={{ color: '#B9783B', textDecoration: 'none', marginLeft: 'auto', fontWeight: 600, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{item.email}</a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isLoggedIn && (item.instagram || item.facebook || item.twitter || item.linkedin) && (
+              <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', justifyContent: 'center' }}>
+                {item.instagram && (
+                  <a href={item.instagram} target="_blank" rel="noopener noreferrer" style={{ color: '#B9783B', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>Instagram</a>
+                )}
+                {item.facebook && (
+                  <a href={item.facebook} target="_blank" rel="noopener noreferrer" style={{ color: '#B9783B', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>Facebook</a>
+                )}
+                {item.twitter && (
+                  <a href={item.twitter} target="_blank" rel="noopener noreferrer" style={{ color: '#B9783B', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>Twitter</a>
+                )}
+                {item.linkedin && (
+                  <a href={item.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: '#B9783B', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>LinkedIn</a>
+                )}
               </div>
             )}
           </div>

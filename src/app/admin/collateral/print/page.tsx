@@ -233,7 +233,7 @@ function RenderPrintElement({
                 <div style={{ width: '100%', height: '100%', background: '#ccc' }} />
               )}
             </div>
-            <span style={{ fontSize: '8px', opacity: 0.6 }}>Scan to Book</span>
+            <span style={{ fontSize: '8px', opacity: 0.6 }}>{el.props.labelText || 'Scan to Book'}</span>
           </div>
         );
       }

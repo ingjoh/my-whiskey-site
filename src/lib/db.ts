@@ -857,6 +857,10 @@ export interface ContentItem {
   budgetLineItems?: Array<{ category: string; cost: number }>; // custom budget line-items
   email?: string; // contact email for owner
   phone?: string; // contact phone for owner
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  linkedin?: string;
   revenueShare?: number; // revenue share percentage for owner (0-100)
   paymentDetails?: string; // wire/ACH notes for owner
   ownerId?: string; // associated owner ID for asset

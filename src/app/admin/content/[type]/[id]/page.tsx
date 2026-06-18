@@ -316,6 +316,12 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
 
   // Staff Extensions
   const [staffCertifiedVessels, setStaffCertifiedVessels] = useState<string[]>([]);
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffInstagram, setStaffInstagram] = useState('');
+  const [staffFacebook, setStaffFacebook] = useState('');
+  const [staffTwitter, setStaffTwitter] = useState('');
+  const [staffLinkedIn, setStaffLinkedIn] = useState('');
 
   // Adventure Budget Extensions
   const [previewVesselSlug, setPreviewVesselSlug] = useState<string>('');
@@ -629,6 +635,12 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
               setStaffIsAgent(Boolean(item.isAgent || false));
               setStaffIsReseller(Boolean(item.isReseller || false));
               setStaffCompanyId(item.companyId || '');
+              setStaffPhone(item.phone || '');
+              setStaffEmail(item.email || '');
+              setStaffInstagram(item.instagram || '');
+              setStaffFacebook(item.facebook || '');
+              setStaffTwitter(item.twitter || '');
+              setStaffLinkedIn(item.linkedin || '');
             } else if (type === 'location') {
               setLocationAnchorStatus(item.anchorStatus || '');
               setLocationBestTime(item.bestTime || '');
@@ -1074,6 +1086,12 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
         itemData.isAgent = staffIsAgent;
         itemData.isReseller = staffIsReseller;
         itemData.companyId = staffCompanyId;
+        itemData.phone = staffPhone;
+        itemData.email = staffEmail;
+        itemData.instagram = staffInstagram;
+        itemData.facebook = staffFacebook;
+        itemData.twitter = staffTwitter;
+        itemData.linkedin = staffLinkedIn;
       } else if (type === 'location') {
         itemData.anchorStatus = locationAnchorStatus;
         itemData.bestTime = locationBestTime;
@@ -3526,6 +3544,77 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
                     </select>
                   </label>
                 </div>
+              </div>
+
+              {/* Contact Information */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  Contact Phone (Private/Attribution)
+                  <input 
+                    type="text"
+                    value={staffPhone}
+                    onChange={e => setStaffPhone(e.target.value)}
+                    placeholder="e.g. (850) 555-0199"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  Contact Email (Private/Attribution)
+                  <input 
+                    type="email"
+                    value={staffEmail}
+                    onChange={e => setStaffEmail(e.target.value)}
+                    placeholder="e.g. captain.sarah@mywhiskey.com"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
+              </div>
+
+              {/* Social Media Links */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  Instagram URL
+                  <input 
+                    type="text"
+                    value={staffInstagram}
+                    onChange={e => setStaffInstagram(e.target.value)}
+                    placeholder="e.g. https://instagram.com/handle"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  Facebook URL
+                  <input 
+                    type="text"
+                    value={staffFacebook}
+                    onChange={e => setStaffFacebook(e.target.value)}
+                    placeholder="e.g. https://facebook.com/profile"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  Twitter / X URL
+                  <input 
+                    type="text"
+                    value={staffTwitter}
+                    onChange={e => setStaffTwitter(e.target.value)}
+                    placeholder="e.g. https://x.com/handle"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  LinkedIn URL
+                  <input 
+                    type="text"
+                    value={staffLinkedIn}
+                    onChange={e => setStaffLinkedIn(e.target.value)}
+                    placeholder="e.g. https://linkedin.com/in/name"
+                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                  />
+                </label>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
