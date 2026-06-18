@@ -621,6 +621,7 @@ function RenderPrintElement({
 
         return (
           <div 
+            className="collateral-glass-panel"
             style={{ 
               backgroundImage: bgImg,
               backgroundSize: 'cover',
@@ -636,6 +637,9 @@ function RenderPrintElement({
               backgroundColor: el.props.glassOpacity !== undefined 
                 ? (printTheme === 'light' ? `rgba(255,255,255,${el.props.glassOpacity / 100})` : `rgba(18,20,22,${el.props.glassOpacity / 100})`)
                 : (el.props.style?.backgroundColor || 'transparent'),
+              '--glass-print-opacity': el.props.glassOpacity !== undefined 
+                ? Math.max(0.88, el.props.glassOpacity / 100).toString()
+                : '1',
               ...(el.props.fullPageImage ? {
                 position: 'absolute',
                 inset: 0,
@@ -652,7 +656,7 @@ function RenderPrintElement({
                 boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
               }),
               backdropFilter: `blur(${el.props.glassOpacity !== undefined ? '8px' : '1px'})`
-            }}
+            } as any}
           >
             {el.props.logoType && el.props.logoType !== 'none' && (() => {
               const logoUrl = el.props.logoType === 'square'
