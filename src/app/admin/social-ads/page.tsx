@@ -14,7 +14,7 @@ import {
   loadSocialAdsSettings, saveSocialAdsSettings, getContentItems, ContentItem, 
   SocialAdsSettings, DEFAULT_SOCIAL_ADS_SETTINGS,
   loadSocialAdDrafts, saveSocialAdDraft, deleteSocialAdDraft, SocialAdDraft,
-  BookingRecord, getCommissionLedger
+  BookingRecord, getCommissionLedger, getAllBookings
 } from '@/lib/db';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
 
@@ -64,6 +64,115 @@ const BOOKING_WINDOW_OPTIONS: BookingWindowOption[] = [
   { id: 'mid-term', name: 'Mid-term Planner (1-6 weeks)', description: 'Typical vacationers scheduling a few weeks ahead.' },
   { id: 'long-term', name: 'Long-term (6+ weeks)', description: 'Organizers and planners booking destination charter events.' }
 ];
+
+export interface RecommendedGoal {
+  title: string;
+  desc: string;
+  priority: 'high' | 'medium';
+  platform: 'meta' | 'google-search' | 'google-pmax';
+  personas: string[];
+  urgency: string;
+  bookingWindows: string[];
+}
+
+export function calculateRecommendedGoal(bookings: BookingRecord[]): RecommendedGoal {
+  const activeBookings = bookings.filter(b => b.status && b.status !== 'cancelled');
+  
+  // Get date range for the next 30 days
+  const today = new Date();
+  const next30DaysDates: string[] = [];
+  const next10DaysDates: string[] = [];
+  
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dateStr = d.toISOString().split('T')[0];
+    next30DaysDates.push(dateStr);
+    if (i < 10) {
+      next10DaysDates.push(dateStr);
+    }
+  }
+
+  // Count unbooked weekend days (Fri, Sat, Sun) vs. weekdays (Mon, Tue, Wed, Thu)
+  const isWeekend = (dateStr: string) => {
+    const day = new Date(dateStr + 'T00:00:00').getDay();
+    return day === 0 || day === 5 || day === 6; // Sun = 0, Fri = 5, Sat = 6
+  };
+
+  const getUnbookedSlots = (dateRange: string[]) => {
+    const weekends: string[] = [];
+    const weekdays: string[] = [];
+    
+    dateRange.forEach(dateStr => {
+      const isBooked = activeBookings.some(b => b.date === dateStr);
+      if (!isBooked) {
+        if (isWeekend(dateStr)) {
+          weekends.push(dateStr);
+        } else {
+          weekdays.push(dateStr);
+        }
+      }
+    });
+    
+    return { weekends, weekdays };
+  };
+
+  const next10DaysSlots = getUnbookedSlots(next10DaysDates);
+  const next30DaysSlots = getUnbookedSlots(next30DaysDates);
+
+  // 1. Check for immediate weekend vacancy (within the next 10 days)
+  if (next10DaysSlots.weekends.length > 0) {
+    const nextWeekendDay = next10DaysSlots.weekends[0];
+    const dateFormatted = new Date(nextWeekendDay + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    return {
+      title: `Last-Minute Weekend Vacancy: Fill ${dateFormatted}`,
+      desc: `Our booking calendar shows a vacant weekend day on ${dateFormatted} within the next 10 days. We recommend launching an impulse Meta campaign (Feeds & Stories) targeting Family Vacationers and Friends groups already in the region to fill this slot immediately.`,
+      priority: 'high',
+      platform: 'meta',
+      personas: ['family', 'friends'],
+      urgency: 'Low Booking Rate - Immediate Filler',
+      bookingWindows: ['impulse']
+    };
+  }
+
+  // 2. Check for mid-term weekend vacancies (next 30 days)
+  if (next30DaysSlots.weekends.length > 3) {
+    return {
+      title: 'Boost Upcoming Weekend Bookings',
+      desc: `We have multiple vacant weekend slots (${next30DaysSlots.weekends.length} days open) over the next 4 weeks. We suggest launching a Google Performance Max campaign targeting Friends & Party Groups or Couples to secure weekend reservations ahead of time.`,
+      priority: 'medium',
+      platform: 'google-pmax',
+      personas: ['friends', 'couples'],
+      urgency: 'High Booking Scarcity',
+      bookingWindows: ['mid-term']
+    };
+  }
+
+  // 3. Check for mid-week slow periods (next 30 days)
+  if (next30DaysSlots.weekdays.length > 5) {
+    return {
+      title: 'Fill Mid-Week Vacancies',
+      desc: `Weekend slots are healthy, but mid-week occupancy is low (${next30DaysSlots.weekdays.length} weekdays open). We recommend launching a Google Search campaign targeting Corporate Executives and Deep-Sea Anglers with mid-term planning incentives (e.g. complimentary catering).`,
+      priority: 'medium',
+      platform: 'google-search',
+      personas: ['corporate', 'anglers'],
+      urgency: 'Slow Mid-week Period',
+      bookingWindows: ['mid-term']
+    };
+  }
+
+  // 4. Healthy / Fully Booked scenario
+  return {
+    title: 'Brand Growth & Long-Term Bookings',
+    desc: 'Your charter schedule is looking incredibly healthy with high booking densities! We recommend maintaining long-term brand awareness and securing premium future holiday dates by running a Meta campaign targeting high-end Romantic Couples and Corporate Retreats.',
+    priority: 'medium',
+    platform: 'meta',
+    personas: ['couples', 'corporate'],
+    urgency: 'Slow Mid-week Period',
+    bookingWindows: ['long-term']
+  };
+}
+
 
 function getCleanFileName(url: string): string {
   if (!url) return '';
@@ -277,6 +386,8 @@ export default function SocialAdsDashboard() {
   const [settings, setSettings] = useState<SocialAdsSettings>(DEFAULT_SOCIAL_ADS_SETTINGS);
   const [personas, setPersonas] = useState<AdPersona[]>(DEFAULT_PERSONAS);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [fbPageTokenInput, setFbPageTokenInput] = useState('');
+  const [fbPageIdInput, setFbPageIdInput] = useState('');
   
   // UI Tabs State
   const [activeTab, setActiveTab] = useState<'planner' | 'personas' | 'settings'>('planner');
@@ -324,6 +435,13 @@ export default function SocialAdsDashboard() {
   const [showDashboardOverride, setShowDashboardOverride] = useState<boolean>(false);
   const [isSaveDraftModalOpen, setIsSaveDraftModalOpen] = useState<boolean>(false);
   const [isLoadDraftModalOpen, setIsLoadDraftModalOpen] = useState<boolean>(false);
+  // Publisher Modal States
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
+  const [publishChannel, setPublishChannel] = useState<'facebook' | 'instagram'>('facebook');
+  const [publishCopy, setPublishCopy] = useState<string>('');
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [publishSuccessMessage, setPublishSuccessMessage] = useState<string | null>(null);
+  const [publishErrorMessage, setPublishErrorMessage] = useState<string | null>(null);
   const [draftNameInput, setDraftNameInput] = useState<string>('');
   const [draftStatus, setDraftStatus] = useState<'draft' | 'approved'>('draft');
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
@@ -357,10 +475,11 @@ export default function SocialAdsDashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [adsSettings, draftsList, ledgerBookings, allCompanies, allStaff, allLocations, allOwners] = await Promise.all([
+        const [adsSettings, draftsList, ledgerBookings, allBookings, allCompanies, allStaff, allLocations, allOwners] = await Promise.all([
           loadSocialAdsSettings(),
           loadSocialAdDrafts(),
           getCommissionLedger(),
+          getAllBookings(),
           getContentItems('company'),
           getContentItems('staff'),
           getContentItems('location'),
@@ -370,6 +489,8 @@ export default function SocialAdsDashboard() {
         if (adsSettings) {
           setSettings(adsSettings);
           setApiKeyInput(adsSettings.apiKey || '');
+          setFbPageTokenInput(adsSettings.fbPageToken || '');
+          setFbPageIdInput(adsSettings.fbPageId || '');
           
           // Load custom personas if stored in settings
           const customPersonas = (adsSettings as any).personas;
@@ -385,29 +506,9 @@ export default function SocialAdsDashboard() {
         setLocations(allLocations.filter(l => l.status === 'published'));
         setOwners(allOwners.filter(o => o.status === 'published'));
 
-        // Calculate dynamic weekly AI goal recommendation based on local time/season
-        const month = new Date().getMonth(); // 0 = Jan, 5 = June, etc.
-        if (month >= 5 && month <= 7) {
-          setRecommendedGoal({
-            title: 'Urgent Summer Weekend Vacancy: Crab Island Scarcity',
-            desc: 'Summer season is peak for sandbar parties and family vacations. To fill immediate weekend slots, recommend launching a Meta campaign targeting both Family Vacationers & Friends groups with impulse booking windows.',
-            priority: 'high',
-            platform: 'meta',
-            personas: ['family', 'friends'],
-            urgency: 'High Booking Scarcity',
-            bookingWindows: ['impulse', 'mid-term']
-          });
-        } else {
-          setRecommendedGoal({
-            title: 'Mid-Week Autumn Executive & Angler Push',
-            desc: 'Calendar shows low booking densities for mid-week charters over the next 3 weeks. Recommend launching a Google Local Search ad targeting executive team retreats and deep-sea anglers with a mid-term planning window.',
-            priority: 'medium',
-            platform: 'google-search',
-            personas: ['corporate', 'anglers'],
-            urgency: 'Slow Mid-week Period',
-            bookingWindows: ['mid-term']
-          });
-        }
+        // Calculate dynamic weekly AI goal recommendation based on live database bookings
+        const recommended = calculateRecommendedGoal(allBookings);
+        setRecommendedGoal(recommended);
       } catch (err) {
         console.error('Failed to load social ads settings:', err);
       } finally {
@@ -424,6 +525,8 @@ export default function SocialAdsDashboard() {
       const updatedSettings = {
         ...settings,
         apiKey: apiKeyInput,
+        fbPageToken: fbPageTokenInput,
+        fbPageId: fbPageIdInput,
         personas: personas // include personas array inside the social_ads settings document
       };
       await saveSocialAdsSettings(updatedSettings);
@@ -619,6 +722,56 @@ export default function SocialAdsDashboard() {
     document.body.removeChild(link);
     
     showToast('Copy sheet exported successfully.', 'success');
+  };
+
+  const handlePublishCampaign = async () => {
+    if (!publishCopy.trim()) {
+      showToast('Please provide message copy to publish.', 'error');
+      return;
+    }
+    
+    setIsPublishing(true);
+    setPublishSuccessMessage(null);
+    setPublishErrorMessage(null);
+    
+    try {
+      const idToken = await user?.getIdToken();
+      const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
+      
+      const response = await fetch('/api/admin/social-ads/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          conceptName: activeBundle?.conceptName || 'Campaign Post',
+          message: publishCopy,
+          mediaUrls: boundMedias,
+          publishTo: publishChannel
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setPublishSuccessMessage(
+          data.simulated 
+            ? 'Simulation Success: Outbound post data successfully printed to console.'
+            : 'Success: Campaign successfully published to Facebook Page.'
+        );
+        showToast('Campaign published successfully!', 'success');
+      } else {
+        setPublishErrorMessage(data.error || 'Failed to publish campaign.');
+        showToast('Failed to publish campaign.', 'error');
+      }
+    } catch (error: any) {
+      console.error('Publish Error:', error);
+      setPublishErrorMessage('An unexpected connection error occurred.');
+      showToast('Publish error occurred.', 'error');
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   // Campaign AI Generator trigger
@@ -2008,7 +2161,13 @@ export default function SocialAdsDashboard() {
                     </button>
                     
                     <button 
-                      onClick={() => showToast('Publisher APIs (Meta/Google) scheduled for Phase 2 & 3 integrations.', 'info')}
+                      onClick={() => {
+                        setPublishCopy(activeBundle.bodyCopy || activeBundle.headline || (activeBundle.headlines ? activeBundle.headlines[0] : '') || '');
+                        setPublishChannel('facebook');
+                        setPublishSuccessMessage(null);
+                        setPublishErrorMessage(null);
+                        setIsPublishModalOpen(true);
+                      }}
                       style={{ background: '#708C84', border: 'none', color: 'white', padding: '0.6rem 1.5rem', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
                       onMouseOver={e => e.currentTarget.style.background = '#587069'}
                       onMouseOut={e => e.currentTarget.style.background = '#708C84'}
@@ -2135,6 +2294,36 @@ export default function SocialAdsDashboard() {
               style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', width: '100%', maxWidth: '400px', fontSize: '0.85rem' }}
             />
             <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>Leave blank to fall back to the environment variable <code>GEMINI_API_KEY</code> configured on the server hosting the site.</span>
+          </div>
+ 
+          {/* Facebook Page Credentials */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '1.5rem' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#B9783B', margin: 0 }}>Facebook Page Organic Publishing</h4>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Facebook Page ID</label>
+                <input 
+                  type="text" 
+                  value={fbPageIdInput}
+                  onChange={(e) => setFbPageIdInput(e.target.value)}
+                  placeholder="e.g. 10485763920194"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Facebook Page Access Token</label>
+                <input 
+                  type="password" 
+                  value={fbPageTokenInput}
+                  onChange={(e) => setFbPageTokenInput(e.target.value)}
+                  placeholder="EAAB..."
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>These credentials are used by the organic publisher API to schedule and publish feeds to Facebook and Instagram. Get these tokens in the Facebook Developer Portal.</span>
           </div>
 
           {/* Prompts Section */}
@@ -2336,6 +2525,127 @@ export default function SocialAdsDashboard() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publisher Dialog Modal */}
+      {isPublishModalOpen && activeBundle && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: '1rem' }}>
+          <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '1.75rem', width: '100%', maxWidth: '580px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white', margin: 0, fontFamily: "'Cormorant Garamond', serif", letterSpacing: '0.02em' }}>Publish Campaign Concept</h3>
+              <button 
+                onClick={() => setIsPublishModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', fontSize: '1.2rem', cursor: 'pointer', opacity: 0.8 }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {publishErrorMessage && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                <span>{publishErrorMessage}</span>
+              </div>
+            )}
+
+            {/* Success Message */}
+            {publishSuccessMessage && (
+              <div style={{ background: 'rgba(74, 222, 128, 0.08)', border: '1px solid rgba(74, 222, 128, 0.2)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                <span>{publishSuccessMessage}</span>
+              </div>
+            )}
+
+            {!publishSuccessMessage ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Channel Selector */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Target Channel</label>
+                  <select 
+                    value={publishChannel}
+                    onChange={(e) => setPublishChannel(e.target.value as any)}
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                  >
+                    <option value="facebook">Facebook Page Feed (Organic Post)</option>
+                    <option value="instagram" disabled>Instagram Business Feed (Requires OAuth Setup)</option>
+                  </select>
+                </div>
+
+                {/* Media Preview Box */}
+                {(() => {
+                  const boundMedias = activeBundle.boundMedias || (activeBundle.boundMedia ? [activeBundle.boundMedia] : []);
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase' }}>Attached Media Assets ({boundMedias.length})</label>
+                      {boundMedias.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', background: 'rgba(0,0,0,0.1)', padding: '0.5rem', borderRadius: '6px', border: '1px dashed rgba(255,255,255,0.06)' }}>
+                          {boundMedias.map((url, idx) => (
+                            <img key={idx} src={url} alt={`Preview ${idx + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ background: 'rgba(239, 68, 68, 0.04)', border: '1px dashed rgba(239, 68, 68, 0.2)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.75rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <AlertTriangle size={14} />
+                          <span>No media attached. Post will be published as text-only.</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Post Body Copy */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Message / Body Copy</label>
+                  <textarea 
+                    value={publishCopy}
+                    onChange={(e) => setPublishCopy(e.target.value)}
+                    rows={6}
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', resize: 'vertical', fontSize: '0.82rem', lineHeight: '1.45' }}
+                    placeholder="Provide feed copy..."
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button 
+                    onClick={() => setIsPublishModalOpen(false)}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#D8C7AF', padding: '0.5rem 1.25rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handlePublishCampaign}
+                    disabled={isPublishing}
+                    style={{ 
+                      background: '#708C84', border: 'none', color: 'white', padding: '0.5rem 1.5rem', 
+                      borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '0.4rem', opacity: isPublishing ? 0.7 : 1
+                    }}
+                  >
+                    {isPublishing ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={14} /> Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <Share2 size={14} /> Confirm &amp; Publish Post
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button 
+                  onClick={() => setIsPublishModalOpen(false)}
+                  style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.55rem 1.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Dismiss Dialog
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

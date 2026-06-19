@@ -3260,6 +3260,8 @@ export interface SocialAdsSettings {
   metaPrompt: string;
   googleSearchPrompt: string;
   googlePMaxPrompt: string;
+  fbPageToken?: string;
+  fbPageId?: string;
   updatedAt?: string;
 }
 
@@ -3315,7 +3317,9 @@ For each ad bundle, you must generate the following fields:
 - longHeadlines: 2-3 Long Headlines (under 90 characters)
 - descriptions: 2-3 Descriptions (under 90 characters)
 
-Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}.`
+Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}.`,
+  fbPageToken: '',
+  fbPageId: ''
 };
 
 export function migrateSocialAdsSettings(settings: any): SocialAdsSettings {
