@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   ChevronLeft, DollarSign, TrendingUp, CheckCircle2, XCircle, Clock, 
   ArrowUpRight, Filter, Calendar, Building, Users, MapPin, Activity, 
-  FileText, RefreshCw, Search, Check, AlertCircle, Percent
+  FileText, RefreshCw, Search, Check, AlertCircle, Percent, Crown
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { 
@@ -25,23 +25,25 @@ export default function CommissionsLedgerDashboard() {
   const [companies, setCompanies] = useState<ContentItem[]>([]);
   const [staffList, setStaffList] = useState<ContentItem[]>([]);
   const [locations, setLocations] = useState<ContentItem[]>([]);
+  const [owners, setOwners] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'company' | 'staff' | 'location'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'company' | 'staff' | 'location' | 'owner'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_charter' | 'accrued' | 'paid' | 'cancelled' | 'unpaid'>('all');
 
   // Load ledger data
   const loadLedgerData = async () => {
     try {
       setIsLoading(true);
-      const [ledgerBookings, allCompanies, allStaff, allLocations] = await Promise.all([
+      const [ledgerBookings, allCompanies, allStaff, allLocations, allOwners] = await Promise.all([
         getCommissionLedger(),
         getContentItems('company'),
         getContentItems('staff'),
-        getContentItems('location')
+        getContentItems('location'),
+        getContentItems('owner')
       ]);
 
       // Sort bookings by trip date descending
@@ -50,6 +52,7 @@ export default function CommissionsLedgerDashboard() {
       setCompanies(allCompanies);
       setStaffList(allStaff);
       setLocations(allLocations);
+      setOwners(allOwners);
     } catch (err) {
       console.error('Failed to load commissions ledger data:', err);
       showToast('error', 'Failed to retrieve commission records.');
@@ -93,6 +96,8 @@ export default function CommissionsLedgerDashboard() {
       entity = staffList.find(s => s.slug === referredById);
     } else if (referredByType === 'location') {
       entity = locations.find(l => l.slug === referredById);
+    } else if (referredByType === 'owner') {
+      entity = owners.find(o => o.slug === referredById);
     }
     return entity ? entity.title : referredById;
   };
@@ -102,6 +107,7 @@ export default function CommissionsLedgerDashboard() {
     if (type === 'company') return <Building size={14} color="#B9783B" style={{ flexShrink: 0 }} />;
     if (type === 'staff') return <Users size={14} color="#708C84" style={{ flexShrink: 0 }} />;
     if (type === 'location') return <MapPin size={14} color="#5F9EA0" style={{ flexShrink: 0 }} />;
+    if (type === 'owner') return <Crown size={14} color="#D4AF37" style={{ flexShrink: 0 }} />;
     return <Activity size={14} color="#D8C7AF" style={{ flexShrink: 0 }} />;
   };
 
@@ -342,6 +348,7 @@ export default function CommissionsLedgerDashboard() {
                 <option value="company">Brokers & Agencies (Companies)</option>
                 <option value="staff">Captains & Crew (Staff)</option>
                 <option value="location">Home Ports & Stops (Locations)</option>
+                <option value="owner">Asset Owners</option>
               </select>
             </div>
 

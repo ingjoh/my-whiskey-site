@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 import { PageNode, ThemeConfig, NavLink } from '@/store/useBuilderStore';
 import { detectProjectId } from './project-env';
@@ -1269,6 +1269,80 @@ export async function saveIncludedItems(items: IncludedItemConfig[]): Promise<vo
   }
 }
 
+export interface VesselFeature {
+  id: string;
+  name: string;
+  iconName: string;
+}
+
+const DEFAULT_VESSEL_FEATURES: VesselFeature[] = [
+  { id: 'ac', name: 'AC', iconName: 'Wind' },
+  { id: 'tv', name: 'TV', iconName: 'Tv' },
+  { id: 'wifi', name: 'WiFi', iconName: 'Wifi' },
+  { id: 'ice-maker', name: 'Ice Maker', iconName: 'Snowflake' },
+  { id: 'fridge', name: 'Fridge', iconName: 'Refrigerator' },
+  { id: 'power', name: 'Power', iconName: 'Zap' },
+  { id: 'paddle-board', name: 'Paddle Board', iconName: 'Waves' },
+  { id: 'snorkeling', name: 'Snorkeling', iconName: 'Waves' },
+  { id: 'fishing', name: 'Fishing', iconName: 'Fish' }
+];
+
+export async function loadVesselFeatures(): Promise<VesselFeature[]> {
+  if (typeof window === 'undefined') {
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/vessel_features`;
+      const response = await fetch(url, { next: { revalidate: 0 } });
+      if (response.ok) {
+        const json = await response.json();
+        const fields = parseFirestoreFields(json.fields);
+        if (fields && fields.items) {
+          return fields.items as VesselFeature[];
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching vessel features via REST:', e);
+    }
+  }
+
+  // Web SDK / Fallback
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, 'vessel_features');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.items) {
+        return data.items as VesselFeature[];
+      }
+    }
+    
+    // Seed default items
+    const items = [...DEFAULT_VESSEL_FEATURES];
+    try {
+      await setDoc(docRef, { items, updatedAt: new Date().toISOString() });
+    } catch (writeErr) {
+      console.warn('Failed to seed default vessel features:', writeErr);
+    }
+    return items;
+  } catch (error) {
+    console.error('Error loading vessel features config:', error);
+    return DEFAULT_VESSEL_FEATURES;
+  }
+}
+
+export async function saveVesselFeatures(items: VesselFeature[]): Promise<void> {
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, 'vessel_features');
+    await setDoc(docRef, {
+      items,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving vessel features config:', error);
+    throw error;
+  }
+}
+
 export interface AddonProduct {
   id: string;
   name: string;
@@ -1850,7 +1924,7 @@ export interface BookingRecord {
   commissionAmount?: number;
   commissionStatus?: 'unpaid' | 'paid' | 'n/a' | 'pending_charter' | 'accrued' | 'cancelled';
   referredById?: string;
-  referredByType?: 'staff' | 'company' | 'location';
+  referredByType?: 'staff' | 'company' | 'location' | 'owner';
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
@@ -3178,6 +3252,229 @@ export async function getDiscountCode(code: string): Promise<DiscountCode | null
   } catch (error) {
     console.error('Error loading discount code:', error);
     return null;
+  }
+}
+
+export interface SocialAdsSettings {
+  apiKey?: string;
+  metaPrompt: string;
+  googleSearchPrompt: string;
+  googlePMaxPrompt: string;
+  updatedAt?: string;
+}
+
+export const DEFAULT_SOCIAL_ADS_SETTINGS: SocialAdsSettings = {
+  metaPrompt: `You are an expert copywriter specializing in luxury yacht charter marketing. Generate 3-5 Meta (Facebook/Instagram) ad creative bundles for the luxury yacht charter M/Y Whiskey based in {{location}}.
+
+Context:
+- Customer Persona: {{persona}}
+- Event/Season: {{event}}
+- Booking Urgency/Inventory Status: {{urgency}}
+- Booking Window: {{bookingWindow}}
+- Media Assets Available: {{mediaAssets}}
+
+For each ad bundle, you must generate the following fields:
+- conceptName: Ad Concept Name
+- rationale: Rationale (Why this works for the audience/context)
+- hook: Hook (Under 125 chars)
+- bodyCopy: Primary Text/Body Copy (1-3 short paragraphs, compelling call-to-action)
+- headline: Headline (Under 40 chars)
+- suggestedTags: Recommended media tags to filter from the Asset Library (list exactly 3-5 tags, e.g. ["sunset", "couples"])
+
+Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}. Ensure the tone is premium, exclusive, yet adventurous. Integrate real-time parameters naturally.`,
+
+  googleSearchPrompt: `You are an expert Google Ads copywriter. Generate a Responsive Search Ad (RSA) bundle for the luxury yacht charter M/Y Whiskey based in {{location}}.
+
+Context:
+- Target Persona: {{persona}}
+- Event/Season: {{event}}
+- Urgency/Booking Window: {{bookingWindow}} ({{urgency}})
+- Targeted Search Intent: {{searchIntent}}
+
+For each ad bundle, you must generate the following fields:
+- conceptName: Ad Concept Name
+- rationale: Rationale (Why this works for the audience/context)
+- headlines: A list of 10-15 high-converting headlines (each strictly under 30 characters). Make sure they are engaging, mention the yacht or destination, and include calls-to-action or urgency.
+- descriptions: A list of 4 descriptions (each strictly under 90 characters) detailing the luxury experience, customization, pricing, and bookings.
+- keywords: 5-8 target keywords related to the search intent.
+- negativeKeywords: 3-5 negative keywords to prevent wasted spend.
+
+Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}.`,
+
+  googlePMaxPrompt: `You are an expert Performance Max (PMax) campaign strategist. Generate a complete Google Performance Max asset group for the luxury yacht charter M/Y Whiskey based in {{location}}.
+
+Context:
+- Target Persona: {{persona}}
+- Event/Season: {{event}}
+- Urgency/Booking Window: {{bookingWindow}} ({{urgency}})
+
+For each ad bundle, you must generate the following fields:
+- conceptName: Ad Concept Name
+- rationale: Rationale and asset configuration guidance (which aspect ratios of images and video concepts from the Asset Library will perform best for this PMax group)
+- headlines: 5 Headlines (under 30 characters)
+- longHeadlines: 2-3 Long Headlines (under 90 characters)
+- descriptions: 2-3 Descriptions (under 90 characters)
+
+Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}.`
+};
+
+export function migrateSocialAdsSettings(settings: any): SocialAdsSettings {
+  if (!settings) return DEFAULT_SOCIAL_ADS_SETTINGS;
+  const migrated = { ...settings };
+  if (migrated.metaPrompt && !migrated.metaPrompt.includes('{{location}}')) {
+    migrated.metaPrompt = DEFAULT_SOCIAL_ADS_SETTINGS.metaPrompt;
+  }
+  if (migrated.googleSearchPrompt && !migrated.googleSearchPrompt.includes('{{location}}')) {
+    migrated.googleSearchPrompt = DEFAULT_SOCIAL_ADS_SETTINGS.googleSearchPrompt;
+  }
+  if (migrated.googlePMaxPrompt && !migrated.googlePMaxPrompt.includes('{{location}}')) {
+    migrated.googlePMaxPrompt = DEFAULT_SOCIAL_ADS_SETTINGS.googlePMaxPrompt;
+  }
+  return migrated;
+}
+
+export async function saveSocialAdsSettings(settings: SocialAdsSettings) {
+  try {
+    const settingsRef = doc(db, SETTINGS_COLLECTION, 'social_ads');
+    await setDoc(settingsRef, {
+      ...settings,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving social ads settings:', error);
+    throw error;
+  }
+}
+
+export async function loadSocialAdsSettings(): Promise<SocialAdsSettings> {
+  if (typeof window === 'undefined') {
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/social_ads`;
+      const response = await fetch(url, {
+        next: { revalidate: 0 }
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const fields = parseFirestoreFields(json.fields);
+        const settings = {
+          ...DEFAULT_SOCIAL_ADS_SETTINGS,
+          ...fields
+        } as unknown as SocialAdsSettings;
+        return migrateSocialAdsSettings(settings);
+      }
+    } catch (restError) {
+      console.error('Error fetching social ads settings via Firestore REST API:', restError);
+    }
+  }
+
+  try {
+    const settingsRef = doc(db, SETTINGS_COLLECTION, 'social_ads');
+    const docSnap = await getDoc(settingsRef);
+
+    if (docSnap.exists()) {
+      const settings = {
+        ...DEFAULT_SOCIAL_ADS_SETTINGS,
+        ...docSnap.data()
+      } as SocialAdsSettings;
+      return migrateSocialAdsSettings(settings);
+    }
+  } catch (error) {
+    console.error('Error loading social ads settings:', error);
+  }
+
+  return DEFAULT_SOCIAL_ADS_SETTINGS;
+}
+
+export interface SocialAdDraft {
+  id: string;
+  name: string;
+  status: 'draft' | 'approved';
+  bundles: any[];
+  platform: string;
+  selectedPersonas: string[];
+  selectedBookingWindows: string[];
+  selectedUrgency: string;
+  targetLocation: string;
+  createdAt: string;
+}
+
+/**
+ * Saves a social ad campaign draft to Firestore (top-level collection 'social_ad_drafts').
+ */
+export async function saveSocialAdDraft(draft: Omit<SocialAdDraft, 'id' | 'createdAt'> & { id?: string }): Promise<string> {
+  try {
+    const draftId = draft.id || `draft-${Math.random().toString(36).substring(2, 9)}`;
+    const draftRef = doc(db, 'social_ad_drafts', draftId);
+    
+    const saveData = {
+      ...draft,
+      id: draftId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await setDoc(draftRef, saveData, { merge: true });
+    return draftId;
+  } catch (error) {
+    console.error('Error saving social ad draft:', error);
+    throw error;
+  }
+}
+
+/**
+ * Loads all social ad drafts from Firestore, sorted by creation date descending.
+ */
+export async function loadSocialAdDrafts(): Promise<SocialAdDraft[]> {
+  try {
+    const draftsCol = collection(db, 'social_ad_drafts');
+    const q = query(draftsCol, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    const drafts: SocialAdDraft[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      drafts.push({
+        ...data,
+        id: docSnap.id
+      } as SocialAdDraft);
+    });
+    
+    return drafts;
+  } catch (error) {
+    console.error('Error loading social ad drafts:', error);
+    // Fallback if index is not created yet or query fails - fetch all and sort in memory
+    try {
+      const draftsCol = collection(db, 'social_ad_drafts');
+      const querySnapshot = await getDocs(draftsCol);
+      const drafts: SocialAdDraft[] = [];
+      querySnapshot.forEach((docSnap) => {
+        drafts.push({
+          ...docSnap.data(),
+          id: docSnap.id
+        } as SocialAdDraft);
+      });
+      return drafts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch (fallbackError) {
+      console.error('Fallback load social ad drafts failed:', fallbackError);
+      return [];
+    }
+  }
+}
+
+/**
+ * Deletes a social ad draft by ID.
+ */
+export async function deleteSocialAdDraft(draftId: string): Promise<boolean> {
+  try {
+    const draftRef = doc(db, 'social_ad_drafts', draftId);
+    await deleteDoc(draftRef);
+    return true;
+  } catch (error) {
+    console.error('Error deleting social ad draft:', error);
+    return false;
   }
 }
 

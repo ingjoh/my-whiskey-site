@@ -3,8 +3,9 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Clock, Users, MapPin, Phone, Compass, Anchor, Mail } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import QRCode from 'qrcode';
-import { getContentItems, ContentItem, loadSiteSettings, loadPrintDesign } from '@/lib/db';
+import { getContentItems, ContentItem, loadSiteSettings, loadPrintDesign, loadVesselFeatures, VesselFeature } from '@/lib/db';
 import { useSiteSettings } from '@/components/SiteSettingsProvider';
 import './print.css';
 
@@ -25,6 +26,7 @@ interface PrintZone {
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
   verticalAlign?: 'top' | 'middle' | 'bottom' | 'space-between';
+  rotation?: number;
 }
 
 interface PrintPage {
@@ -93,7 +95,8 @@ function RenderPrintElement({
   locations = [],
   businessDetails,
   printTheme,
-  siteSettings
+  siteSettings,
+  vesselFeaturesLibrary = []
 }: {
   el: PrintElement;
   adventures: ContentItem[];
@@ -103,6 +106,7 @@ function RenderPrintElement({
   businessDetails: any;
   printTheme: 'dark' | 'light';
   siteSettings?: any;
+  vesselFeaturesLibrary?: VesselFeature[];
 }) {
   const [qrUrl, setQrUrl] = useState<string>('');
 
@@ -309,9 +313,11 @@ function RenderPrintElement({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
             
             {/* Uppercase Gold Tag */}
-            <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-              EXCLUSIVE ADVENTURE
-            </div>
+            {el.props.showEyebrow !== false && (
+              <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                {el.props.eyebrowText || 'EXCLUSIVE ADVENTURE'}
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid rgba(185, 120, 59, 0.2)', paddingBottom: '0.2rem' }}>
               <h4 className="serif-font" style={{ margin: 0, fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(1.0rem * ${fontScale})`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{adv.title}</h4>
@@ -354,7 +360,7 @@ function RenderPrintElement({
                       </div>
                     </div>
                   )}
-                  {adv.maxGuests && (
+                  {el.props.showCapacity !== false && adv.maxGuests && (
                     <div style={{
                       background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
                       border: `1px solid ${printTheme === 'light' ? 'rgba(185, 120, 59, 0.2)' : 'rgba(255, 255, 255, 0.05)'}`,
@@ -384,8 +390,13 @@ function RenderPrintElement({
                 )}
 
                 {/* 2-Column Metrics Grid */}
-                {(showDuration || adv.maxGuests) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginTop: '0.1rem' }}>
+                {(showDuration || (el.props.showCapacity !== false && adv.maxGuests)) && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: (showDuration && el.props.showCapacity !== false && adv.maxGuests) ? '1fr 1fr' : '1fr',
+                    gap: '0.4rem',
+                    marginTop: '0.1rem'
+                  }}>
                     {showDuration && adv.duration && (
                       <div style={{
                         background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
@@ -405,7 +416,7 @@ function RenderPrintElement({
                         </div>
                       </div>
                     )}
-                    {adv.maxGuests && (
+                    {el.props.showCapacity !== false && adv.maxGuests && (
                       <div style={{
                         background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
                         border: `1px solid ${printTheme === 'light' ? 'rgba(185, 120, 59, 0.2)' : 'rgba(255, 255, 255, 0.05)'}`,
@@ -475,9 +486,11 @@ function RenderPrintElement({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
             
             {/* Uppercase Gold Tag */}
-            <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-              PREMIUM YACHT
-            </div>
+            {el.props.showEyebrow !== false && (
+              <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                {el.props.eyebrowText || 'PREMIUM YACHT'}
+              </div>
+            )}
 
             <h4 className="serif-font" style={{ margin: '0', fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(1.0rem * ${fontScale})`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{v.title}</h4>
 
@@ -513,6 +526,37 @@ function RenderPrintElement({
                     <span style={{ fontSize: `calc(0.7rem * ${fontScale})`, fontWeight: 700, color: printTheme === 'light' ? '#1E2124' : 'white' }}>{String(val)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Features Chips */}
+            {el.props.showFeatures !== false && v.features && v.features.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
+                {v.features.map((featId: string) => {
+                  const feat = vesselFeaturesLibrary.find(f => f.id === featId);
+                  if (!feat) return null;
+                  const IconComponent = (LucideIcons as any)[feat.iconName] || LucideIcons.Info;
+                  return (
+                    <div 
+                      key={feat.id} 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.25rem', 
+                        background: 'rgba(185, 120, 59, 0.05)', 
+                        border: '1px solid rgba(185, 120, 59, 0.15)', 
+                        borderRadius: '12px', 
+                        padding: '0.1rem 0.35rem', 
+                        fontSize: `calc(0.55rem * ${fontScale})`, 
+                        color: printTheme === 'light' ? '#B9783B' : '#D8C7AF',
+                        fontWeight: 500
+                      }}
+                    >
+                      <IconComponent size={Math.round(8 * fontScale)} style={{ color: '#B9783B' }} />
+                      <span>{feat.name}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -748,9 +792,11 @@ function RenderPrintElement({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
             
             {/* Uppercase Gold Tag */}
-            <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-              FEATURED DESTINATION
-            </div>
+            {el.props.showEyebrow !== false && (
+              <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale})`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                {el.props.eyebrowText || 'FEATURED DESTINATION'}
+              </div>
+            )}
 
             <h4 className="serif-font" style={{ margin: '0', fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(1.0rem * ${fontScale})`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{loc.title}</h4>
 
@@ -1022,6 +1068,7 @@ function CollateralPrintContent() {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [siteSettings, setSiteSettings] = useState<any>(null);
+  const [vesselFeaturesLibrary, setVesselFeaturesLibrary] = useState<VesselFeature[]>([]);
 
   const [businessDetails, setBusinessDetails] = useState({
     name: 'M/Y WHISKEY',
@@ -1039,12 +1086,13 @@ function CollateralPrintContent() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [allAdventures, allAssets, allStaff, allLocations, settings] = await Promise.all([
+        const [allAdventures, allAssets, allStaff, allLocations, settings, featuresLib] = await Promise.all([
           getContentItems('adventure'),
           getContentItems('asset'),
           getContentItems('staff'),
           getContentItems('location'),
-          loadSiteSettings()
+          loadSiteSettings(),
+          loadVesselFeatures()
         ]);
 
         if (settings) {
@@ -1070,6 +1118,7 @@ function CollateralPrintContent() {
         setVessels(allAssets.filter(v => v.isVessel && v.status === 'published'));
         setStaffList(allStaff.filter(s => s.status === 'published'));
         setLocations(allLocations.filter(l => l.status === 'published'));
+        setVesselFeaturesLibrary(featuresLib);
 
         // Legacy Staff filter
         if (staffSlug) {
@@ -1284,7 +1333,9 @@ function CollateralPrintContent() {
                             height: '100%',
                             backgroundColor: zone.backgroundColor || 'transparent',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            transform: zone.rotation ? `rotate(${zone.rotation}deg)` : 'none',
+                            transformOrigin: 'center'
                           }}
                         >
                           {/* Snapping Zone background custom visuals */}
@@ -1328,6 +1379,7 @@ function CollateralPrintContent() {
                                  businessDetails={businessDetails}
                                  printTheme={currentPrintTheme}
                                  siteSettings={siteSettings || contextSettings}
+                                 vesselFeaturesLibrary={vesselFeaturesLibrary}
                                />
                             </div>
                           ))}
@@ -1404,7 +1456,9 @@ function CollateralPrintContent() {
                     borderRight: (design.preset === 'letter-landscape' && zone.columnStart + zone.columnSpan - 1 < design.gridCols) ? `1px solid ${borderStyle}` : 'none',
                     backgroundColor: zone.backgroundColor || 'transparent',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    transform: zone.rotation ? `rotate(${zone.rotation}deg)` : 'none',
+                    transformOrigin: 'center'
                   }}
                 >
                   {/* Snapping Zone background custom visuals */}
@@ -1443,6 +1497,7 @@ function CollateralPrintContent() {
                         businessDetails={businessDetails}
                         printTheme={currentPrintTheme}
                         siteSettings={siteSettings || contextSettings}
+                        vesselFeaturesLibrary={vesselFeaturesLibrary}
                       />
                     ))}
                   </div>

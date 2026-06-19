@@ -1,4 +1,4 @@
-import { getContentTypeConfigs, getContentItem, getPublishedCaptains, getContentItems, loadIncludedItems, loadPageData, loadSiteSettings } from '@/lib/db';
+import { getContentTypeConfigs, getContentItem, getPublishedCaptains, getContentItems, loadIncludedItems, loadPageData, loadSiteSettings, loadVesselFeatures } from '@/lib/db';
 import { DEFAULT_THEME } from '@/lib/pageTemplates';
 import { cookies } from 'next/headers';
 import PublicNavigation from '@/components/public/PublicNavigation';
@@ -9,6 +9,7 @@ import { SwipeScrollContainer } from '@/components/builder/SwipeScrollContainer'
 import ReactMarkdown from 'react-markdown';
 import { DynamicCardBlock } from '@/components/builder/NewBlocks';
 import { notFound } from 'next/navigation';
+import * as LucideIcons from 'lucide-react';
 import { 
   MapPin, Clock, Users, Check, Calendar, ArrowRight, 
   Anchor, Ship, Award, Globe, MessageSquare, Info, Shield,
@@ -64,6 +65,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
   let linkedStaffList: any[] = [];
   let linkedAdventuresList: any[] = [];
   let globalIncludedItems: any[] = [];
+  let vesselFeaturesLibrary: any[] = [];
 
   if (config.id === 'staff') {
     const allAdventures = await getContentItems('adventure');
@@ -93,6 +95,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
     linkedLocationsList = allLocations.filter(loc => 
       locationSlugs.includes(loc.slug)
     );
+    vesselFeaturesLibrary = await loadVesselFeatures();
   }
 
   if (config.id === 'adventure') {
@@ -215,6 +218,7 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
           theme={theme} 
           linkedAdventures={linkedAdventuresList} 
           linkedLocations={linkedLocationsList} 
+          vesselFeaturesLibrary={vesselFeaturesLibrary}
         />
       )}
 
@@ -230,22 +234,35 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
 // -----------------------------------------------------------------------------
 // ASSET DETAIL VIEW
 // -----------------------------------------------------------------------------
+function FeatureIcon({ name, ...props }: { name: string; [key: string]: any }) {
+  const IconComponent = (LucideIcons as any)[name];
+  if (!IconComponent) {
+    return <Info {...props} />;
+  }
+  return <IconComponent {...props} />;
+}
+
 function AssetDetailView({ 
   item, 
   theme, 
   linkedAdventures = [], 
-  linkedLocations = [] 
+  linkedLocations = [],
+  vesselFeaturesLibrary = []
 }: { 
   item: any; 
   theme: any; 
   linkedAdventures?: any[]; 
   linkedLocations?: any[]; 
+  vesselFeaturesLibrary?: any[];
 }) {
   const category = item.category || 'Luxury Asset';
   const make = item.make || '';
   const model = item.model || '';
   const location = item.location || 'Destin Marina, FL';
   const specs = item.specifications ? Object.entries(item.specifications) : [];
+  const selectedFeatures = (item.features || [])
+    .map((featId: string) => vesselFeaturesLibrary.find(f => f.id === featId))
+    .filter(Boolean);
 
   return (
     <div className="asset-detail-container">
@@ -333,6 +350,36 @@ function AssetDetailView({
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', marginTop: '1rem' }}>
                 <Info size={16} color="#B9783B" />
                 <span style={{ fontSize: '0.85rem', color: '#D8C7AF' }}>Detailed specifications will be updated soon.</span>
+              </div>
+            )}
+
+            {selectedFeatures.length > 0 && (
+              <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', fontWeight: 600, marginBottom: '1rem' }}>
+                  Features & Amenities
+                </h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  {selectedFeatures.map((feat: any) => (
+                    <div 
+                      key={feat.id} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem', 
+                        background: 'rgba(185, 120, 59, 0.08)', 
+                        border: '1px solid rgba(185, 120, 59, 0.2)', 
+                        borderRadius: '20px', 
+                        padding: '0.4rem 0.9rem', 
+                        fontSize: '0.85rem', 
+                        color: '#D8C7AF',
+                        fontWeight: 500,
+                      }}
+                    >
+                      <FeatureIcon name={feat.iconName} size={14} style={{ color: '#B9783B' }} />
+                      <span>{feat.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -47,7 +47,20 @@ export async function POST(req: NextRequest) {
       // Check if custom claims already set
       if (!decodedToken.admin) {
         console.log(`Setting custom admin claim for whitelisted user ${email} (${uid})`);
-        await adminAuth.setCustomUserClaims(uid, { admin: true });
+        try {
+          await adminAuth.setCustomUserClaims(uid, { admin: true });
+        } catch (claimErr: any) {
+          const isDev = process.env.NODE_ENV === 'development';
+          if (isDev && (claimErr.code === 'app/invalid-credential' || claimErr.message?.includes('credentials') || claimErr.message?.includes('OAuth2'))) {
+            console.warn(`[DEV] Bypassing setCustomUserClaims for whitelisted user ${email} due to missing Admin credentials.`);
+            return NextResponse.json({ 
+              success: true, 
+              adminGranted: false, 
+              message: 'Bypassed admin claim generation in local development.' 
+            });
+          }
+          throw claimErr;
+        }
         return NextResponse.json({ success: true, adminGranted: true, message: 'Custom claim admin=true granted.' });
       } else {
         return NextResponse.json({ success: true, adminGranted: false, message: 'User already has admin claim.' });

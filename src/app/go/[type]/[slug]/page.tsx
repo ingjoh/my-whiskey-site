@@ -19,13 +19,15 @@ function RedirectContent() {
       return;
     }
 
-    // Normalize type (staff, company, location)
+    // Normalize type (staff, company, location, owner)
     let type = 'company';
     const typeLower = rawType.toLowerCase();
     if (typeLower === 'staff' || typeLower === 'crew' || typeLower === 'captain') {
       type = 'staff';
     } else if (typeLower === 'location' || typeLower === 'port') {
       type = 'location';
+    } else if (typeLower === 'owner') {
+      type = 'owner';
     }
 
     // Campaign source override or general redirect campaign

@@ -8,7 +8,7 @@ import {
   Anchor, Settings, Users, LogOut, FileText, Plus, Trash2, Building,
   Copy, Layout, AlertCircle, ArrowRight, Loader2, Edit3, Image as ImageIcon,
   Compass, Sliders, Ship, MapPin, Calendar, MessageSquare, Printer, DollarSign,
-  Tag
+  Tag, Share2
 } from 'lucide-react';
 import { 
   getAllPagesWithMetadata, PageMetadata, deletePageData, 
@@ -634,6 +634,13 @@ export default function AdminDashboard() {
                     <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Design brochures, rack cards & crew business cards</div>
                   </div>
                 </Link>
+                <Link href="/admin/social-ads" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <Share2 size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Social & Paid Ads Manager</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Plan campaigns, generate AI creatives & manage ad prompts</div>
+                  </div>
+                </Link>
               </div>
             </div>
           </div>
@@ -717,6 +724,13 @@ export default function AdminDashboard() {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Print Collateral Builder</div>
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Generate brochures, rack cards & QR marketing materials</div>
+                </div>
+              </Link>
+              <Link href="/admin/social-ads" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <Share2 size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Social & Paid Ads Manager</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Plan campaigns, generate AI creatives & manage ad prompts</div>
                 </div>
               </Link>
               <Link href="/admin/commissions" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>

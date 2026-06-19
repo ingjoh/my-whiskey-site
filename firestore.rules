@@ -88,5 +88,10 @@ service cloud.firestore {
       allow delete: if isAdmin()
                     || (resource.data.type == 'lock');
     }
+
+    // Campaign planner drafts rules
+    match /social_ad_drafts/{document} {
+      allow read, write: if true;
+    }
   }
 }

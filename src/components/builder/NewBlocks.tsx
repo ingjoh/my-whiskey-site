@@ -8,7 +8,7 @@ import * as LucideIcons from 'lucide-react';
 import { ChevronLeft, ChevronRight, X as CloseIcon } from 'lucide-react';
 import VideoPlayer from '@/components/public/VideoPlayer';
 import { SmartLink } from '@/components/SmartLink';
-import { getContentItems, ContentItem, getContentTypeConfigs, ContentTypeConfig, getContentItem } from '@/lib/db';
+import { getContentItems, ContentItem, getContentTypeConfigs, ContentTypeConfig, getContentItem, loadVesselFeatures, VesselFeature } from '@/lib/db';
 import { SwipeScrollContainer } from './SwipeScrollContainer';
 
 export const TextBlock = ({ node, theme }: { node: PageNode, theme?: ThemeConfig }) => {
@@ -1588,6 +1588,179 @@ export const ContentGridBlock = ({ node }: { node: PageNode }) => {
 
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────
+// Helper to render specifications and feature tags for dynamic blocks
+export const renderSpecsHelper = ({
+  item,
+  contentType,
+  showDuration = true,
+  showPrice = true,
+  showRating = true,
+  showCerts = true,
+  showFeatures = true,
+  eyebrowColor = 'var(--color-primary)',
+  vesselFeaturesLibrary = []
+}: {
+  item: ContentItem;
+  contentType: string;
+  showDuration?: boolean;
+  showPrice?: boolean;
+  showRating?: boolean;
+  showCerts?: boolean;
+  showFeatures?: boolean;
+  eyebrowColor?: string;
+  vesselFeaturesLibrary?: VesselFeature[];
+}) => {
+  const selectedFeatures = (showFeatures !== false && contentType === 'asset' && item.features && vesselFeaturesLibrary)
+    ? (item.features as string[]).map(featId => vesselFeaturesLibrary.find(f => f.id === featId)).filter(Boolean)
+    : [];
+
+  switch (contentType) {
+    case 'adventure': {
+      const price = item.basePrice ? `From $${item.basePrice.toLocaleString()}` : '';
+      const duration = item.duration ? `${item.duration}` : '';
+      const maxGuests = item.maxGuests ? `Up to ${item.maxGuests} guests` : '';
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
+          {showDuration && duration && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Clock size={14} color={eyebrowColor} />
+              <span>{duration}</span>
+            </div>
+          )}
+          {maxGuests && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Users size={14} color={eyebrowColor} />
+              <span>{maxGuests}</span>
+            </div>
+          )}
+          {showPrice && price && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '0.25rem' }}>
+              <LucideIcons.DollarSign size={14} color="var(--color-primary)" />
+              <span>{price}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'asset': {
+      const category = item.category ? `${item.category.charAt(0).toUpperCase() + item.category.slice(1)}` : '';
+      const specs = [];
+      if (item.make) specs.push(item.make);
+      if (item.model) specs.push(item.model);
+      const specStr = specs.join(' ');
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
+          {category && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Info size={14} color={eyebrowColor} />
+              <span>{category}</span>
+            </div>
+          )}
+          {specStr && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Anchor size={14} color={eyebrowColor} />
+              <span>{specStr}</span>
+            </div>
+          )}
+          {showPrice && (item.dailyRate > 0 || item.hourlyRate > 0) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '0.25rem' }}>
+              <LucideIcons.DollarSign size={14} color="var(--color-primary)" />
+              <span>
+                {item.dailyRate > 0 ? `$${item.dailyRate.toLocaleString()}/day` : `$${item.hourlyRate.toLocaleString()}/hr`}
+              </span>
+            </div>
+          )}
+          {selectedFeatures.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
+              {selectedFeatures.map((feat: any) => {
+                const IconComponent = (LucideIcons as any)[feat.iconName] || LucideIcons.Info;
+                return (
+                  <div 
+                    key={feat.id} 
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '0.3rem', 
+                      background: 'rgba(185, 120, 59, 0.06)', 
+                      border: '1px solid rgba(185, 120, 59, 0.15)', 
+                      borderRadius: '12px', 
+                      padding: '0.15rem 0.45rem', 
+                      fontSize: '0.725rem', 
+                      color: '#D8C7AF',
+                      fontWeight: 500
+                    }}
+                  >
+                    <IconComponent size={10} style={{ color: 'var(--color-primary)' }} />
+                    <span>{feat.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'staff': {
+      const role = item.role ? `${item.role}` : '';
+      const rating = typeof item.rating === 'number' ? item.rating : 5;
+      const certs = Array.isArray(item.certifications) && item.certifications.length > 0
+        ? item.certifications.slice(0, 2).join(', ')
+        : '';
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
+          {role && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Briefcase size={14} color={eyebrowColor} />
+              <span>{role}</span>
+            </div>
+          )}
+          {showRating && rating > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-primary)' }}>
+              {Array.from({ length: 5 }).map((_, starIdx) => (
+                <LucideIcons.Star 
+                  key={starIdx} 
+                  size={14} 
+                  fill={starIdx < rating ? 'currentColor' : 'transparent'} 
+                  strokeWidth={starIdx < rating ? 0 : 1.5} 
+                />
+              ))}
+              <span style={{ marginLeft: '0.25rem', color: '#b0bec5', fontSize: '0.8rem' }}>({rating.toFixed(1)})</span>
+            </div>
+          )}
+          {showCerts && certs && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Award size={14} color={eyebrowColor} />
+              <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{certs}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'location': {
+      const anchor = item.anchorStatus || '';
+      const bestTime = item.bestTime || '';
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
+          {anchor && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Anchor size={14} color={eyebrowColor} />
+              <span>{anchor}</span>
+            </div>
+          )}
+          {bestTime && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LucideIcons.Clock size={14} color={eyebrowColor} />
+              <span>Best: {bestTime}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+};
+
 export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; preFetchedItems?: ContentItem[] }) => {
   const {
     contentType = 'adventure',
@@ -1604,6 +1777,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
     showPrice = true,
     showRating = true,
     showCerts = true,
+    showFeatures = true,
     showButton = true,
     eyebrowColor = 'var(--color-primary)',
     headlineColor = 'var(--color-foreground)',
@@ -1615,6 +1789,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
 
   const [items, setItems] = useState<ContentItem[]>([]);
   const [configs, setConfigs] = useState<ContentTypeConfig[]>([]);
+  const [vesselFeaturesLibrary, setVesselFeaturesLibrary] = useState<VesselFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
 
@@ -1638,9 +1813,15 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
       setItems(filtered.slice(0, limit));
       setLoading(false);
 
-      // Fetch configs on mount for correct slugPrefix/prefix routing
-      getContentTypeConfigs().then(fetchedConfigs => {
-        if (active) setConfigs(fetchedConfigs);
+      // Fetch configs and features on mount for correct slugPrefix/prefix routing
+      Promise.all([
+        getContentTypeConfigs(),
+        loadVesselFeatures()
+      ]).then(([fetchedConfigs, fetchedFeatures]) => {
+        if (active) {
+          setConfigs(fetchedConfigs);
+          setVesselFeaturesLibrary(fetchedFeatures);
+        }
       }).catch(err => console.error('Error fetching dynamic card configs:', err));
 
       return () => { active = false; };
@@ -1648,8 +1829,9 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
 
     Promise.all([
       getContentItems(contentType),
-      getContentTypeConfigs()
-    ]).then(([fetchedItems, fetchedConfigs]) => {
+      getContentTypeConfigs(),
+      loadVesselFeatures()
+    ]).then(([fetchedItems, fetchedConfigs, fetchedFeatures]) => {
       if (!active) return;
       
       let filtered = fetchedItems.filter(item => item.status === 'published');
@@ -1681,6 +1863,7 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
 
       setItems(filtered.slice(0, limit));
       setConfigs(fetchedConfigs);
+      setVesselFeaturesLibrary(fetchedFeatures);
       setLoading(false);
     }).catch(err => {
       console.error('Error fetching dynamic cards:', err);
@@ -1701,127 +1884,6 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
       case 'staff': return 'Meet Member';
       case 'location': return 'Explore Destination';
       default: return 'Learn More';
-    }
-  };
-
-  const renderSpecs = (item: ContentItem) => {
-    switch (contentType) {
-      case 'adventure': {
-        const price = item.basePrice ? `From $${item.basePrice.toLocaleString()}` : '';
-        const duration = item.duration ? `${item.duration}` : '';
-        const maxGuests = item.maxGuests ? `Up to ${item.maxGuests} guests` : '';
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
-            {showDuration && duration && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Clock size={14} color={eyebrowColor} />
-                <span>{duration}</span>
-              </div>
-            )}
-            {maxGuests && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Users size={14} color={eyebrowColor} />
-                <span>{maxGuests}</span>
-              </div>
-            )}
-            {showPrice && price && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '0.25rem' }}>
-                <LucideIcons.DollarSign size={14} color="var(--color-primary)" />
-                <span>{price}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      case 'asset': {
-        const category = item.category ? `${item.category.charAt(0).toUpperCase() + item.category.slice(1)}` : '';
-        const specs = [];
-        if (item.make) specs.push(item.make);
-        if (item.model) specs.push(item.model);
-        const specStr = specs.join(' ');
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
-            {category && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Info size={14} color={eyebrowColor} />
-                <span>{category}</span>
-              </div>
-            )}
-            {specStr && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Anchor size={14} color={eyebrowColor} />
-                <span>{specStr}</span>
-              </div>
-            )}
-            {showPrice && (item.dailyRate > 0 || item.hourlyRate > 0) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '0.25rem' }}>
-                <LucideIcons.DollarSign size={14} color="var(--color-primary)" />
-                <span>
-                  {item.dailyRate > 0 ? `$${item.dailyRate.toLocaleString()}/day` : `$${item.hourlyRate.toLocaleString()}/hr`}
-                </span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      case 'staff': {
-        const role = item.role ? `${item.role}` : '';
-        const rating = typeof item.rating === 'number' ? item.rating : 5;
-        const certs = Array.isArray(item.certifications) && item.certifications.length > 0
-          ? item.certifications.slice(0, 2).join(', ')
-          : '';
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
-            {role && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Briefcase size={14} color={eyebrowColor} />
-                <span>{role}</span>
-              </div>
-            )}
-            {showRating && rating > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-primary)' }}>
-                {Array.from({ length: 5 }).map((_, starIdx) => (
-                  <LucideIcons.Star 
-                    key={starIdx} 
-                    size={14} 
-                    fill={starIdx < rating ? 'currentColor' : 'transparent'} 
-                    strokeWidth={starIdx < rating ? 0 : 1.5} 
-                  />
-                ))}
-                <span style={{ marginLeft: '0.25rem', color: '#b0bec5', fontSize: '0.8rem' }}>({rating.toFixed(1)})</span>
-              </div>
-            )}
-            {showCerts && certs && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Award size={14} color={eyebrowColor} />
-                <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{certs}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      case 'location': {
-        const anchor = item.anchorStatus || '';
-        const bestTime = item.bestTime || '';
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '1rem', fontSize: '0.875rem', color: '#b0bec5', fontFamily: 'var(--font-sans)' }}>
-            {anchor && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Anchor size={14} color={eyebrowColor} />
-                <span>{anchor}</span>
-              </div>
-            )}
-            {bestTime && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <LucideIcons.Clock size={14} color={eyebrowColor} />
-                <span>Best: {bestTime}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      default:
-        return null;
     }
   };
 
@@ -1954,7 +2016,17 @@ export const DynamicCardBlock = ({ node, preFetchedItems }: { node: PageNode; pr
                     )}
 
                     {/* Meta Specs */}
-                    {renderSpecs(item)}
+                    {renderSpecsHelper({
+                      item,
+                      contentType,
+                      showDuration,
+                      showPrice,
+                      showRating,
+                      showCerts,
+                      showFeatures,
+                      eyebrowColor,
+                      vesselFeaturesLibrary
+                    })}
 
                     {/* Action link button */}
                     {showButton && (
@@ -2004,6 +2076,7 @@ export const DynamicCarousel = ({ node }: { node: PageNode }) => {
     showTitle = true,
     showDescription = true,
     showPrice = true,
+    showFeatures = true,
     showButton = true,
     eyebrowColor = 'var(--color-primary)',
     headlineColor = 'var(--color-foreground)',
@@ -2015,6 +2088,7 @@ export const DynamicCarousel = ({ node }: { node: PageNode }) => {
 
   const [items, setItems] = useState<ContentItem[]>([]);
   const [configs, setConfigs] = useState<ContentTypeConfig[]>([]);
+  const [vesselFeaturesLibrary, setVesselFeaturesLibrary] = useState<VesselFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [scrollIndex, setScrollIndex] = useState(0);
@@ -2026,8 +2100,9 @@ export const DynamicCarousel = ({ node }: { node: PageNode }) => {
 
     Promise.all([
       getContentItems(contentType),
-      getContentTypeConfigs()
-    ]).then(([fetchedItems, fetchedConfigs]) => {
+      getContentTypeConfigs(),
+      loadVesselFeatures()
+    ]).then(([fetchedItems, fetchedConfigs, fetchedFeatures]) => {
       if (!active) return;
       
       let filtered = fetchedItems.filter(item => item.status === 'published');
@@ -2048,6 +2123,7 @@ export const DynamicCarousel = ({ node }: { node: PageNode }) => {
 
       setItems(filtered.slice(0, limit));
       setConfigs(fetchedConfigs);
+      setVesselFeaturesLibrary(fetchedFeatures);
       setLoading(false);
     }).catch(err => {
       console.error('Error fetching carousel items:', err);
@@ -2217,17 +2293,18 @@ export const DynamicCarousel = ({ node }: { node: PageNode }) => {
                     </p>
                   )}
 
-                  {/* Pricing */}
-                  {showPrice && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '1rem' }}>
-                      <LucideIcons.DollarSign size={14} color="var(--color-primary)" />
-                      <span>
-                        {contentType === 'adventure' && item.basePrice > 0 && `From $${item.basePrice.toLocaleString()}`}
-                        {contentType === 'asset' && item.dailyRate > 0 && `$${item.dailyRate.toLocaleString()}/day`}
-                        {contentType === 'asset' && item.hourlyRate > 0 && !item.dailyRate && `$${item.hourlyRate.toLocaleString()}/hr`}
-                      </span>
-                    </div>
-                  )}
+                  {/* Meta Specs & Features */}
+                  {renderSpecsHelper({
+                    item,
+                    contentType,
+                    showDuration: true,
+                    showPrice,
+                    showRating: true,
+                    showCerts: true,
+                    showFeatures,
+                    eyebrowColor,
+                    vesselFeaturesLibrary
+                  })}
 
                   {/* Action Link */}
                   {showButton && (

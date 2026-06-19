@@ -7,8 +7,9 @@ import {
   getContentItem, saveContentItem, getContentTypeConfigs, getContentItems,
   ContentItem, ContentTypeConfig, loadIncludedItems, saveIncludedItems, IncludedItemConfig,
   loadAddonProducts, AddonProduct, saveAssetBlackout, getAssetBlackouts, deleteAssetBlackout, AssetBlackout,
-  checkBlackoutConflicts
+  checkBlackoutConflicts, loadVesselFeatures, saveVesselFeatures, VesselFeature
 } from '@/lib/db';
+import * as LucideIcons from 'lucide-react';
 import { 
   Anchor, Compass, Ship, Users, Sliders, ChevronLeft, ChevronRight, Clock, 
   Save, Loader2, Image as ImageIcon, MapPin, Plus, Trash2, X, ArrowUp, ArrowDown,
@@ -254,6 +255,11 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
   const [assetMake, setAssetMake] = useState('');
   const [assetModel, setAssetModel] = useState('');
   const [assetSpecs, setAssetSpecs] = useState<Array<{ key: string; value: string }>>([]);
+  const [assetFeatures, setAssetFeatures] = useState<string[]>([]);
+  const [vesselFeaturesLibrary, setVesselFeaturesLibrary] = useState<VesselFeature[]>([]);
+  const [newFeatureName, setNewFeatureName] = useState('');
+  const [newFeatureIcon, setNewFeatureIcon] = useState('Wind');
+  const [showFeaturePicker, setShowFeaturePicker] = useState(false);
 
   // Staff Fields
   const [staffRole, setStaffRole] = useState('');
@@ -547,6 +553,8 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
         } else if (type === 'asset') {
           const locations = await getContentItems('location');
           setAllLocations(locations);
+          const featuresLib = await loadVesselFeatures();
+          setVesselFeaturesLibrary(featuresLib);
           
           if (!isNew) {
             const blackouts = await getAssetBlackouts(id);
@@ -623,6 +631,7 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
               setAssetHomeLocation(item.homeLocation || 'destin-harbor');
               setAssetQuantity(item.quantity !== undefined ? Number(item.quantity) : 1);
               setAssetRelocationSpeed(item.relocationSpeed !== undefined ? Number(item.relocationSpeed) : 0);
+              setAssetFeatures(item.features || []);
             } else if (type === 'staff') {
               setStaffRole(item.role || '');
               setStaffCertifications(item.certifications || []);
@@ -857,6 +866,47 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
     setAssetSpecs(assetSpecs.filter((_, i) => i !== index));
   };
 
+  const handleCreateCustomFeature = async () => {
+    const name = newFeatureName.trim();
+    if (!name) return;
+    
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+    if (!id) return;
+    
+    // Check if it already exists in the library
+    const exists = vesselFeaturesLibrary.some(f => f.id === id);
+    if (exists) {
+      if (!assetFeatures.includes(id)) {
+        setAssetFeatures([...assetFeatures, id]);
+      }
+      setNewFeatureName('');
+      return;
+    }
+    
+    const newFeature: VesselFeature = {
+      id,
+      name,
+      iconName: newFeatureIcon
+    };
+    
+    const updatedLibrary = [...vesselFeaturesLibrary, newFeature];
+    try {
+      await saveVesselFeatures(updatedLibrary);
+      setVesselFeaturesLibrary(updatedLibrary);
+      setAssetFeatures([...assetFeatures, id]);
+      setNewFeatureName('');
+      showToast('success', `Created custom feature: ${name}`);
+    } catch (err) {
+      console.error('Error saving new feature:', err);
+      showToast('error', 'Failed to create feature. Try again.');
+    }
+  };
+
+  const renderDynamicIcon = (iconName: string, size = 14) => {
+    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.HelpCircle;
+    return <IconComponent size={size} />;
+  };
+
   // Certifications Handlers (Staff)
   const addCert = () => {
     if (newCert.trim() && !staffCertifications.includes(newCert.trim())) {
@@ -1066,6 +1116,7 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
         itemData.homeLocation = assetHomeLocation || 'destin-harbor';
         itemData.quantity = Number(assetQuantity) || 1;
         itemData.relocationSpeed = Number(assetRelocationSpeed) || 0;
+        itemData.features = assetFeatures;
         const specsObj: Record<string, string> = {};
         assetSpecs.forEach(spec => {
           if (spec.key.trim()) {
@@ -3194,6 +3245,147 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
                     <div style={{ textAlign: 'center', padding: '1rem', background: '#121416', borderRadius: '6px', border: '1px dashed rgba(255,255,255,0.08)', color: '#D8C7AF', opacity: 0.5, fontSize: '0.85rem' }}>
                       No specifications defined.
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Asset Features/Tags Manager */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>Asset Features / Amenities Tags</label>
+                  <button 
+                    type="button"
+                    onClick={() => setShowFeaturePicker(!showFeaturePicker)}
+                    style={{
+                      background: 'rgba(185,120,59,0.15)',
+                      border: '1px solid rgba(185,120,59,0.3)',
+                      color: '#B9783B',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    <Plus size={14} /> {showFeaturePicker ? 'Close Selector' : 'Add Features'}
+                  </button>
+                </div>
+
+                {showFeaturePicker && (
+                  <div style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                      {vesselFeaturesLibrary.map(feat => {
+                        const isSelected = assetFeatures.includes(feat.id);
+                        return (
+                          <button
+                            key={feat.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setAssetFeatures(assetFeatures.filter(id => id !== feat.id));
+                              } else {
+                                setAssetFeatures([...assetFeatures, feat.id]);
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: isSelected ? 'rgba(185,120,59,0.2)' : 'transparent',
+                              border: `1px solid ${isSelected ? '#B9783B' : 'rgba(255,255,255,0.15)'}`,
+                              borderRadius: '20px',
+                              padding: '0.3rem 0.75rem',
+                              fontSize: '0.8rem',
+                              color: isSelected ? '#F4F1EA' : '#D8C7AF',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {renderDynamicIcon(feat.iconName)}
+                            <span>{feat.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: '#D8C7AF' }}>Create New Custom Feature</span>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          placeholder="Feature Name (e.g. AC, TV, WiFi)"
+                          value={newFeatureName}
+                          onChange={e => setNewFeatureName(e.target.value)}
+                          style={{ flex: 1, padding: '0.5rem 0.75rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.85rem', outline: 'none' }}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCustomFeature(); } }}
+                        />
+                        <select
+                          value={newFeatureIcon}
+                          onChange={e => setNewFeatureIcon(e.target.value)}
+                          style={{ padding: '0.5rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', height: '35px' }}
+                        >
+                          <option value="Wind">AC (Wind)</option>
+                          <option value="Tv">TV (Tv)</option>
+                          <option value="Wifi">WiFi (Wifi)</option>
+                          <option value="Snowflake">Ice Maker (Snowflake)</option>
+                          <option value="Refrigerator">Fridge (Refrigerator)</option>
+                          <option value="Zap">Power (Zap)</option>
+                          <option value="Waves">Paddle Board (Waves)</option>
+                          <option value="Fish">Fishing (Fish)</option>
+                          <option value="Shield">Safety (Shield)</option>
+                          <option value="Music">Sound System (Music)</option>
+                          <option value="HelpCircle">Other (Question Mark)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleCreateCustomFeature}
+                          style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', height: '35px' }}
+                        >
+                          Create
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {assetFeatures.map((featId, idx) => {
+                    const feat = vesselFeaturesLibrary.find(f => f.id === featId);
+                    if (!feat) return null;
+                    return (
+                      <div 
+                        key={featId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          background: 'rgba(185,120,59,0.12)',
+                          border: '1px solid rgba(185,120,59,0.3)',
+                          borderRadius: '20px',
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.825rem',
+                          color: '#F4F1EA'
+                        }}
+                      >
+                        <span style={{ color: '#B9783B', display: 'flex', alignItems: 'center' }}>
+                          {renderDynamicIcon(feat.iconName)}
+                        </span>
+                        <span>{feat.name}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setAssetFeatures(assetFeatures.filter(id => id !== featId))}
+                          style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', marginLeft: '0.2rem' }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {assetFeatures.length === 0 && (
+                    <span style={{ fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.5 }}>No features selected. Click "Add Features" to configure.</span>
                   )}
                 </div>
               </div>

@@ -17,6 +17,7 @@ export interface PrintZone {
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
   verticalAlign?: 'top' | 'middle' | 'bottom' | 'space-between';
+  rotation?: number; // 0, 90, 180, or 270 degrees
 }
 
 export interface PrintPage {

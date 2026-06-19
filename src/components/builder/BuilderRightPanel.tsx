@@ -2296,6 +2296,10 @@ export default function BuilderRightPanel() {
                         Show Certifications (Crew)
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showFeatures !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showFeatures: e.target.checked })} />
+                        Show Features & Amenities (Assets)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
                         <input type="checkbox" checked={selectedNode.props.showButton !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showButton: e.target.checked })} />
                         Show CTA Button
                       </label>
@@ -2380,6 +2384,10 @@ export default function BuilderRightPanel() {
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
                         <input type="checkbox" checked={selectedNode.props.showPrice !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showPrice: e.target.checked })} />
                         Show Prices
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showFeatures !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showFeatures: e.target.checked })} />
+                        Show Features & Amenities (Assets)
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
                         <input type="checkbox" checked={selectedNode.props.showButton !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showButton: e.target.checked })} />

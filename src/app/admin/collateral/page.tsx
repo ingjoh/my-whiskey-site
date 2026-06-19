@@ -11,8 +11,9 @@ import {
   FolderOpen, Search
 } from 'lucide-react';
 import { usePrintBuilderStore, PRINT_PRESETS, PrintElement, PrintZone, PrintPage } from '@/store/usePrintBuilderStore';
-import { getContentItems, ContentItem, loadSiteSettings, savePrintDesign, loadPrintDesign, getAllPrintDesigns, deletePrintDesign, getAllDiscountCodes, DiscountCode } from '@/lib/db';
+import { getContentItems, ContentItem, loadSiteSettings, savePrintDesign, loadPrintDesign, getAllPrintDesigns, deletePrintDesign, getAllDiscountCodes, DiscountCode, loadVesselFeatures, VesselFeature } from '@/lib/db';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
+import * as LucideIcons from 'lucide-react';
 import { useSiteSettings } from '@/components/SiteSettingsProvider';
 
 function formatMarkdown(text: string): string {
@@ -64,10 +65,12 @@ export default function AdvancedCollateralBuilder() {
   const [staffList, setStaffList] = useState<ContentItem[]>([]);
   const [companies, setCompanies] = useState<ContentItem[]>([]);
   const [locations, setLocations] = useState<ContentItem[]>([]);
+  const [owners, setOwners] = useState<ContentItem[]>([]);
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
   const [currentDesignId, setCurrentDesignId] = useState<string>('default-trifold');
   const [designName, setDesignName] = useState<string>('My Custom Tri-Fold');
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [vesselFeaturesLibrary, setVesselFeaturesLibrary] = useState<VesselFeature[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -124,15 +127,17 @@ export default function AdvancedCollateralBuilder() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [allAdventures, allAssets, allStaff, allCompanies, allLocations, settings, designs, allDiscounts] = await Promise.all([
+        const [allAdventures, allAssets, allStaff, allCompanies, allLocations, allOwners, settings, designs, allDiscounts, featuresLib] = await Promise.all([
           getContentItems('adventure'),
           getContentItems('asset'),
           getContentItems('staff'),
           getContentItems('company'),
           getContentItems('location'),
+          getContentItems('owner'),
           loadSiteSettings(),
           getAllPrintDesigns(),
-          getAllDiscountCodes()
+          getAllDiscountCodes(),
+          loadVesselFeatures()
         ]);
 
         if (settings) {
@@ -163,8 +168,10 @@ export default function AdvancedCollateralBuilder() {
         setStaffList(allStaff.filter(s => s.status === 'published'));
         setCompanies(allCompanies.filter(c => c.status === 'published'));
         setLocations(allLocations.filter(l => l.status === 'published'));
+        setOwners(allOwners.filter(o => o.status === 'published'));
         setSavedDesigns(designs);
         setDiscountCodes(allDiscounts.filter(d => d.active));
+        setVesselFeaturesLibrary(featuresLib);
 
         // Load active design
         if (designs.length > 0) {
@@ -501,7 +508,9 @@ export default function AdvancedCollateralBuilder() {
                       cursor: interactive ? 'pointer' : 'default',
                       backgroundColor: zone.backgroundColor || ((interactive && isSelected) ? 'rgba(185,120,59,0.03)' : 'transparent'),
                       overflow: 'hidden',
-                      position: 'relative'
+                      position: 'relative',
+                      transform: zone.rotation ? `rotate(${zone.rotation}deg)` : 'none',
+                      transformOrigin: 'center'
                     }}
                   >
                     {/* Snapping Zone background custom visuals */}
@@ -684,9 +693,11 @@ export default function AdvancedCollateralBuilder() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
                                   
                                   {/* Uppercase Gold Tag */}
-                                  <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-                                    EXCLUSIVE ADVENTURE
-                                  </div>
+                                  {el.props.showEyebrow !== false && (
+                                    <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                                      {el.props.eyebrowText || 'EXCLUSIVE ADVENTURE'}
+                                    </div>
+                                  )}
 
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid rgba(185,120,59,0.2)', paddingBottom: '0.2rem' }}>
                                     <h4 className="serif-font" style={{ margin: 0, fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(0.95rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{title}</h4>
@@ -729,7 +740,7 @@ export default function AdvancedCollateralBuilder() {
                                             </div>
                                           </div>
                                         )}
-                                        {adv?.maxGuests && (
+                                        {el.props.showCapacity !== false && adv?.maxGuests && (
                                           <div style={{
                                             background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
                                             border: `1px solid ${printTheme === 'light' ? 'rgba(185, 120, 59, 0.2)' : 'rgba(255, 255, 255, 0.05)'}`,
@@ -759,8 +770,13 @@ export default function AdvancedCollateralBuilder() {
                                       )}
 
                                       {/* 2-Column Metrics Grid */}
-                                      {(el.props.showDuration !== false || adv?.maxGuests) && (
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginTop: '0.1rem' }}>
+                                      {(el.props.showDuration !== false || (el.props.showCapacity !== false && adv?.maxGuests)) && (
+                                        <div style={{
+                                          display: 'grid',
+                                          gridTemplateColumns: (el.props.showDuration !== false && el.props.showCapacity !== false && adv?.maxGuests) ? '1fr 1fr' : '1fr',
+                                          gap: '0.4rem',
+                                          marginTop: '0.1rem'
+                                        }}>
                                           {el.props.showDuration !== false && (
                                             <div style={{
                                               background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
@@ -780,7 +796,7 @@ export default function AdvancedCollateralBuilder() {
                                               </div>
                                             </div>
                                           )}
-                                          {adv?.maxGuests && (
+                                          {el.props.showCapacity !== false && adv?.maxGuests && (
                                             <div style={{
                                               background: printTheme === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)',
                                               border: `1px solid ${printTheme === 'light' ? 'rgba(185, 120, 59, 0.2)' : 'rgba(255, 255, 255, 0.05)'}`,
@@ -849,9 +865,11 @@ export default function AdvancedCollateralBuilder() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
                                   
                                   {/* Uppercase Gold Tag */}
-                                  <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-                                    PREMIUM YACHT
-                                  </div>
+                                  {el.props.showEyebrow !== false && (
+                                    <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                                      {el.props.eyebrowText || 'PREMIUM YACHT'}
+                                    </div>
+                                  )}
 
                                   <h4 className="serif-font" style={{ margin: '0', fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(1.0rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{title}</h4>
                                   
@@ -887,6 +905,37 @@ export default function AdvancedCollateralBuilder() {
                                           <span style={{ fontSize: `calc(0.7rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, color: printTheme === 'light' ? '#1E2124' : 'white' }}>{String(val)}</span>
                                         </div>
                                       ))}
+                                    </div>
+                                  )}
+
+                                  {/* Features Chips */}
+                                  {el.props.showFeatures !== false && v?.features && v.features.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
+                                      {v.features.map((featId: string) => {
+                                        const feat = vesselFeaturesLibrary.find(f => f.id === featId);
+                                        if (!feat) return null;
+                                        const IconComponent = (LucideIcons as any)[feat.iconName] || LucideIcons.Info;
+                                        return (
+                                          <div 
+                                            key={feat.id} 
+                                            style={{ 
+                                              display: 'inline-flex', 
+                                              alignItems: 'center', 
+                                              gap: '0.2rem', 
+                                              background: 'rgba(185, 120, 59, 0.05)', 
+                                              border: '1px solid rgba(185, 120, 59, 0.15)', 
+                                              borderRadius: '12px', 
+                                              padding: '0.1rem 0.35rem', 
+                                              fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, 
+                                              color: printTheme === 'light' ? '#B9783B' : '#D8C7AF',
+                                              fontWeight: 500
+                                            }}
+                                          >
+                                            <IconComponent size={Math.round(8 * fontScale)} style={{ color: '#B9783B' }} />
+                                            <span>{feat.name}</span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
@@ -1119,9 +1168,11 @@ export default function AdvancedCollateralBuilder() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: el.props.style?.color || 'inherit', fontFamily: "'Inter', sans-serif" }}>
                                   
                                   {/* Uppercase Gold Tag */}
-                                  <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
-                                    FEATURED DESTINATION
-                                  </div>
+                                  {el.props.showEyebrow !== false && (
+                                    <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: 'rgba(185, 120, 59, 0.08)', border: '1px solid rgba(185, 120, 59, 0.3)', borderRadius: '20px', padding: '0.15rem 0.5rem', fontSize: `calc(0.55rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 700, letterSpacing: '0.08em', color: '#B9783B', textTransform: 'uppercase', marginBottom: '0.05rem' }}>
+                                      {el.props.eyebrowText || 'FEATURED DESTINATION'}
+                                    </div>
+                                  )}
 
                                   <h4 className="serif-font" style={{ margin: '0', fontFamily: el.props.style?.fontFamily || 'inherit', fontSize: `calc(1.0rem * ${fontScale} * var(--zoom-scale))`, fontWeight: 600, color: printTheme === 'light' ? '#1E2124' : 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{title}</h4>
                                   
@@ -2025,6 +2076,7 @@ export default function AdvancedCollateralBuilder() {
                         <option value="company">Broker / Agency (Company)</option>
                         <option value="staff">Captains & Crew (Staff)</option>
                         <option value="location">Ports / Marina Location</option>
+                        <option value="owner">Asset Owner</option>
                       </select>
                     </label>
 
@@ -2040,6 +2092,7 @@ export default function AdvancedCollateralBuilder() {
                           {selectedElement.props.partnerType === 'company' && companies.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
                           {selectedElement.props.partnerType === 'staff' && staffList.map(s => <option key={s.slug} value={s.slug}>{s.title}</option>)}
                           {selectedElement.props.partnerType === 'location' && locations.map(l => <option key={l.slug} value={l.slug}>{l.title}</option>)}
+                          {selectedElement.props.partnerType === 'owner' && owners.map(o => <option key={o.slug} value={o.slug}>{o.title}</option>)}
                         </select>
                       </label>
                     )}
@@ -2190,8 +2243,10 @@ export default function AdvancedCollateralBuilder() {
                         { id: 'showImage', label: 'Show Cover Image' },
                         { id: 'showDescription', label: 'Show Description Text' },
                         { id: 'showDuration', label: 'Show Duration Spec' },
+                        { id: 'showCapacity', label: 'Show Capacity Spec' },
                         { id: 'showPrice', label: 'Show Price Spec' },
-                        { id: 'showItinerary', label: 'Show Itinerary Highlights' }
+                        { id: 'showItinerary', label: 'Show Itinerary Highlights' },
+                        { id: 'showEyebrow', label: 'Show Block Eyebrow Tag' }
                       ].map(el => (
                         <label key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
                           <input
@@ -2207,6 +2262,18 @@ export default function AdvancedCollateralBuilder() {
                           {el.label}
                         </label>
                       ))}
+                      {selectedElement.props.showEyebrow !== false && (
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', paddingLeft: '1.25rem' }}>
+                          Eyebrow Text
+                          <input
+                            type="text"
+                            placeholder="EXCLUSIVE ADVENTURE"
+                            value={selectedElement.props.eyebrowText || ''}
+                            onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { eyebrowText: e.target.value })}
+                            style={{ ...inputStyle, padding: '0.25rem 0.4rem', fontSize: '0.75rem' }}
+                          />
+                        </label>
+                      )}
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', cursor: 'pointer', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.5rem' }}>
                         <input
                           type="checkbox"
@@ -2241,7 +2308,9 @@ export default function AdvancedCollateralBuilder() {
                       {[
                         { id: 'showImage', label: 'Show Cover Image' },
                         { id: 'showDescription', label: 'Show Description Text' },
-                        { id: 'showSpecs', label: 'Show Vessel Specs' }
+                        { id: 'showSpecs', label: 'Show Vessel Specs' },
+                        { id: 'showFeatures', label: 'Show Vessel Features/Amenities' },
+                        { id: 'showEyebrow', label: 'Show Block Eyebrow Tag' }
                       ].map(el => (
                         <label key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
                           <input
@@ -2257,6 +2326,18 @@ export default function AdvancedCollateralBuilder() {
                           {el.label}
                         </label>
                       ))}
+                      {selectedElement.props.showEyebrow !== false && (
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', paddingLeft: '1.25rem' }}>
+                          Eyebrow Text
+                          <input
+                            type="text"
+                            placeholder="PREMIUM YACHT"
+                            value={selectedElement.props.eyebrowText || ''}
+                            onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { eyebrowText: e.target.value })}
+                            style={{ ...inputStyle, padding: '0.25rem 0.4rem', fontSize: '0.75rem' }}
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2501,7 +2582,8 @@ export default function AdvancedCollateralBuilder() {
                         { id: 'showImage', label: 'Show Cover Image' },
                         { id: 'showShortDescription', label: 'Show Short Description' },
                         { id: 'showDescription', label: 'Show Description Text' },
-                        { id: 'showSpecs', label: 'Show Destination Details' }
+                        { id: 'showSpecs', label: 'Show Destination Details' },
+                        { id: 'showEyebrow', label: 'Show Block Eyebrow Tag' }
                       ].map(el => (
                         <label key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
                           <input
@@ -2517,6 +2599,18 @@ export default function AdvancedCollateralBuilder() {
                           {el.label}
                         </label>
                       ))}
+                      {selectedElement.props.showEyebrow !== false && (
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', paddingLeft: '1.25rem' }}>
+                          Eyebrow Text
+                          <input
+                            type="text"
+                            placeholder="FEATURED DESTINATION"
+                            value={selectedElement.props.eyebrowText || ''}
+                            onChange={e => updateElementProps(selectedPageId, selectedZoneId!, selectedElement.id, { eyebrowText: e.target.value })}
+                            style={{ ...inputStyle, padding: '0.25rem 0.4rem', fontSize: '0.75rem' }}
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2591,6 +2685,7 @@ export default function AdvancedCollateralBuilder() {
                             <option value="company">Broker / Agency (Company)</option>
                             <option value="staff">Captains & Crew (Staff)</option>
                             <option value="location">Ports / Marina Location</option>
+                            <option value="owner">Asset Owner</option>
                           </select>
                         </label>
 
@@ -2606,6 +2701,7 @@ export default function AdvancedCollateralBuilder() {
                               {selectedElement.props.partnerType === 'company' && companies.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
                               {selectedElement.props.partnerType === 'staff' && staffList.map(s => <option key={s.slug} value={s.slug}>{s.title}</option>)}
                               {selectedElement.props.partnerType === 'location' && locations.map(l => <option key={l.slug} value={l.slug}>{l.title}</option>)}
+                              {selectedElement.props.partnerType === 'owner' && owners.map(o => <option key={o.slug} value={o.slug}>{o.title}</option>)}
                             </select>
                           </label>
                         )}
@@ -3225,6 +3321,20 @@ export default function AdvancedCollateralBuilder() {
                       <option value="middle">Middle (Center)</option>
                       <option value="bottom">Bottom</option>
                       <option value="space-between">Space Between</option>
+                    </select>
+                  </label>
+
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.5rem' }}>
+                    Zone Content Rotation
+                    <select
+                      value={selectedZone.rotation || 0}
+                      onChange={e => updateZoneProps(selectedPageId, selectedZone.id, { rotation: Number(e.target.value) })}
+                      style={inputStyle}
+                    >
+                      <option value={0}>0°</option>
+                      <option value={90}>90° (Clockwise)</option>
+                      <option value={180}>180° (Upside Down)</option>
+                      <option value={270}>270° (Counter-Clockwise)</option>
                     </select>
                   </label>
                 </div>

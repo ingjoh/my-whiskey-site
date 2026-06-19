@@ -150,17 +150,17 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: theme?.footer?.textColor || 'var(--color-muted, #D8C7AF)', fontSize: '0.85rem', opacity: 0.8 }}>
                   {(theme?.footer?.contact?.phone || settings?.contact?.phone) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <Phone size={16} style={{ color: theme?.footer?.accentColor || 'var(--color-primary, #B9783B)' }} />
-                      <a href={`tel:${theme?.footer?.contact?.phone || settings?.contact?.phone}`} style={{ color: 'inherit', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.8'}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <Phone size={16} style={{ color: theme?.footer?.accentColor || 'var(--color-primary, #B9783B)', flexShrink: 0, marginTop: '0.15rem' }} />
+                      <a href={`tel:${theme?.footer?.contact?.phone || settings?.contact?.phone}`} style={{ color: 'inherit', textDecoration: 'none', wordBreak: 'break-all' }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.8'}>
                         {theme?.footer?.contact?.phone || settings?.contact?.phone}
                       </a>
                     </div>
                   )}
                   {(theme?.footer?.contact?.email || settings?.contact?.email) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <Mail size={16} style={{ color: theme?.footer?.accentColor || 'var(--color-primary, #B9783B)' }} />
-                      <a href={`mailto:${theme?.footer?.contact?.email || settings?.contact?.email}`} style={{ color: 'inherit', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.8'}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <Mail size={16} style={{ color: theme?.footer?.accentColor || 'var(--color-primary, #B9783B)', flexShrink: 0, marginTop: '0.15rem' }} />
+                      <a href={`mailto:${theme?.footer?.contact?.email || settings?.contact?.email}`} style={{ color: 'inherit', textDecoration: 'none', wordBreak: 'break-all' }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.8'}>
                         {theme?.footer?.contact?.email || settings?.contact?.email}
                       </a>
                     </div>
