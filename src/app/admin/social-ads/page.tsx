@@ -14,7 +14,8 @@ import {
   loadSocialAdsSettings, saveSocialAdsSettings, getContentItems, ContentItem, 
   SocialAdsSettings, DEFAULT_SOCIAL_ADS_SETTINGS,
   loadSocialAdDrafts, saveSocialAdDraft, deleteSocialAdDraft, SocialAdDraft,
-  BookingRecord, getCommissionLedger, getAllBookings
+  BookingRecord, getCommissionLedger, getAllBookings,
+  CalendarEvent, saveCalendarEvent, getCalendarEvents, deleteCalendarEvent
 } from '@/lib/db';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
 
@@ -75,7 +76,7 @@ export interface RecommendedGoal {
   bookingWindows: string[];
 }
 
-export function calculateRecommendedGoal(bookings: BookingRecord[]): RecommendedGoal {
+export function calculateRecommendedGoal(bookings: BookingRecord[], events: CalendarEvent[]): RecommendedGoal {
   const activeBookings = bookings.filter(b => b.status && b.status !== 'cancelled');
   
   // Get date range for the next 30 days
@@ -91,6 +92,42 @@ export function calculateRecommendedGoal(bookings: BookingRecord[]): Recommended
     if (i < 10) {
       next10DaysDates.push(dateStr);
     }
+  }
+
+  // Find active events in the next 30 days
+  const activeEvents = events.filter(e => {
+    return e.startDate <= next30DaysDates[29] && e.endDate >= next30DaysDates[0];
+  });
+
+  // Check if we have any unbooked slots during high-impact events
+  let bestHighImpactEvent: CalendarEvent | null = null;
+  let bestHighImpactDate: string = '';
+  
+  for (const dateStr of next30DaysDates) {
+    const isBooked = activeBookings.some(b => b.date === dateStr);
+    if (!isBooked) {
+      const ev = activeEvents.find(e => e.startDate <= dateStr && e.endDate >= dateStr);
+      if (ev && ev.impactScore >= 1.2) {
+        if (!bestHighImpactEvent || ev.impactScore > bestHighImpactEvent.impactScore) {
+          bestHighImpactEvent = ev;
+          bestHighImpactDate = dateStr;
+        }
+      }
+    }
+  }
+
+  if (bestHighImpactEvent) {
+    const dateFormatted = new Date(bestHighImpactDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    const recommendedPersonas = bestHighImpactEvent.type === 'regional' ? ['friends', 'couples'] : ['family', 'friends'];
+    return {
+      title: `Event Booking Opportunity: ${bestHighImpactEvent.title}`,
+      desc: `M/Y Whiskey is currently unbooked on ${dateFormatted} during the ${bestHighImpactEvent.title} (${bestHighImpactEvent.impactScore}x business impact weight). We recommend launching a targeted campaign to capture this premium event demand.`,
+      priority: 'high',
+      platform: 'meta',
+      personas: recommendedPersonas,
+      urgency: `Special Event - ${bestHighImpactEvent.title} Peak`,
+      bookingWindows: ['impulse']
+    };
   }
 
   // Count unbooked weekend days (Fri, Sat, Sun) vs. weekdays (Mon, Tue, Wed, Thu)
@@ -132,6 +169,35 @@ export function calculateRecommendedGoal(bookings: BookingRecord[]): Recommended
       personas: ['family', 'friends'],
       urgency: 'Low Booking Rate - Immediate Filler',
       bookingWindows: ['impulse']
+    };
+  }
+
+  // Check if we have any low-demand periods coming up (next 30 days) to recommend a promo
+  let bestLowImpactEvent: CalendarEvent | null = null;
+  let bestLowImpactDate: string = '';
+  for (const dateStr of next30DaysDates) {
+    const isBooked = activeBookings.some(b => b.date === dateStr);
+    if (!isBooked) {
+      const ev = activeEvents.find(e => e.startDate <= dateStr && e.endDate >= dateStr);
+      if (ev && ev.impactScore <= 0.8) {
+        if (!bestLowImpactEvent || ev.impactScore < bestLowImpactEvent.impactScore) {
+          bestLowImpactEvent = ev;
+          bestLowImpactDate = dateStr;
+        }
+      }
+    }
+  }
+
+  if (bestLowImpactEvent) {
+    const dateFormatted = new Date(bestLowImpactDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    return {
+      title: `Value/Promo Strategy: Fill ${bestLowImpactEvent.title} Slump`,
+      desc: `We expect lower interest during ${bestLowImpactEvent.title} (${bestLowImpactEvent.impactScore}x weight, e.g. ${dateFormatted}). We suggest running a Google Search campaign promoting a mid-week special, value pricing, or complimentary catering to stimulate reservations.`,
+      priority: 'medium',
+      platform: 'google-search',
+      personas: ['corporate', 'anglers'],
+      urgency: `Low-Demand Promo - ${bestLowImpactEvent.title}`,
+      bookingWindows: ['mid-term']
     };
   }
 
@@ -389,10 +455,37 @@ export default function SocialAdsDashboard() {
   const [fbPageTokenInput, setFbPageTokenInput] = useState('');
   const [fbPageIdInput, setFbPageIdInput] = useState('');
   
+  // Paid Ads Credentials Input States
+  const [metaAdAccountIdInput, setMetaAdAccountIdInput] = useState('');
+  const [metaDeveloperTokenInput, setMetaDeveloperTokenInput] = useState('');
+  const [googleDeveloperTokenInput, setGoogleDeveloperTokenInput] = useState('');
+  const [googleCustomerIdInput, setGoogleCustomerIdInput] = useState('');
+  const [googleClientIdInput, setGoogleClientIdInput] = useState('');
+  const [googleClientSecretInput, setGoogleClientSecretInput] = useState('');
+  const [googleRefreshTokenInput, setGoogleRefreshTokenInput] = useState('');
+
   // UI Tabs State
-  const [activeTab, setActiveTab] = useState<'planner' | 'personas' | 'settings'>('planner');
+  const [activeTab, setActiveTab] = useState<'planner' | 'calendar' | 'personas' | 'settings'>('planner');
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
+  // Calendar Events States
+  const [eventsList, setEventsList] = useState<CalendarEvent[]>([]);
+  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
+  const [isAISearchModalOpen, setIsAISearchModalOpen] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [aiSearchLocation, setAiSearchLocation] = useState('Destin, Florida');
+  const [aiSearchYear, setAiSearchYear] = useState<number>(new Date().getFullYear());
+  const [isSearchingAI, setIsSearchingAI] = useState(false);
+  const [aiSelectedSuggestions, setAiSelectedSuggestions] = useState<number[]>([]);
+
+  // Add Custom Event Form States
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDesc, setNewEventDesc] = useState('');
+  const [newEventStartDate, setNewEventStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newEventEndDate, setNewEventEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newEventType, setNewEventType] = useState<'holiday' | 'national' | 'regional' | 'custom'>('custom');
+  const [newEventImpactScore, setNewEventImpactScore] = useState<number>(1.0);
 
   // Campaign Inputs State
   const [platform, setPlatform] = useState<'meta' | 'google-search' | 'google-pmax'>('meta');
@@ -403,6 +496,11 @@ export default function SocialAdsDashboard() {
   const [selectedBookingWindows, setSelectedBookingWindows] = useState<string[]>(['mid-term']);
   const [selectedSearchIntent, setSelectedSearchIntent] = useState('High-Intent Transactional');
   const [mediaAssetsInput, setMediaAssetsInput] = useState('Yacht deck views, snorkeling setups, local bays');
+
+  // Paid Publish Parameters
+  const [dailyBudget, setDailyBudget] = useState<number>(25);
+  const [durationDays, setDurationDays] = useState<number>(7);
+  const [targetAudience, setTargetAudience] = useState<string>('tourists');
 
   // AI Recommendation proposal
   interface RecommendedGoal {
@@ -437,7 +535,7 @@ export default function SocialAdsDashboard() {
   const [isLoadDraftModalOpen, setIsLoadDraftModalOpen] = useState<boolean>(false);
   // Publisher Modal States
   const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
-  const [publishChannel, setPublishChannel] = useState<'facebook' | 'instagram'>('facebook');
+  const [publishChannel, setPublishChannel] = useState<'facebook' | 'instagram' | 'meta_ads' | 'google_search' | 'google_pmax'>('facebook');
   const [publishCopy, setPublishCopy] = useState<string>('');
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishSuccessMessage, setPublishSuccessMessage] = useState<string | null>(null);
@@ -475,7 +573,7 @@ export default function SocialAdsDashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [adsSettings, draftsList, ledgerBookings, allBookings, allCompanies, allStaff, allLocations, allOwners] = await Promise.all([
+        const [adsSettings, draftsList, ledgerBookings, allBookings, allCompanies, allStaff, allLocations, allOwners, events] = await Promise.all([
           loadSocialAdsSettings(),
           loadSocialAdDrafts(),
           getCommissionLedger(),
@@ -483,7 +581,8 @@ export default function SocialAdsDashboard() {
           getContentItems('company'),
           getContentItems('staff'),
           getContentItems('location'),
-          getContentItems('owner')
+          getContentItems('owner'),
+          getCalendarEvents()
         ]);
 
         if (adsSettings) {
@@ -491,6 +590,13 @@ export default function SocialAdsDashboard() {
           setApiKeyInput(adsSettings.apiKey || '');
           setFbPageTokenInput(adsSettings.fbPageToken || '');
           setFbPageIdInput(adsSettings.fbPageId || '');
+          setMetaAdAccountIdInput(adsSettings.metaAdAccountId || '');
+          setMetaDeveloperTokenInput(adsSettings.metaDeveloperToken || '');
+          setGoogleDeveloperTokenInput(adsSettings.googleDeveloperToken || '');
+          setGoogleCustomerIdInput(adsSettings.googleCustomerId || '');
+          setGoogleClientIdInput(adsSettings.googleClientId || '');
+          setGoogleClientSecretInput(adsSettings.googleClientSecret || '');
+          setGoogleRefreshTokenInput(adsSettings.googleRefreshToken || '');
           
           // Load custom personas if stored in settings
           const customPersonas = (adsSettings as any).personas;
@@ -505,9 +611,10 @@ export default function SocialAdsDashboard() {
         setStaffList(allStaff.filter(s => s.status === 'published'));
         setLocations(allLocations.filter(l => l.status === 'published'));
         setOwners(allOwners.filter(o => o.status === 'published'));
+        setEventsList(events || []);
 
-        // Calculate dynamic weekly AI goal recommendation based on live database bookings
-        const recommended = calculateRecommendedGoal(allBookings);
+        // Calculate dynamic weekly AI goal recommendation based on live database bookings and events
+        const recommended = calculateRecommendedGoal(allBookings, events || []);
         setRecommendedGoal(recommended);
       } catch (err) {
         console.error('Failed to load social ads settings:', err);
@@ -527,6 +634,13 @@ export default function SocialAdsDashboard() {
         apiKey: apiKeyInput,
         fbPageToken: fbPageTokenInput,
         fbPageId: fbPageIdInput,
+        metaAdAccountId: metaAdAccountIdInput,
+        metaDeveloperToken: metaDeveloperTokenInput,
+        googleDeveloperToken: googleDeveloperTokenInput,
+        googleCustomerId: googleCustomerIdInput,
+        googleClientId: googleClientIdInput,
+        googleClientSecret: googleClientSecretInput,
+        googleRefreshToken: googleRefreshTokenInput,
         personas: personas // include personas array inside the social_ads settings document
       };
       await saveSocialAdsSettings(updatedSettings);
@@ -564,6 +678,167 @@ export default function SocialAdsDashboard() {
       return filtered.length > 0 ? filtered : [personas[0]?.id || 'family'];
     });
     showToast('Persona removed. Remember to click "Save Settings" to persist.', 'info');
+  };
+
+  // Calendar Events Handlers
+  const handleImportHolidays = async () => {
+    setIsLoading(true);
+    try {
+      const year = new Date().getFullYear();
+      const res = await fetch(`https://date.nager.at/api/v3/publicholidays/${year}/US`);
+      if (!res.ok) throw new Error('Failed to fetch holidays from Nager.Date API');
+      const holidays = await res.json();
+      
+      let importCount = 0;
+      for (const h of holidays) {
+        const isMajor = ["New Year's Day", 'Memorial Day', 'Independence Day', 'Labor Day', 'Thanksgiving Day', 'Christmas Day'].includes(h.name);
+        const score = isMajor ? 1.6 : 1.1;
+        
+        await saveCalendarEvent({
+          title: h.name,
+          description: h.localName || h.name,
+          startDate: h.date,
+          endDate: h.date,
+          type: 'holiday',
+          impactScore: score,
+          importedFrom: 'nager'
+        });
+        importCount++;
+      }
+      
+      const updatedEvents = await getCalendarEvents();
+      setEventsList(updatedEvents);
+      showToast(`Successfully imported ${importCount} US national holidays.`, 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error importing holidays.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAISearchEvents = async () => {
+    setIsSearchingAI(true);
+    setAiSuggestions([]);
+    setAiSelectedSuggestions([]);
+    try {
+      const idToken = await user?.getIdToken();
+      const res = await fetch('/api/admin/events/suggest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ location: aiSearchLocation, year: aiSearchYear })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to search AI suggestions');
+      
+      setAiSuggestions(data.events || []);
+      setAiSelectedSuggestions((data.events || []).map((_: any, idx: number) => idx));
+      showToast(`AI suggested ${data.events?.length || 0} local & national events.`, 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error executing AI search.', 'error');
+    } finally {
+      setIsSearchingAI(false);
+    }
+  };
+
+  const handleImportAISuggestions = async () => {
+    if (aiSelectedSuggestions.length === 0) {
+      showToast('No events selected to import.', 'error');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      let count = 0;
+      for (const idx of aiSelectedSuggestions) {
+        const item = aiSuggestions[idx];
+        if (item) {
+          await saveCalendarEvent({
+            title: item.title,
+            description: item.description,
+            startDate: item.startDate,
+            endDate: item.endDate,
+            type: item.type || 'regional',
+            impactScore: Number(item.impactScore) || 1.0,
+            importedFrom: 'gemini_ai'
+          });
+          count++;
+        }
+      }
+      
+      const updatedEvents = await getCalendarEvents();
+      setEventsList(updatedEvents);
+      setIsAISearchModalOpen(false);
+      setAiSuggestions([]);
+      showToast(`Successfully imported ${count} AI-suggested events.`, 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error saving AI events.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveCustomEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEventTitle.trim()) {
+      showToast('Event title is required.', 'error');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await saveCalendarEvent({
+        title: newEventTitle,
+        description: newEventDesc,
+        startDate: newEventStartDate,
+        endDate: newEventEndDate,
+        type: newEventType,
+        impactScore: Number(newEventImpactScore) || 1.0,
+        importedFrom: 'manual'
+      });
+      
+      const updatedEvents = await getCalendarEvents();
+      setEventsList(updatedEvents);
+      setIsAddEventModalOpen(false);
+      
+      setNewEventTitle('');
+      setNewEventDesc('');
+      setNewEventStartDate(new Date().toISOString().split('T')[0]);
+      setNewEventEndDate(new Date().toISOString().split('T')[0]);
+      setNewEventType('custom');
+      setNewEventImpactScore(1.0);
+      
+      showToast('Custom event saved successfully.', 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error saving custom event.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+    setIsLoading(true);
+    try {
+      const ok = await deleteCalendarEvent(id);
+      if (ok) {
+        setEventsList(prev => prev.filter(e => e.id !== id));
+        showToast('Event deleted successfully.', 'success');
+      } else {
+        showToast('Failed to delete event.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error deleting event.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Campaign Draft Persistence & Export Handlers
@@ -725,7 +1000,7 @@ export default function SocialAdsDashboard() {
   };
 
   const handlePublishCampaign = async () => {
-    if (!publishCopy.trim()) {
+    if (!publishCopy.trim() && publishChannel !== 'google_search' && publishChannel !== 'google_pmax') {
       showToast('Please provide message copy to publish.', 'error');
       return;
     }
@@ -738,28 +1013,49 @@ export default function SocialAdsDashboard() {
       const idToken = await user?.getIdToken();
       const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
       
+      const payload = {
+        conceptName: activeBundle?.conceptName || 'Campaign Post',
+        message: publishCopy,
+        mediaUrls: boundMedias,
+        publishTo: publishChannel,
+        dailyBudget,
+        durationDays,
+        targetAudience,
+        headlines: activeBundle?.headlines || [],
+        descriptions: activeBundle?.descriptions || [],
+        keywords: activeBundle?.keywords || [],
+        negativeKeywords: activeBundle?.negativeKeywords || [],
+        longHeadlines: activeBundle?.longHeadlines || []
+      };
+
       const response = await fetch('/api/admin/social-ads/publish', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({
-          conceptName: activeBundle?.conceptName || 'Campaign Post',
-          message: publishCopy,
-          mediaUrls: boundMedias,
-          publishTo: publishChannel
-        })
+        body: JSON.stringify(payload)
       });
       
       const data = await response.json();
       
       if (response.ok && data.success) {
-        setPublishSuccessMessage(
-          data.simulated 
-            ? 'Simulation Success: Outbound post data successfully printed to console.'
-            : 'Success: Campaign successfully published to Facebook Page.'
-        );
+        let msg = 'Success: Campaign successfully published.';
+        if (publishChannel === 'facebook') {
+          msg = 'Success: Campaign successfully published to Facebook Page.';
+        } else if (publishChannel === 'meta_ads') {
+          msg = `Success: Paid Meta Ads campaign created! ($${dailyBudget}/day for ${durationDays} days)`;
+        } else if (publishChannel === 'google_search') {
+          msg = `Success: Google Search Ads campaign created! ($${dailyBudget}/day for ${durationDays} days)`;
+        } else if (publishChannel === 'google_pmax') {
+          msg = `Success: Google Performance Max asset group created! ($${dailyBudget}/day for ${durationDays} days)`;
+        }
+
+        if (data.simulated) {
+          msg = `Simulation Mode: ${msg} (Configuration payload printed to server logs)`;
+        }
+
+        setPublishSuccessMessage(msg);
         showToast('Campaign published successfully!', 'success');
       } else {
         setPublishErrorMessage(data.error || 'Failed to publish campaign.');
@@ -1040,6 +1336,12 @@ export default function SocialAdsDashboard() {
               style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: activeTab === 'planner' ? '#B9783B' : 'transparent', color: activeTab === 'planner' ? 'white' : '#D8C7AF', fontWeight: activeTab === 'planner' ? 600 : 500, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
             >
               Campaign Planner
+            </button>
+            <button 
+              onClick={() => setActiveTab('calendar')}
+              style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: activeTab === 'calendar' ? '#B9783B' : 'transparent', color: activeTab === 'calendar' ? 'white' : '#D8C7AF', fontWeight: activeTab === 'calendar' ? 600 : 500, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              Events Calendar
             </button>
             <button 
               onClick={() => setActiveTab('personas')}
@@ -2182,6 +2484,127 @@ export default function SocialAdsDashboard() {
         </div>
       )}
 
+      {/* Tab CONTENT: Events Calendar */}
+      {activeTab === 'calendar' && (
+        <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.2s ease' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1.25rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, margin: 0, color: 'white' }}>Events & Holiday Calendar</h2>
+              <p style={{ color: '#D8C7AF', opacity: 0.8, fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>Configure events, holiday slumps, and regional festival weights to drive smarter dynamic AI recommendations.</p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button 
+                onClick={handleImportHolidays}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '0.5rem 1rem', color: '#D8C7AF', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseOut={e => e.currentTarget.style.background = '#121416'}
+              >
+                <Globe size={14} color="#B9783B" /> Import US Holidays
+              </button>
+              <button 
+                onClick={() => { setIsAISearchModalOpen(true); setAiSuggestions([]); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#121416', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '0.5rem 1rem', color: '#D8C7AF', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseOut={e => e.currentTarget.style.background = '#121416'}
+              >
+                <Sparkles size={14} color="#B9783B" /> Suggest Events (AI)
+              </button>
+              <button 
+                onClick={() => setIsAddEventModalOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#B9783B', border: 'none', borderRadius: '6px', padding: '0.5rem 1rem', color: 'white', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.background = '#a1652e'}
+                onMouseOut={e => e.currentTarget.style.background = '#B9783B'}
+              >
+                <Plus size={14} /> Add Custom Event
+              </button>
+            </div>
+          </div>
+
+          {eventsList.length === 0 ? (
+            <div style={{ padding: '4rem 2rem', textAlign: 'center', background: '#121416', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <Calendar size={40} color="#B9783B" style={{ opacity: 0.5 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'white' }}>No Calendar Events Found</span>
+                <span style={{ fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.6, maxWidth: '400px' }}>Import national holidays, request regional/national event suggestion scans from the Gemini AI, or add custom manual events.</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', background: '#121416', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#D8C7AF', opacity: 0.7 }}>
+                    <th style={{ padding: '1rem' }}>Event Title</th>
+                    <th style={{ padding: '1rem' }}>Dates</th>
+                    <th style={{ padding: '1rem' }}>Type</th>
+                    <th style={{ padding: '1rem', textAlign: 'center' }}>Business Weight</th>
+                    <th style={{ padding: '1rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eventsList.map((e) => {
+                    const dateDisplay = e.startDate === e.endDate 
+                      ? new Date(e.startDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                      : `${new Date(e.startDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${new Date(e.endDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+                    let typeBg = 'rgba(59, 130, 246, 0.1)';
+                    let typeColor = '#60a5fa';
+                    if (e.type === 'holiday') {
+                      typeBg = 'rgba(34, 197, 94, 0.1)';
+                      typeColor = '#4ade80';
+                    } else if (e.type === 'regional') {
+                      typeBg = 'rgba(168, 85, 247, 0.1)';
+                      typeColor = '#c084fc';
+                    }
+
+                    let scoreBg = 'rgba(255,255,255,0.05)';
+                    let scoreColor = '#F4F1EA';
+                    if (e.impactScore >= 1.2) {
+                      scoreBg = 'rgba(185, 120, 59, 0.15)';
+                      scoreColor = '#B9783B';
+                    } else if (e.impactScore <= 0.8) {
+                      scoreBg = 'rgba(239, 68, 68, 0.15)';
+                      scoreColor = '#f87171';
+                    }
+
+                    return (
+                      <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s' }}>
+                        <td style={{ padding: '1rem', maxWidth: '300px' }}>
+                          <div style={{ fontWeight: 600, color: 'white' }}>{e.title}</div>
+                          {e.description && <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, marginTop: '0.15rem' }}>{e.description}</div>}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#D8C7AF' }}>{dateDisplay}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: typeBg, color: typeColor, textTransform: 'capitalize', fontWeight: 600 }}>
+                            {e.type}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '20px', background: scoreBg, color: scoreColor, fontWeight: 700 }}>
+                            {e.impactScore.toFixed(1)}x
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                          <button 
+                            onClick={() => handleDeleteEvent(e.id)}
+                            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', opacity: 0.7, transition: 'opacity 0.2s', padding: '0.25rem' }}
+                            onMouseOver={el => el.currentTarget.style.opacity = '1'}
+                            onMouseOut={el => el.currentTarget.style.opacity = '0.7'}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tab CONTENT: Customer Personas */}
       {activeTab === 'personas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.2s ease' }}>
@@ -2326,6 +2749,99 @@ export default function SocialAdsDashboard() {
             <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>These credentials are used by the organic publisher API to schedule and publish feeds to Facebook and Instagram. Get these tokens in the Facebook Developer Portal.</span>
           </div>
 
+          {/* Meta Paid Ads Connections */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '1.5rem' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#B9783B', margin: 0 }}>Meta Marketing API Connections (Paid Campaigns)</h4>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Ad Account ID</label>
+                <input 
+                  type="text" 
+                  value={metaAdAccountIdInput}
+                  onChange={(e) => setMetaAdAccountIdInput(e.target.value)}
+                  placeholder="e.g. act_1234567890"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Marketing API Access Token</label>
+                <input 
+                  type="password" 
+                  value={metaDeveloperTokenInput}
+                  onChange={(e) => setMetaDeveloperTokenInput(e.target.value)}
+                  placeholder="EAA..."
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>These credentials allow creating Meta campaigns, ad sets, creatives, and ads automatically. Bypasses Graph API simulation if provided.</span>
+          </div>
+
+          {/* Google Ads Connections */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '1.5rem' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#B9783B', margin: 0 }}>Google Ads API Connections (Paid Campaigns)</h4>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Google Customer ID</label>
+                <input 
+                  type="text" 
+                  value={googleCustomerIdInput}
+                  onChange={(e) => setGoogleCustomerIdInput(e.target.value)}
+                  placeholder="e.g. 123-456-7890"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>Developer Token</label>
+                <input 
+                  type="password" 
+                  value={googleDeveloperTokenInput}
+                  onChange={(e) => setGoogleDeveloperTokenInput(e.target.value)}
+                  placeholder="Developer Token"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>OAuth Client ID</label>
+                <input 
+                  type="text" 
+                  value={googleClientIdInput}
+                  onChange={(e) => setGoogleClientIdInput(e.target.value)}
+                  placeholder="Client ID"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>OAuth Client Secret</label>
+                <input 
+                  type="password" 
+                  value={googleClientSecretInput}
+                  onChange={(e) => setGoogleClientSecretInput(e.target.value)}
+                  placeholder="Client Secret"
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>OAuth Refresh Token</label>
+                <input 
+                  type="password" 
+                  value={googleRefreshTokenInput}
+                  onChange={(e) => setGoogleRefreshTokenInput(e.target.value)}
+                  placeholder="1//0..."
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>These OAuth credentials allow generating transient access tokens to publish Google Search RSA & PMax campaigns. Bypasses simulation if completed.</span>
+          </div>
+
           {/* Prompts Section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#B9783B', margin: 0 }}>System Prompts Customization</h4>
@@ -2388,6 +2904,230 @@ export default function SocialAdsDashboard() {
           showToast(`Media variation ${updatedMedias.length} bound to ad concept mockup.`, 'success');
         }}
       />
+
+      {/* Add Custom Event Modal */}
+      {isAddEventModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: '1rem' }}>
+          <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '1.5rem', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', margin: 0, fontFamily: "'Cormorant Garamond', serif" }}>Create Calendar Event</h3>
+            
+            <form onSubmit={handleSaveCustomEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Event Title</label>
+                <input 
+                  type="text" 
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  placeholder="e.g. Destin Seafood Festival"
+                  required
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Event Description</label>
+                <textarea 
+                  value={newEventDesc}
+                  onChange={(e) => setNewEventDesc(e.target.value)}
+                  placeholder="Details about the event..."
+                  rows={2}
+                  style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', resize: 'vertical', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Start Date</label>
+                  <input 
+                    type="date" 
+                    value={newEventStartDate}
+                    onChange={(e) => setNewEventStartDate(e.target.value)}
+                    required
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>End Date</label>
+                  <input 
+                    type="date" 
+                    value={newEventEndDate}
+                    onChange={(e) => setNewEventEndDate(e.target.value)}
+                    required
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Type</label>
+                  <select 
+                    value={newEventType}
+                    onChange={(e) => setNewEventType(e.target.value as any)}
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                  >
+                    <option value="holiday">Holiday</option>
+                    <option value="national">National Event</option>
+                    <option value="regional">Regional Event</option>
+                    <option value="custom">Custom Event</option>
+                  </select>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Impact Weight</label>
+                  <input 
+                    type="number" 
+                    min={0.1}
+                    max={5.0}
+                    step={0.1}
+                    value={newEventImpactScore}
+                    onChange={(e) => setNewEventImpactScore(Number(e.target.value) || 1.0)}
+                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button 
+                  type="button"
+                  onClick={() => setIsAddEventModalOpen(false)}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#D8C7AF', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.5rem 1.25rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Save Event
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Suggest Events Modal */}
+      {isAISearchModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: '1rem' }}>
+          <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '1.5rem', width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', margin: 0, fontFamily: "'Cormorant Garamond', serif" }}>Search Event Suggestions (AI)</h3>
+              <button 
+                onClick={() => setIsAISearchModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', fontSize: '1.2rem', cursor: 'pointer', opacity: 0.8 }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', background: '#121416', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1.5 }}>
+                <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Location Context</label>
+                <input 
+                  type="text" 
+                  value={aiSearchLocation}
+                  onChange={(e) => setAiSearchLocation(e.target.value)}
+                  placeholder="e.g. Destin, Florida"
+                  style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 0.8 }}>
+                <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Year</label>
+                <input 
+                  type="number" 
+                  value={aiSearchYear}
+                  onChange={(e) => setAiSearchYear(Number(e.target.value) || new Date().getFullYear())}
+                  style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                />
+              </div>
+
+              <button 
+                onClick={handleAISearchEvents}
+                disabled={isSearchingAI}
+                style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.5rem 1.25rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', height: '35px', opacity: isSearchingAI ? 0.7 : 1 }}
+              >
+                {isSearchingAI ? <RefreshCw className="animate-spin" size={14} /> : <Search size={14} />}
+                {isSearchingAI ? 'Scanning...' : 'Scan Events'}
+              </button>
+            </div>
+
+            {aiSuggestions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.2s ease' }}>
+                <span style={{ fontSize: '0.8rem', color: '#D8C7AF', fontWeight: 600 }}>Select Suggestions to Import:</span>
+                
+                <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', background: '#121416' }}>
+                  {aiSuggestions.map((item, idx) => {
+                    const isChecked = aiSelectedSuggestions.includes(idx);
+                    return (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.75rem 1rem', borderBottom: idx < aiSuggestions.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isChecked ? 'rgba(185, 120, 59, 0.02)' : 'transparent' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAiSelectedSuggestions([...aiSelectedSuggestions, idx]);
+                            } else {
+                              setAiSelectedSuggestions(aiSelectedSuggestions.filter(i => i !== idx));
+                            }
+                          }}
+                          style={{ accentColor: '#B9783B', cursor: 'pointer', marginTop: '0.2rem' }}
+                        />
+                        
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, color: 'white', fontSize: '0.85rem' }}>{item.title}</span>
+                            <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(185,120,59,0.15)', color: '#B9783B', fontWeight: 700 }}>
+                              {item.impactScore}x weight
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, display: 'block', marginTop: '0.15rem' }}>
+                            {new Date(item.startDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {item.startDate !== item.endDate && ` - ${new Date(item.endDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                            {item.type && ` (${item.type})`}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.8, display: 'block', marginTop: '0.25rem', lineHeight: '1.4' }}>{item.description}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                  <button 
+                    onClick={() => {
+                      if (aiSelectedSuggestions.length === aiSuggestions.length) {
+                        setAiSelectedSuggestions([]);
+                      } else {
+                        setAiSelectedSuggestions(aiSuggestions.map((_, i) => i));
+                      }
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#D8C7AF', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    {aiSelectedSuggestions.length === aiSuggestions.length ? 'Deselect All' : 'Select All'}
+                  </button>
+
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button 
+                      onClick={() => setIsAISearchModalOpen(false)}
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#D8C7AF', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleImportAISuggestions}
+                      style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.5rem 1.25rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Import Selected ({aiSelectedSuggestions.length})
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Save Draft Dialog Modal */}
       {isSaveDraftModalOpen && (
@@ -2570,12 +3310,73 @@ export default function SocialAdsDashboard() {
                     style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.6rem', color: '#F4F1EA', outline: 'none', fontSize: '0.85rem' }}
                   >
                     <option value="facebook">Facebook Page Feed (Organic Post)</option>
-                    <option value="instagram" disabled>Instagram Business Feed (Requires OAuth Setup)</option>
+                    <option value="meta_ads">Meta Ads Manager (Paid Campaign)</option>
+                    <option value="google_search">Google Search Ads RSA (Paid Campaign)</option>
+                    <option value="google_pmax">Google Performance Max (Paid Campaign)</option>
                   </select>
                 </div>
 
+                {/* Paid Ad Parameters */}
+                {publishChannel !== 'facebook' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paid Campaign Budget & Targeting</span>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Daily Budget ($USD)</label>
+                        <input 
+                          type="number" 
+                          min={5}
+                          max={500}
+                          value={dailyBudget}
+                          onChange={(e) => setDailyBudget(Number(e.target.value) || 25)}
+                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                        />
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Duration (Days)</label>
+                        <input 
+                          type="number" 
+                          min={1}
+                          max={90}
+                          value={durationDays}
+                          onChange={(e) => setDurationDays(Number(e.target.value) || 7)}
+                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Audience Targeting Preset</label>
+                      <select 
+                        value={targetAudience}
+                        onChange={(e) => setTargetAudience(e.target.value)}
+                        style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                      >
+                        <option value="tourists">In-Region Destin/Sandestin Tourists (15mi radius)</option>
+                        <option value="couples">Romance & Couples - National Travelers</option>
+                        <option value="corporate">Corporate Event Planners & Executives</option>
+                      </select>
+                    </div>
+
+                    {/* UTM URL Generator Preview */}
+                    {(() => {
+                      const utmSource = publishChannel === 'meta_ads' ? 'meta' : 'google';
+                      const campaignSlug = (activeBundle.conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+                      const generatedUrl = `https://motoryachtwhiskey.com/bookings?utm_source=${utmSource}&utm_medium=cpc&utm_campaign=${campaignSlug}`;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
+                          <span style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6 }}>Auto-Generated Campaign URL (UTM tracking):</span>
+                          <span style={{ fontSize: '0.68rem', color: '#B9783B', wordBreak: 'break-all', fontFamily: 'monospace' }}>{generatedUrl}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Media Preview Box */}
-                {(() => {
+                {(publishChannel === 'facebook' || publishChannel === 'meta_ads' || publishChannel === 'google_pmax') && (() => {
                   const boundMedias = activeBundle.boundMedias || (activeBundle.boundMedia ? [activeBundle.boundMedia] : []);
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -2596,17 +3397,32 @@ export default function SocialAdsDashboard() {
                   );
                 })()}
 
-                {/* Post Body Copy */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Message / Body Copy</label>
-                  <textarea 
-                    value={publishCopy}
-                    onChange={(e) => setPublishCopy(e.target.value)}
-                    rows={6}
-                    style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', resize: 'vertical', fontSize: '0.82rem', lineHeight: '1.45' }}
-                    placeholder="Provide feed copy..."
-                  />
-                </div>
+                {/* Copy / Message Section */}
+                {publishChannel === 'facebook' || publishChannel === 'meta_ads' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Message / Body Copy</label>
+                    <textarea 
+                      value={publishCopy}
+                      onChange={(e) => setPublishCopy(e.target.value)}
+                      rows={6}
+                      style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.75rem', color: '#F4F1EA', outline: 'none', resize: 'vertical', fontSize: '0.82rem', lineHeight: '1.45' }}
+                      placeholder="Provide feed copy..."
+                    />
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)', fontSize: '0.78rem', color: '#D8C7AF', lineHeight: '1.4' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'white', fontWeight: 600, marginBottom: '0.25rem' }}>
+                      <Globe size={14} color="#B9783B" /> Google Asset Group Serialization
+                    </div>
+                    <span>The following dynamic creative resources will be serialized and pushed to Google Ads:</span>
+                    <ul style={{ margin: '0.4rem 0 0 1.2rem', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      {activeBundle.headlines && <li><strong>Headlines ({activeBundle.headlines.length}):</strong> {activeBundle.headlines.slice(0, 3).join(', ')}...</li>}
+                      {activeBundle.longHeadlines && activeBundle.longHeadlines.length > 0 && <li><strong>Long Headlines ({activeBundle.longHeadlines.length}):</strong> {activeBundle.longHeadlines.join(', ')}</li>}
+                      {activeBundle.descriptions && <li><strong>Descriptions ({activeBundle.descriptions.length}):</strong> {activeBundle.descriptions.slice(0, 2).join(', ')}...</li>}
+                      {activeBundle.keywords && activeBundle.keywords.length > 0 && <li><strong>Target Keywords ({activeBundle.keywords.length}):</strong> {activeBundle.keywords.join(', ')}</li>}
+                    </ul>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                   <button 

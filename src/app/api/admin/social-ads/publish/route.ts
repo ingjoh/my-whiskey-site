@@ -29,100 +29,484 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { conceptName, message, mediaUrls = [], publishTo } = await request.json();
+    const {
+      conceptName,
+      message,
+      mediaUrls = [],
+      publishTo,
+      dailyBudget,
+      durationDays,
+      targetAudience,
+      headlines = [],
+      descriptions = [],
+      keywords = [],
+      negativeKeywords = [],
+      longHeadlines = []
+    } = await request.json();
 
-    if (!message || !publishTo) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+    if (!publishTo) {
+      return NextResponse.json({ error: 'Missing publishTo channel parameter' }, { status: 400 });
     }
 
-    // Load settings from Firestore to retrieve Facebook Credentials
-    let fbPageId = '';
-    let fbPageToken = '';
-    
+    if (publishTo !== 'google_search' && publishTo !== 'google_pmax' && !message) {
+      return NextResponse.json({ error: 'Missing required parameter: message copy' }, { status: 400 });
+    }
+
+    // Load credentials from Firestore settings
+    let adsSettings: any = {};
     try {
       const docSnap = await adminDb.collection('settings').doc('social_ads').get();
       if (docSnap.exists) {
-        const data = docSnap.data();
-        fbPageId = data?.fbPageId || '';
-        fbPageToken = data?.fbPageToken || '';
+        adsSettings = docSnap.data() || {};
       }
     } catch (dbError) {
       console.error('Error loading social ads settings from DB:', dbError);
     }
 
-    // Fallback to env variables if not in Firestore settings
-    fbPageId = fbPageId || process.env.FB_PAGE_ID || '';
-    fbPageToken = fbPageToken || process.env.FB_PAGE_TOKEN || '';
+    // Map Facebook & Meta credentials
+    const fbPageId = adsSettings.fbPageId || process.env.FB_PAGE_ID || '';
+    const fbPageToken = adsSettings.fbPageToken || process.env.FB_PAGE_TOKEN || '';
+    const metaAdAccountId = adsSettings.metaAdAccountId || process.env.META_AD_ACCOUNT_ID || '';
+    const metaDeveloperToken = adsSettings.metaDeveloperToken || process.env.META_DEVELOPER_TOKEN || '';
 
-    // If both credentials are missing OR set to mock placeholders, run in simulated mode
-    const isSimulated = !fbPageId || !fbPageToken || fbPageId === 'mock_id' || fbPageToken === 'mock_token' || !fbPageToken.startsWith('EAAB');
+    // Map Google Ads credentials
+    const googleDeveloperToken = adsSettings.googleDeveloperToken || process.env.GOOGLE_DEVELOPER_TOKEN || '';
+    const googleCustomerId = adsSettings.googleCustomerId || process.env.GOOGLE_CUSTOMER_ID || '';
+    const googleClientId = adsSettings.googleClientId || process.env.GOOGLE_CLIENT_ID || '';
+    const googleClientSecret = adsSettings.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
+    const googleRefreshToken = adsSettings.googleRefreshToken || process.env.GOOGLE_REFRESH_TOKEN || '';
+
+    // Determine simulation mode for the target channel
+    let isSimulated = false;
+
+    if (publishTo === 'facebook') {
+      isSimulated = !fbPageId || !fbPageToken || fbPageId === 'mock_id' || fbPageToken === 'mock_token' || !fbPageToken.startsWith('EAAB');
+    } else if (publishTo === 'meta_ads') {
+      isSimulated = !metaAdAccountId || !metaDeveloperToken || metaAdAccountId === 'mock_id' || metaAdAccountId === 'mock_account_id' || metaDeveloperToken === 'mock_token' || !metaDeveloperToken.startsWith('EAA');
+    } else if (publishTo === 'google_search' || publishTo === 'google_pmax') {
+      isSimulated = !googleDeveloperToken || !googleCustomerId || !googleClientId || !googleClientSecret || !googleRefreshToken ||
+                    googleDeveloperToken.includes('mock') || googleCustomerId.includes('mock') || googleClientId.includes('mock') ||
+                    googleClientSecret.includes('mock') || googleRefreshToken.includes('mock');
+    }
+
+    const timestamp = new Date().toISOString();
 
     if (isSimulated) {
-      console.log('\n--- [Facebook Graph API Simulation] Publishing Page Post ---');
-      console.log(`Concept:   ${conceptName || 'N/A'}`);
-      console.log(`Message:   ${message}`);
-      if (mediaUrls.length > 0) {
-        console.log(`Media:     ${mediaUrls.join(', ')}`);
-      } else {
-        console.log('Media:     None (Text-only)');
+      if (publishTo === 'facebook') {
+        console.log('\n--- [Facebook Graph API Simulation] Publishing Page Post ---');
+        console.log(`Concept:   ${conceptName || 'N/A'}`);
+        console.log(`Message:   ${message}`);
+        console.log(`Media:     ${mediaUrls.length > 0 ? mediaUrls.join(', ') : 'None (Text-only)'}`);
+        console.log(`Target:    Facebook Page (${fbPageId || 'simulated_page_id'})`);
+        console.log('------------------------------------------------------------\n');
+        
+        return NextResponse.json({ 
+          success: true, 
+          simulated: true, 
+          postId: 'simulated_fb_post_id_' + Math.random().toString(36).substring(2, 9) 
+        });
+      } else if (publishTo === 'meta_ads') {
+        console.log('\n--- [Meta Ads API Simulation] Creating Campaign ---');
+        console.log(`Concept:         ${conceptName || 'N/A'}`);
+        console.log(`Campaign Name:   ${conceptName || 'Campaign'} - ${targetAudience || 'Audience'} - ${timestamp.split('T')[0]}`);
+        console.log(`Daily Budget:    $${dailyBudget || 10}`);
+        console.log(`Duration:        ${durationDays || 7} days`);
+        console.log(`Target Audience: ${targetAudience || 'General'}`);
+        console.log(`Ad Creative:`);
+        console.log(`  - Primary Text:  ${message}`);
+        console.log(`  - Headlines:     ${headlines.join(' | ') || 'N/A'}`);
+        console.log(`  - Descriptions:  ${descriptions.join(' | ') || 'N/A'}`);
+        console.log(`  - Media URLs:    ${mediaUrls.join(', ') || 'None'}`);
+        console.log(`Ad Account:      act_${metaAdAccountId || 'simulated_account_id'}`);
+        console.log('----------------------------------------------------\n');
+
+        return NextResponse.json({
+          success: true,
+          simulated: true,
+          campaignId: 'simulated_meta_campaign_id_' + Math.random().toString(36).substring(2, 9)
+        });
+      } else if (publishTo === 'google_search') {
+        console.log('\n--- [Google Ads API Search Simulation] Creating Campaign ---');
+        console.log(`Concept:         ${conceptName || 'N/A'}`);
+        console.log(`Campaign Name:   ${conceptName || 'Campaign'} - Search - ${timestamp.split('T')[0]}`);
+        console.log(`Daily Budget:    $${dailyBudget || 10}`);
+        console.log(`Duration:        ${durationDays || 7} days`);
+        console.log(`Target Audience: ${targetAudience || 'General'}`);
+        console.log(`Responsive Search Ad:`);
+        console.log(`  - Headlines:     ${headlines.join(' | ') || 'N/A'}`);
+        console.log(`  - Descriptions:  ${descriptions.join(' | ') || 'N/A'}`);
+        console.log(`Keywords:        ${keywords.join(', ') || 'N/A'}`);
+        console.log(`Negative Kws:    ${negativeKeywords.join(', ') || 'N/A'}`);
+        console.log(`Customer ID:     ${googleCustomerId || 'simulated_customer_id'}`);
+        console.log('------------------------------------------------------------\n');
+
+        return NextResponse.json({
+          success: true,
+          simulated: true,
+          campaignId: 'simulated_google_search_campaign_id_' + Math.random().toString(36).substring(2, 9)
+        });
+      } else if (publishTo === 'google_pmax') {
+        console.log('\n--- [Google Ads API PMax Simulation] Creating Campaign ---');
+        console.log(`Concept:         ${conceptName || 'N/A'}`);
+        console.log(`Campaign Name:   ${conceptName || 'Campaign'} - PMax - ${timestamp.split('T')[0]}`);
+        console.log(`Daily Budget:    $${dailyBudget || 10}`);
+        console.log(`Duration:        ${durationDays || 7} days`);
+        console.log(`Target Audience: ${targetAudience || 'General'}`);
+        console.log(`PMax Asset Group:`);
+        console.log(`  - Headlines:       ${headlines.join(' | ') || 'N/A'}`);
+        console.log(`  - Descriptions:    ${descriptions.join(' | ') || 'N/A'}`);
+        console.log(`  - Long Headlines:  ${longHeadlines.join(' | ') || 'N/A'}`);
+        console.log(`  - Media URLs:      ${mediaUrls.join(', ') || 'None'}`);
+        console.log(`Customer ID:     ${googleCustomerId || 'simulated_customer_id'}`);
+        console.log('----------------------------------------------------------\n');
+
+        return NextResponse.json({
+          success: true,
+          simulated: true,
+          campaignId: 'simulated_google_pmax_campaign_id_' + Math.random().toString(36).substring(2, 9)
+        });
       }
-      console.log(`Target:    Facebook Page (${fbPageId || 'simulated_page_id'})`);
-      console.log('------------------------------------------------------------\n');
-      
+    }
+
+    // Execute Real API Publish
+    if (publishTo === 'facebook') {
+      let response: Response;
+      const mediaUrl = mediaUrls[0]; // Take first bound image if exists
+
+      if (mediaUrl) {
+        const url = `https://graph.facebook.com/v20.0/${fbPageId}/photos`;
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: mediaUrl,
+            message: message,
+            access_token: fbPageToken
+          })
+        });
+      } else {
+        const url = `https://graph.facebook.com/v20.0/${fbPageId}/feed`;
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            access_token: fbPageToken
+          })
+        });
+      }
+
+      const resJson = await response.json();
+      if (!response.ok) {
+        console.error('[Facebook Graph API] Error publishing post:', JSON.stringify(resJson));
+        return NextResponse.json({ 
+          error: resJson.error?.message || 'Facebook API responded with an error.' 
+        }, { status: response.status });
+      }
+
       return NextResponse.json({ 
         success: true, 
-        simulated: true, 
-        postId: 'simulated_fb_post_id_' + Math.random().toString(36).substring(2, 9) 
+        postId: resJson.id || resJson.post_id 
       });
-    }
 
-    // Execute real Graph API publish
-    let response: Response;
-    const mediaUrl = mediaUrls[0]; // Take first bound image if exists
+    } else if (publishTo === 'meta_ads') {
+      let normalizedAdAccountId = metaAdAccountId.trim();
+      if (!normalizedAdAccountId.startsWith('act_')) {
+        normalizedAdAccountId = 'act_' + normalizedAdAccountId;
+      }
 
-    if (mediaUrl) {
-      // Publish image post
-      const url = `https://graph.facebook.com/v20.0/${fbPageId}/photos`;
-      response = await fetch(url, {
+      // 1. Create Campaign
+      const campaignName = `${conceptName || 'Campaign'} - Paid Meta Ads - ${timestamp.split('T')[0]}`;
+      const campaignRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/campaigns`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: mediaUrl,
-          message: message,
-          access_token: fbPageToken
+          name: campaignName,
+          objective: 'OUTCOME_TRAFFIC',
+          status: 'PAUSED',
+          special_ad_categories: 'NONE',
+          access_token: metaDeveloperToken
         })
       });
-    } else {
-      // Publish text-only post
-      const url = `https://graph.facebook.com/v20.0/${fbPageId}/feed`;
-      response = await fetch(url, {
+      
+      const campaignJson = await campaignRes.json();
+      if (!campaignRes.ok) {
+        throw new Error(`Meta Campaign Error: ${campaignJson.error?.message || 'Unknown error'}`);
+      }
+      const campaignId = campaignJson.id;
+
+      // 2. Create Ad Set
+      const adSetName = `${conceptName || 'Campaign'} - Ad Set - ${targetAudience || 'General'}`;
+      const startTime = timestamp;
+      const endTime = new Date(Date.now() + (durationDays || 7) * 24 * 60 * 60 * 1000).toISOString();
+
+      const adsetRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adsets`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: message,
-          access_token: fbPageToken
+          name: adSetName,
+          campaign_id: campaignId,
+          daily_budget: Math.round((dailyBudget || 10) * 100), // convert to cents
+          billing_event: 'IMPRESSIONS',
+          optimization_goal: 'LINK_CLICKS',
+          bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+          targeting: JSON.stringify({
+            geo_locations: { countries: ['US'] }
+          }),
+          start_time: startTime,
+          end_time: endTime,
+          status: 'PAUSED',
+          access_token: metaDeveloperToken
         })
       });
+      
+      const adsetJson = await adsetRes.json();
+      if (!adsetRes.ok) {
+        throw new Error(`Meta AdSet Error: ${adsetJson.error?.message || 'Unknown error'}`);
+      }
+      const adSetId = adsetJson.id;
+
+      // 3. Upload/Get Image Hash
+      let imageHash = '';
+      if (mediaUrls[0]) {
+        const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: mediaUrls[0],
+            access_token: metaDeveloperToken
+          })
+        });
+        const imageJson = await imageRes.json();
+        if (imageRes.ok && imageJson.images) {
+          const keys = Object.keys(imageJson.images);
+          if (keys.length > 0) {
+            imageHash = imageJson.images[keys[0]].hash;
+          }
+        }
+      }
+
+      // 4. Create Ad Creative
+      const creativeName = `${conceptName || 'Campaign'} - Creative`;
+      const creativeBody: any = {
+        name: creativeName,
+        access_token: metaDeveloperToken,
+        object_story_spec: {
+          page_id: fbPageId,
+          link_data: {
+            link: `https://mywhiskeysite.com?utm_source=meta&utm_medium=paid_social&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`,
+            message: message || headlines[0] || 'Luxury Yacht Charters aboard M/Y Whiskey',
+            call_to_action: { type: 'BOOK_TRAVEL' }
+          }
+        }
+      };
+      if (imageHash) {
+        creativeBody.object_story_spec.link_data.image_hash = imageHash;
+      } else if (mediaUrls[0]) {
+        creativeBody.object_story_spec.link_data.picture = mediaUrls[0];
+      }
+
+      const creativeRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adcreatives`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(creativeBody)
+      });
+      
+      const creativeJson = await creativeRes.json();
+      if (!creativeRes.ok) {
+        throw new Error(`Meta Creative Error: ${creativeJson.error?.message || 'Unknown error'}`);
+      }
+      const adCreativeId = creativeJson.id;
+
+      // 5. Create Ad
+      const adRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/ads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${conceptName || 'Campaign'} - Ad`,
+          adset_id: adSetId,
+          creative: { creative_id: adCreativeId },
+          status: 'PAUSED',
+          access_token: metaDeveloperToken
+        })
+      });
+      
+      const adJson = await adRes.json();
+      if (!adRes.ok) {
+        throw new Error(`Meta Ad Error: ${adJson.error?.message || 'Unknown error'}`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        campaignId,
+        adSetId,
+        adCreativeId,
+        adId: adJson.id
+      });
+
+    } else if (publishTo === 'google_search' || publishTo === 'google_pmax') {
+      // 1. Token Exchange
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: googleClientId,
+          client_secret: googleClientSecret,
+          refresh_token: googleRefreshToken,
+          grant_type: 'refresh_token'
+        })
+      });
+      
+      const tokenJson = await tokenRes.json();
+      if (!tokenRes.ok) {
+        throw new Error(`Google Token Exchange Error: ${tokenJson.error_description || tokenJson.error || 'Unknown error'}`);
+      }
+      const accessToken = tokenJson.access_token;
+      
+      const cleanCustomerId = googleCustomerId.replace(/-/g, '').trim();
+      const operations: any[] = [];
+      const campaignName = `${conceptName || 'Campaign'} - ${publishTo === 'google_pmax' ? 'PMax' : 'Search'} - ${timestamp.split('T')[0]}`;
+      const budgetName = `Budget - ${conceptName || 'Campaign'} - ${Date.now()}`;
+      const finalUrl = `https://mywhiskeysite.com?utm_source=google&utm_medium=cpc&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`;
+      
+      const startDateStr = timestamp.split('T')[0].replace(/-/g, '');
+      const endDateStr = new Date(Date.now() + (durationDays || 7) * 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '');
+
+      // Budget Operation (Mutate operation -1)
+      operations.push({
+        campaignBudgetOperation: {
+          create: {
+            resourceName: `customers/${cleanCustomerId}/campaignBudgets/-1`,
+            name: budgetName,
+            amountMicros: Math.round((dailyBudget || 10) * 1000000),
+            deliveryMethod: 'STANDARD'
+          }
+        }
+      });
+
+      if (publishTo === 'google_search') {
+        // Campaign Operation (Mutate operation -2)
+        operations.push({
+          campaignOperation: {
+            create: {
+              resourceName: `customers/${cleanCustomerId}/campaigns/-2`,
+              name: campaignName,
+              advertisingChannelType: 'SEARCH',
+              status: 'PAUSED',
+              campaignBudget: `customers/${cleanCustomerId}/campaignBudgets/-1`,
+              startDate: startDateStr,
+              endDate: endDateStr
+            }
+          }
+        });
+
+        // Ad Group Operation (Mutate operation -3)
+        operations.push({
+          adGroupOperation: {
+            create: {
+              resourceName: `customers/${cleanCustomerId}/adGroups/-3`,
+              name: 'Ad Group 1',
+              campaign: `customers/${cleanCustomerId}/campaigns/-2`,
+              type: 'SEARCH_STANDARD',
+              status: 'PAUSED'
+            }
+          }
+        });
+
+        // Ad Group Ad Operation (Responsive Search Ad)
+        const responsiveHeadlines = (headlines.length > 0 ? headlines : ['Luxury Yacht Charters', 'M/Y Whiskey Destin', 'Private Yacht Charter'])
+          .slice(0, 15)
+          .map((h: string) => ({ text: h.slice(0, 30) }));
+
+        const responsiveDescriptions = (descriptions.length > 0 ? descriptions : ['Enjoy a luxury private yacht charter in Destin, Florida.', 'Book your custom day cruise with captain and crew included.'])
+          .slice(0, 4)
+          .map((d: string) => ({ text: d.slice(0, 90) }));
+
+        operations.push({
+          adGroupAdOperation: {
+            create: {
+              adGroup: `customers/${cleanCustomerId}/adGroups/-3`,
+              status: 'PAUSED',
+              ad: {
+                finalUrls: [finalUrl],
+                responsiveSearchAd: {
+                  headlines: responsiveHeadlines,
+                  descriptions: responsiveDescriptions
+                }
+              }
+            }
+          }
+        });
+
+        // Keyword Operations
+        const activeKeywords = keywords.length > 0 ? keywords : ['yacht charter Destin', 'boat rental Destin', 'luxury yacht rental'];
+        for (const kw of activeKeywords.slice(0, 20)) {
+          operations.push({
+            adGroupCriterionOperation: {
+              create: {
+                adGroup: `customers/${cleanCustomerId}/adGroups/-3`,
+                status: 'ENABLED',
+                keyword: {
+                  text: kw,
+                  matchType: 'BROAD'
+                }
+              }
+            }
+          });
+        }
+
+      } else if (publishTo === 'google_pmax') {
+        // Campaign Operation
+        operations.push({
+          campaignOperation: {
+            create: {
+              resourceName: `customers/${cleanCustomerId}/campaigns/-2`,
+              name: campaignName,
+              advertisingChannelType: 'PERFORMANCE_MAX',
+              status: 'PAUSED',
+              campaignBudget: `customers/${cleanCustomerId}/campaignBudgets/-1`,
+              startDate: startDateStr,
+              endDate: endDateStr
+            }
+          }
+        });
+
+        // Asset Group Operation
+        operations.push({
+          assetGroupOperation: {
+            create: {
+              resourceName: `customers/${cleanCustomerId}/assetGroups/-3`,
+              name: 'Asset Group 1',
+              campaign: `customers/${cleanCustomerId}/campaigns/-2`,
+              finalUrls: [finalUrl],
+              status: 'PAUSED'
+            }
+          }
+        });
+      }
+
+      // Execute Google Ads Mutate Request
+      const mutateRes = await fetch(`https://googleads.googleapis.com/v17/customers/${cleanCustomerId}/googleAds:mutate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'developer-token': googleDeveloperToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mutateOperations: operations })
+      });
+
+      const mutateJson = await mutateRes.json();
+      if (!mutateRes.ok) {
+        console.error('[Google Ads API] Mutate Error Response:', JSON.stringify(mutateJson));
+        throw new Error(`Google Ads API Mutate Error: ${mutateJson.error?.message || 'Unknown mutate error'}`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        mutateResults: mutateJson.mutateOperationResponses
+      });
     }
-
-    const resJson = await response.json();
-
-    if (!response.ok) {
-      console.error('[Facebook Graph API] Error publishing post:', JSON.stringify(resJson));
-      return NextResponse.json({ 
-        error: resJson.error?.message || 'Facebook API responded with an error.' 
-      }, { status: response.status });
-    }
-
-    console.log(`[Facebook Graph API] Post successfully published. ID: ${resJson.id || resJson.post_id}`);
-    return NextResponse.json({ 
-      success: true, 
-      postId: resJson.id || resJson.post_id 
-    });
 
   } catch (error: any) {
     console.error('Error in social ads publish route:', error);

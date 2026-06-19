@@ -3262,6 +3262,13 @@ export interface SocialAdsSettings {
   googlePMaxPrompt: string;
   fbPageToken?: string;
   fbPageId?: string;
+  metaAdAccountId?: string;
+  metaDeveloperToken?: string;
+  googleDeveloperToken?: string;
+  googleCustomerId?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
+  googleRefreshToken?: string;
   updatedAt?: string;
 }
 
@@ -3319,7 +3326,14 @@ For each ad bundle, you must generate the following fields:
 
 Ensure all copy is strictly tailored to a charter starting from and operating within the {{location}} region. Do not mention other locations like the Bahamas or the Florida Keys unless they are explicitly part of {{location}}.`,
   fbPageToken: '',
-  fbPageId: ''
+  fbPageId: '',
+  metaAdAccountId: '',
+  metaDeveloperToken: '',
+  googleDeveloperToken: '',
+  googleCustomerId: '',
+  googleClientId: '',
+  googleClientSecret: '',
+  googleRefreshToken: ''
 };
 
 export function migrateSocialAdsSettings(settings: any): SocialAdsSettings {
@@ -3478,6 +3492,97 @@ export async function deleteSocialAdDraft(draftId: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Error deleting social ad draft:', error);
+    return false;
+  }
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  type: 'holiday' | 'national' | 'regional' | 'custom';
+  impactScore: number; // e.g. 1.0 (neutral), 1.5 (+50%), 0.5 (-50%)
+  importedFrom?: 'nager' | 'gemini_ai' | 'manual';
+  createdAt: string;
+}
+
+export async function saveCalendarEvent(event: Omit<CalendarEvent, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): Promise<string> {
+  try {
+    const id = event.id || `event-${Math.random().toString(36).substring(2, 9)}`;
+    const eventRef = doc(db, 'calendar_events', id);
+    const saveData = {
+      ...event,
+      id,
+      createdAt: event.createdAt || new Date().toISOString()
+    };
+    await setDoc(eventRef, saveData, { merge: true });
+    return id;
+  } catch (error) {
+    console.error('Error saving calendar event:', error);
+    throw error;
+  }
+}
+
+export async function getCalendarEvents(startDate?: string, endDate?: string): Promise<CalendarEvent[]> {
+  try {
+    const eventsCol = collection(db, 'calendar_events');
+    const q = query(eventsCol, orderBy('startDate', 'asc'));
+    const querySnapshot = await getDocs(q);
+    const events: CalendarEvent[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const event = {
+        ...data,
+        id: docSnap.id
+      } as CalendarEvent;
+      
+      let include = true;
+      if (startDate && event.endDate < startDate) include = false;
+      if (endDate && event.startDate > endDate) include = false;
+      
+      if (include) {
+        events.push(event);
+      }
+    });
+    return events;
+  } catch (error) {
+    console.error('Error loading calendar events:', error);
+    try {
+      const eventsCol = collection(db, 'calendar_events');
+      const querySnapshot = await getDocs(eventsCol);
+      const events: CalendarEvent[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const event = {
+          ...data,
+          id: docSnap.id
+        } as CalendarEvent;
+        
+        let include = true;
+        if (startDate && event.endDate < startDate) include = false;
+        if (endDate && event.startDate > endDate) include = false;
+        
+        if (include) {
+          events.push(event);
+        }
+      });
+      return events.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    } catch (fallbackError) {
+      console.error('Fallback load calendar events failed:', fallbackError);
+      return [];
+    }
+  }
+}
+
+export async function deleteCalendarEvent(id: string): Promise<boolean> {
+  try {
+    const eventRef = doc(db, 'calendar_events', id);
+    await deleteDoc(eventRef);
+    return true;
+  } catch (error) {
+    console.error('Error deleting calendar event:', error);
     return false;
   }
 }
