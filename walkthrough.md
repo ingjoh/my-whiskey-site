@@ -59,18 +59,33 @@ Integrated dynamic database-driven recommendations based on live calendar availa
 
 ---
 
-## 4. Verification Output
+## 6. Standalone Top-Level Events Calendar Refactoring
+
+Moved the Events Calendar out of the nested sub-tab in the social ads campaign planner to a standalone, universally accessible top-level dashboard in the admin portal.
+
+* **Standalone Calendar Route ([page.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/app/admin/calendar/page.tsx))**:
+  * Established the new `/admin/calendar` page, housing all holiday imports, Gemini AI event suggestion scans, custom event creations, and list tables.
+* **Social Ads Dashboard Refactoring ([page.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/app/admin/social-ads/page.tsx))**:
+  * Removed all nested calendar layout markup, state definitions, modals, and tab switchers.
+  * Preserved Firestore loading of the `eventsList` collection to automatically feed upcoming event variables into prompt generators and strategy recommendations.
+  * Added a link pointing directly to the new Calendar Dashboard in the main form context.
+* **Admin Navigation Links ([page.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/app/admin/page.tsx))**:
+  * Registered dedicated entry cards for the "Events & Holiday Calendar" under both the **CMS Workspace** and **Charter Operations Workspace** directory hubs.
+
+---
+
+## 7. Verification Output
 
 ### Automated Compilation Verification
-* Executed `npm run build`. Next.js successfully compiled the project and built the new dynamic publish endpoint with zero bundler/typescript errors.
+* Executed `npm run build` which compiled successfully under Turbopack with zero TypeScript or ESLint errors.
 
 ### Manual Verification Scenarios
-* **Publish API Simulation**: Submitted post queries to `/api/admin/social-ads/publish`. Received a status code `200` with the simulated ID:
-  ```json
-  {
-    "success": true,
-    "simulated": true,
-    "postId": "simulated_fb_post_id_g0pvhis"
-  }
-  ```
-  Outbound simulation post details printed successfully to the dev console log.
+* **Standalone Calendar Access**: Navigating to `/admin/calendar` renders the unified dark luxury events timeline with all controls.
+* **Social Ads Integration**: Page load dynamically retrieves calendar events from Firestore and incorporates active dates into campaign recommendations.
+
+---
+
+## 8. Staging and Production Deployments
+
+* Pushed updated codebases containing the standalone calendar manager and refactored social ads planner.
+* Merged `main` changes into `staging` to trigger automated Vercel deployment builds.
