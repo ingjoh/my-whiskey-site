@@ -93,5 +93,11 @@ service cloud.firestore {
     match /social_ad_drafts/{document} {
       allow read, write: if true;
     }
+
+    // Calendar events rules
+    match /calendar_events/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
