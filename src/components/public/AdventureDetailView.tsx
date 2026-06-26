@@ -3612,71 +3612,7 @@ export default function AdventureDetailView({
                     </div>
                   </div>
 
-                  {/* Guests & Group Details */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.85rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#D8C7AF' }}>Excursion Group Details</span>
-                      <span style={{ fontSize: '0.7rem', color: '#B9783B' }}>Max {selectedVessel ? (selectedVessel.capacity || 12) : 12} guests</span>
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8 }}>Number of Passengers / Guests</label>
-                      <select 
-                        value={guestCount}
-                        onChange={e => setGuestCount(Number(e.target.value))}
-                        style={{ padding: '0.5rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
-                      >
-                        {Array.from({ length: selectedVessel ? (selectedVessel.capacity || 12) : 12 }, (_, i) => i + 1).map(num => (
-                          <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
-                        ))}
-                      </select>
-                    </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.2rem' }}>
-                      {!isDietaryExpanded ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsDietaryExpanded(true)}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#708C84',
-                            cursor: 'pointer',
-                            fontSize: '0.72rem',
-                            textDecoration: 'underline',
-                            textAlign: 'left',
-                            padding: '0.2rem 0',
-                            width: 'fit-content',
-                            outline: 'none'
-                          }}
-                        >
-                          + Add Dietary, Allergy, or Medical Requests
-                        </button>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', animation: 'fadeInUp 0.2s ease-out' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8 }}>Dietary, Allergy, or Medical requests (Optional)</label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsDietaryExpanded(false);
-                                setSpecialConsiderations('');
-                              }}
-                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.65rem', padding: 0 }}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <textarea 
-                            placeholder="e.g. Gluten-free requests, allergies, mobility assistance..."
-                            value={specialConsiderations}
-                            onChange={e => setSpecialConsiderations(e.target.value)}
-                            style={{ padding: '0.5rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.8rem', outline: 'none', minHeight: '52px', resize: 'vertical' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
                   {/* Contact Info (for Early Lead Capture) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.85rem' }}>
@@ -3797,6 +3733,72 @@ export default function AdventureDetailView({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)', fontSize: '0.78rem' }}>
                     <span style={{ color: '#D8C7AF' }}>Date: {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ {selectedStartTime}</span>
                     <span style={{ color: '#B9783B', fontWeight: 600 }}>{selectedVessel ? selectedVessel.title : ''}</span>
+                  </div>
+
+                  {/* Guests & Group Details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#D8C7AF' }}>Excursion Group Details</span>
+                      <span style={{ fontSize: '0.7rem', color: '#B9783B' }}>Max {selectedVessel ? (selectedVessel.capacity || 12) : 12} guests</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <label style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8 }}>Number of Passengers / Guests</label>
+                      <select 
+                        value={guestCount}
+                        onChange={e => setGuestCount(Number(e.target.value))}
+                        style={{ padding: '0.5rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
+                      >
+                        {Array.from({ length: selectedVessel ? (selectedVessel.capacity || 12) : 12 }, (_, i) => i + 1).map(num => (
+                          <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.2rem' }}>
+                      {!isDietaryExpanded ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsDietaryExpanded(true)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#708C84',
+                            cursor: 'pointer',
+                            fontSize: '0.72rem',
+                            textDecoration: 'underline',
+                            textAlign: 'left',
+                            padding: '0.2rem 0',
+                            width: 'fit-content',
+                            outline: 'none'
+                          }}
+                        >
+                          + Add Dietary, Allergy, or Medical Requests
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', animation: 'fadeInUp 0.2s ease-out' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.8 }}>Dietary, Allergy, or Medical requests (Optional)</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsDietaryExpanded(false);
+                                setSpecialConsiderations('');
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.65rem', padding: 0 }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <textarea 
+                            placeholder="e.g. Gluten-free requests, allergies, mobility assistance..."
+                            value={specialConsiderations}
+                            onChange={e => setSpecialConsiderations(e.target.value)}
+                            style={{ padding: '0.5rem 0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.8rem', outline: 'none', minHeight: '52px', resize: 'vertical' }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Add-on Products (Food, Drinks, Services) */}
