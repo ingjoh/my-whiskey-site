@@ -133,3 +133,14 @@ Integrated the professional AI Ad Creator sandbox directly inside the Vertex AI 
   Finished TypeScript in 29.2s ...
   ✓ Generating static pages using 15 workers (45/45) in 1526ms
   ```
+
+---
+
+## 10. Meta Ad Account Campaign Fix & Vercel Sync
+
+To resolve campaign creation failures due to API v24+ validation policies, we added budget sharing settings:
+
+* **Meta API parameters**: Added `is_adset_budget_sharing_enabled: false` to the campaign creation request body in [publish/route.ts](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/app/api/admin/social-ads/publish/route.ts). This is required when campaign budgets are set at the individual ad set level rather than sharing across the campaign.
+* **Deployment Sync**: Merged changes into both the `main` and `staging` branches and pushed them to origin. This triggers concurrent automated deployment builds on Vercel for both staging and production environments to keep them fully aligned.
+* **Build validation**: Ran `npm run build` locally, verifying zero typescript or compilation errors before pushing the updates.
+
