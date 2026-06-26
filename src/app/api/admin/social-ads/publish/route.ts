@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
             name: campaignName,
             objective: 'OUTCOME_TRAFFIC',
             status: 'PAUSED',
-            special_ad_categories: 'NONE',
+            special_ad_categories: ['NONE'],
             access_token: metaDeveloperToken
           })
         });
