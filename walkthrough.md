@@ -144,3 +144,15 @@ To resolve campaign creation failures due to API v24+ validation policies, we ad
 * **Deployment Sync**: Merged changes into both the `main` and `staging` branches and pushed them to origin. This triggers concurrent automated deployment builds on Vercel for both staging and production environments to keep them fully aligned.
 * **Build validation**: Ran `npm run build` locally, verifying zero typescript or compilation errors before pushing the updates.
 
+---
+
+## 11. CMS Privacy Policy Page & Footer Link Integration
+
+Added a fully customizable CMS Privacy Policy page and integrated it cleanly into the footer:
+
+* **DEFAULT_PRIVACY_PAGE**: Defined a standard luxury charter Privacy Policy template inside [db.ts](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/lib/db.ts) matching the design, structure, and nodes configuration of the `terms` page.
+* **Auto-Seeding & Fallback**: Updated `loadPageData` to serve the default privacy page if not found in Firestore. Modified `getAllPagesWithMetadata` to automatically check for the page's existence in the database and seed it if missing. This ensures the document is created and fully editable in both staging and production.
+* **Self-Healing Footer Links**: Added a database check that automatically sweeps the `global` settings and existing pages (`terms`, `insurance`), updating any footer link pointing to `#` for the Privacy Policy to `/privacy`.
+* **Fallback Configs**: Replaced all hardcoded default footer placeholder `#` links with `/privacy` in `pageTemplates.ts`, `useBuilderStore.ts`, and [PublicFooter.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/components/public/PublicFooter.tsx).
+
+
