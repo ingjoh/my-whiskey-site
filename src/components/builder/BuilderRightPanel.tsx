@@ -2325,6 +2325,101 @@ export default function BuilderRightPanel() {
                   </>
                 )}
 
+                {selectedNode.type === 'DynamicBlogBlock' && (
+                  <>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                      Layout Style
+                      <select 
+                        value={selectedNode.props.layout || 'grid'} 
+                        onChange={(e) => updateNodeProps(selectedNodeId, { layout: e.target.value })}
+                        style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                      >
+                        <option value="grid">Grid Layout</option>
+                        <option value="carousel">Swipe Carousel</option>
+                        <option value="featured">Featured Post + List</option>
+                      </select>
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                      Eyebrow
+                      <input type="text" value={selectedNode.props.eyebrow || ''} onChange={(e) => updateNodeProps(selectedNodeId, { eyebrow: e.target.value })} style={inputStyle} />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                      Headline
+                      <textarea value={selectedNode.props.headline || ''} onChange={(e) => updateNodeProps(selectedNodeId, { headline: e.target.value })} rows={2} style={inputStyle} />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                      Display Limit
+                      <input type="number" min="1" max="20" value={selectedNode.props.limit ?? 3} onChange={(e) => updateNodeProps(selectedNodeId, { limit: parseInt(e.target.value) || 3 })} style={inputStyle} />
+                    </label>
+
+                    {selectedNode.props.layout === 'grid' && (
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                        Columns
+                        <select 
+                          value={selectedNode.props.columns ?? 3} 
+                          onChange={(e) => updateNodeProps(selectedNodeId, { columns: parseInt(e.target.value) || 3 })}
+                          style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                        >
+                          <option value={1}>1 Column</option>
+                          <option value={2}>2 Columns</option>
+                          <option value={3}>3 Columns</option>
+                          <option value={4}>4 Columns</option>
+                        </select>
+                      </label>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.825rem', color: 'var(--color-primary)' }}>Visible Card Elements</div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showImage !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showImage: e.target.checked })} />
+                        Show Hero Image
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showSummary !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showSummary: e.target.checked })} />
+                        Show Summary / Excerpt
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showDate !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showDate: e.target.checked })} />
+                        Show Publish Date
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showAuthor !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showAuthor: e.target.checked })} />
+                        Show Author
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showTags !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showTags: e.target.checked })} />
+                        Show Tags / Categories
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNode.props.showButton !== false} onChange={(e) => updateNodeProps(selectedNodeId, { showButton: e.target.checked })} />
+                        Show Read More Button
+                      </label>
+                    </div>
+
+                    {selectedNode.props.showButton !== false && (
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                        Button Text
+                        <input type="text" value={selectedNode.props.buttonText || 'Read Article'} onChange={(e) => updateNodeProps(selectedNodeId, { buttonText: e.target.value })} style={inputStyle} />
+                      </label>
+                    )}
+
+                    {selectedNode.props.layout === 'grid' && (
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                        Mobile Layout
+                        <select 
+                          value={selectedNode.props.mobileLayout || 'stack'} 
+                          onChange={(e) => updateNodeProps(selectedNodeId, { mobileLayout: e.target.value })}
+                          style={{ ...inputStyle, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-foreground)' }}
+                        >
+                          <option value="stack">Stack Vertically</option>
+                          <option value="swipe">Swipe Side-Scroll</option>
+                        </select>
+                      </label>
+                    )}
+                  </>
+                )}
+
                 {selectedNode.type === 'DynamicCarousel' && (
                   <>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>

@@ -8,7 +8,7 @@ import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from './Blocks
 import { DividerBlock, IconBlock, VideoBlock, MapBlock, AccordionBlock, AmenitiesBlock,
   PricingBlock, CrewBlock, ItineraryBlock, TestimonialsBlock, VideoHeroBlock, GalleryWithLightbox, HtmlBlock,
   EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock, TextBlock, ContentGridBlock,
-  DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock } from './NewBlocks';
+  DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock, DynamicBlogBlock } from './NewBlocks';
 import { DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors, KeyboardSensor } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -159,6 +159,9 @@ const NodeRenderer = ({ id }: { id: string }) => {
     case 'DynamicDetailBlock':
       Content = <DynamicDetailBlock node={node} />;
       break;
+    case 'DynamicBlogBlock':
+      Content = <DynamicBlogBlock node={node} />;
+      break;
   }
 
   // Prevent overriding the style prop entirely on Text/Button/Image wrappers 
@@ -194,8 +197,8 @@ const NodeRenderer = ({ id }: { id: string }) => {
       style={{
         outline: isSelected ? '2px solid var(--color-primary)' : '1px dashed transparent',
         padding: isSelected ? '2px' : '0',
-        display: (['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock'].includes(node.type)) ? 'block' : 'inline-block',
-        width: (['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock'].includes(node.type)) ? '100%' : 'auto',
+        display: (['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock'].includes(node.type)) ? 'block' : 'inline-block',
+        width: (['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock'].includes(node.type)) ? '100%' : 'auto',
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.5 : 1,

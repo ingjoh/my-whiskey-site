@@ -8,7 +8,7 @@ export type ComponentType =
   | 'Hero' | 'VideoHero' | 'Specs' | 'Gallery' | 'DeckPlan' | 'BookingForm'
   | 'Accordion' | 'Amenities' | 'Pricing' | 'Crew' | 'Itinerary' | 'Testimonials'
   | 'EnhancedHero' | 'TextMedia' | 'ExperiencesGrid' | 'YachtFeature' | 'TestimonialsGrid' | 'CTA' | 'ComparisonTable' | 'ContentGrid'
-  | 'DynamicCardBlock' | 'DynamicCarousel' | 'BookingWidget' | 'DynamicDetailBlock';
+  | 'DynamicCardBlock' | 'DynamicCarousel' | 'BookingWidget' | 'DynamicDetailBlock' | 'DynamicBlogBlock';
 
 export interface PageNode {
   id: string;
@@ -578,6 +578,27 @@ function getDefaultProps(type: ComponentType) {
       detailBgColor: '#192D3B',
       detailTextColor: 'var(--color-foreground)',
       accentColor: 'var(--color-primary)'
+    };
+    case 'DynamicBlogBlock': return {
+      eyebrow: 'LATEST INSIGHTS',
+      headline: 'From the Captain\'s Log',
+      layout: 'grid',
+      limit: 3,
+      columns: 3,
+      showImage: true,
+      showSummary: true,
+      showDate: true,
+      showAuthor: true,
+      showTags: true,
+      showButton: true,
+      buttonText: 'Read Article',
+      cardBgColor: '#192D3B',
+      cardTextColor: 'var(--color-foreground)',
+      cardBorderRadius: '4px',
+      style: {
+        padding: '6rem 2rem',
+        background: 'var(--color-surface)'
+      }
     };
     default: return {};
   }

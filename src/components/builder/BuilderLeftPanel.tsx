@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ComponentType, useBuilderStore } from '@/store/useBuilderStore';
 import { Type, Square, Image as ImageIcon, LayoutTemplate, Anchor, Star, ImagePlus, Layers, Box,
-  Minus, Smile, PlayCircle, MapPin, ChevronDown, Grid, DollarSign, Users, Route, MessageSquare, Video, Code, Table
+  Minus, Smile, PlayCircle, MapPin, ChevronDown, Grid, DollarSign, Users, Route, MessageSquare, Video, Code, Table, BookOpen
 } from 'lucide-react';
 
 const ELEMENTS_LIBRARY: { type: ComponentType; icon: React.ElementType; label: string }[] = [
@@ -43,6 +43,7 @@ const BLOCKS_LIBRARY: { type: ComponentType; icon: React.ElementType; label: str
   { type: 'DynamicCarousel', icon: Layers, label: 'Featured Carousel' },
   { type: 'BookingWidget', icon: Route, label: 'Booking Search Bar' },
   { type: 'DynamicDetailBlock', icon: LayoutTemplate, label: 'Featured CMS Detail' },
+  { type: 'DynamicBlogBlock', icon: BookOpen, label: 'Dynamic Blog Feed' },
 ];
 
 export default function BuilderLeftPanel() {

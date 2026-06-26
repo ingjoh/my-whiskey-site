@@ -5,7 +5,7 @@ import { SpecsBlock, HeroBlock, DeckPlanBlock, BookingFormBlock } from '@/compon
 import { DividerBlock, IconBlock, VideoBlock, MapBlock, AccordionBlock, AmenitiesBlock,
   PricingBlock, CrewBlock, ItineraryBlock, TestimonialsBlock, VideoHeroBlock, GalleryWithLightbox, HtmlBlock,
   EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock, TextBlock, ContentGridBlock,
-  DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock } from '@/components/builder/NewBlocks';
+  DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock, DynamicBlogBlock } from '@/components/builder/NewBlocks';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
 import { notFound } from 'next/navigation';
@@ -156,9 +156,12 @@ const PublicNodeRenderer = ({ node, allNodes, theme }: { node: PageNode; allNode
     case 'DynamicDetailBlock':
       Content = <DynamicDetailBlock node={node} />;
       break;
+    case 'DynamicBlogBlock':
+      Content = <DynamicBlogBlock node={node} />;
+      break;
   }
 
-  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock'].includes(node.type);
+  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock'].includes(node.type);
   return (
     <div style={{ display: isFullWidth ? 'block' : 'inline-block', width: isFullWidth ? '100%' : 'auto' }}>
       {Content}

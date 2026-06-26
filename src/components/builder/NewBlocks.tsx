@@ -8,7 +8,7 @@ import * as LucideIcons from 'lucide-react';
 import { ChevronLeft, ChevronRight, X as CloseIcon } from 'lucide-react';
 import VideoPlayer from '@/components/public/VideoPlayer';
 import { SmartLink } from '@/components/SmartLink';
-import { getContentItems, ContentItem, getContentTypeConfigs, ContentTypeConfig, getContentItem, loadVesselFeatures, VesselFeature } from '@/lib/db';
+import { getContentItems, ContentItem, getContentTypeConfigs, ContentTypeConfig, getContentItem, loadVesselFeatures, VesselFeature, getBlogPosts, BlogPost } from '@/lib/db';
 import { SwipeScrollContainer } from './SwipeScrollContainer';
 
 export const TextBlock = ({ node, theme }: { node: PageNode, theme?: ThemeConfig }) => {
@@ -2935,6 +2935,489 @@ export const DynamicDetailBlock = ({ node }: { node: PageNode }) => {
             </SmartLink>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+export const DynamicBlogBlock = ({ node }: { node: PageNode }) => {
+  const {
+    eyebrow = 'LATEST INSIGHTS',
+    headline = 'From the Captain\'s Log',
+    layout = 'grid', // 'grid' | 'carousel' | 'featured'
+    limit = 3,
+    columns = 3,
+    showImage = true,
+    showSummary = true,
+    showDate = true,
+    showAuthor = true,
+    showTags = true,
+    showButton = true,
+    buttonText = 'Read Article',
+    cardBgColor = '#192D3B',
+    cardTextColor = 'var(--color-foreground)',
+    cardBorderRadius = '4px',
+    mobileLayout = 'stack', // 'stack' | 'swipe'
+  } = node.props;
+
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hoveredPostId, setHoveredPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getBlogPosts('published')
+      .then((allPosts) => {
+        if (active) {
+          setPosts(allPosts.slice(0, limit));
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching blog posts for dynamic block:', err);
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [limit]);
+
+  const placeholderPosts: BlogPost[] = [
+    {
+      id: 'placeholder-1',
+      slug: 'charter-etiquette',
+      title: 'Yacht Charter Etiquette: The Golden Rules',
+      summary: 'Essential guidelines for a seamless and luxury experience aboard M/Y Whiskey. From shoe policies to crew gratuity.',
+      content: '',
+      status: 'published',
+      publishDate: '2026-06-25',
+      authorName: 'Captain Josh',
+      heroImage: 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c',
+      tags: ['LIFESTYLE', 'CHARTER'],
+      createdAt: '',
+      updatedAt: ''
+    },
+    {
+      id: 'placeholder-2',
+      slug: 'destin-sunset',
+      title: 'Top 5 Destin Sunset Spots Only Accessible by Water',
+      summary: 'Explore exclusive anchorages and hidden sandbars that offer the absolute best sunset views in the Destin area.',
+      content: '',
+      status: 'published',
+      publishDate: '2026-06-20',
+      authorName: 'First Mate Sarah',
+      heroImage: 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c',
+      tags: ['DESTINATIONS', 'SUNSETS'],
+      createdAt: '',
+      updatedAt: ''
+    },
+    {
+      id: 'placeholder-3',
+      slug: 'whiskey-experience',
+      title: 'What to Expect on a Multi-Day Luxury Yacht Charter',
+      summary: 'From custom chef-prepared meals to overnight anchorage under the stars. Dive into the complete M/Y Whiskey itinerary.',
+      content: '',
+      status: 'published',
+      publishDate: '2026-06-15',
+      authorName: 'Chef Amanda',
+      heroImage: 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c',
+      tags: ['EXPERIENCES', 'YACHTING'],
+      createdAt: '',
+      updatedAt: ''
+    }
+  ];
+
+  const displayPosts = posts.length > 0 ? posts : placeholderPosts.slice(0, limit);
+
+  // Setup styles
+  const gridTemplateColumns = layout === 'carousel' 
+    ? `repeat(${displayPosts.length}, minmax(280px, 350px))`
+    : `repeat(${columns}, minmax(0, 1fr))`;
+
+  const eyebrowColor = 'var(--color-primary)';
+  const headlineColor = 'var(--color-foreground)';
+  const headlineFontSize = 'clamp(1.75rem, 5vw, 2.5rem)';
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Helper for rendering a single post card
+  const renderCard = (post: BlogPost, isFeatured: boolean = false) => {
+    const isHovered = hoveredPostId === post.id;
+    const linkUrl = `/blog/${post.slug}`;
+    
+    return (
+      <div
+        key={post.id}
+        onMouseEnter={() => setHoveredPostId(post.id)}
+        onMouseLeave={() => setHoveredPostId(null)}
+        style={{
+          background: cardBgColor,
+          borderRadius: cardBorderRadius,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: isFeatured ? 'row' : 'column',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
+          boxShadow: isHovered ? '0 12px 24px rgba(0,0,0,0.3), var(--shadow-glow)' : '0 4px 12px rgba(0,0,0,0.15)',
+          width: '100%',
+          cursor: 'pointer',
+        }}
+      >
+        <SmartLink href={linkUrl} style={{ display: 'contents', textDecoration: 'none', color: 'inherit' }}>
+          {showImage && post.heroImage && (
+            <div style={{
+              width: isFeatured ? '55%' : '100%',
+              aspectRatio: isFeatured ? 'auto' : '16/9',
+              minHeight: isFeatured ? '380px' : 'auto',
+              overflow: 'hidden',
+              position: 'relative'
+            }}>
+              <img 
+                src={post.heroImage} 
+                alt={post.title} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover',
+                  transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transform: isHovered ? 'scale(1.05)' : 'scale(1)'
+                }} 
+              />
+              {showTags && post.tags && post.tags.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '1rem',
+                  left: '1rem',
+                  display: 'flex',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap'
+                }}>
+                  {post.tags.slice(0, 2).map((tag) => (
+                    <span 
+                      key={tag}
+                      style={{
+                        background: 'rgba(25, 45, 59, 0.85)',
+                        backdropFilter: 'blur(4px)',
+                        color: 'var(--color-primary)',
+                        border: '1px solid rgba(219, 199, 175, 0.2)',
+                        padding: '0.2rem 0.6rem',
+                        fontSize: '0.675rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        borderRadius: '2px',
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ 
+            padding: isFeatured ? '2.5rem' : '1.5rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            flex: 1, 
+            width: isFeatured ? '45%' : '100%',
+            justifyContent: 'center'
+          }}>
+            {/* Meta row */}
+            {(showDate || showAuthor) && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '1rem', 
+                fontSize: '0.78rem', 
+                color: 'var(--color-muted)',
+                marginBottom: '0.75rem',
+                fontFamily: 'var(--font-sans)'
+              }}>
+                {showDate && post.publishDate && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <LucideIcons.Calendar size={12} color="var(--color-primary)" />
+                    <span>{formatDate(post.publishDate)}</span>
+                  </div>
+                )}
+                {showAuthor && post.authorName && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <LucideIcons.User size={12} color="var(--color-primary)" />
+                    <span>{post.authorName}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <h3 style={{ 
+              fontSize: isFeatured ? '1.75rem' : '1.25rem', 
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              color: 'var(--color-foreground)',
+              margin: '0 0 0.75rem 0',
+              lineHeight: 1.3,
+              letterSpacing: '-0.01em',
+              transition: 'color 0.2s ease',
+            }}>
+              {post.title}
+            </h3>
+
+            {showSummary && post.summary && (
+              <p style={{ 
+                fontSize: isFeatured ? '1rem' : '0.875rem', 
+                lineHeight: 1.6, 
+                color: 'var(--color-muted)',
+                margin: '0 0 1.5rem 0',
+                display: '-webkit-box',
+                WebkitLineClamp: isFeatured ? 4 : 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {post.summary}
+              </p>
+            )}
+
+            {showButton && (
+              <div style={{ 
+                marginTop: 'auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: isHovered ? 'var(--color-primary-hover, #b45309)' : 'var(--color-primary, #d97706)',
+                fontWeight: 700,
+                fontSize: '0.825rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                transition: 'color 0.2s ease'
+              }}>
+                <span>{buttonText}</span>
+                <LucideIcons.ArrowRight size={14} style={{ transform: isHovered ? 'translateX(3px)' : 'translateX(0)', transition: 'transform 0.2s ease' }} />
+              </div>
+            )}
+          </div>
+        </SmartLink>
+      </div>
+    );
+  };
+
+  // Helper for rendering horizontal mini list card for the featured layout
+  const renderListCard = (post: BlogPost) => {
+    const isHovered = hoveredPostId === post.id;
+    const linkUrl = `/blog/${post.slug}`;
+
+    return (
+      <div
+        key={post.id}
+        onMouseEnter={() => setHoveredPostId(post.id)}
+        onMouseLeave={() => setHoveredPostId(null)}
+        style={{
+          background: cardBgColor,
+          borderRadius: cardBorderRadius,
+          overflow: 'hidden',
+          display: 'flex',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          transition: 'all 0.3s ease',
+          boxShadow: isHovered ? '0 8px 16px rgba(0,0,0,0.2)' : '0 2px 6px rgba(0,0,0,0.1)',
+          width: '100%',
+          cursor: 'pointer',
+        }}
+      >
+        <SmartLink href={linkUrl} style={{ display: 'flex', width: '100%', textDecoration: 'none', color: 'inherit' }}>
+          {showImage && post.heroImage && (
+            <div style={{
+              width: '120px',
+              height: '100%',
+              minHeight: '120px',
+              overflow: 'hidden',
+              flexShrink: 0
+            }}>
+              <img 
+                src={post.heroImage} 
+                alt={post.title} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover',
+                  transition: 'transform 0.4s ease',
+                  transform: isHovered ? 'scale(1.05)' : 'scale(1)'
+                }} 
+              />
+            </div>
+          )}
+
+          <div style={{ 
+            padding: '1.25rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            flex: 1,
+            justifyContent: 'center',
+            minWidth: 0
+          }}>
+            {/* Meta row */}
+            {(showDate || showAuthor) && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.75rem', 
+                fontSize: '0.72rem', 
+                color: 'var(--color-muted)',
+                marginBottom: '0.4rem',
+                fontFamily: 'var(--font-sans)'
+              }}>
+                {showDate && post.publishDate && (
+                  <span>{formatDate(post.publishDate)}</span>
+                )}
+                {showAuthor && post.authorName && (
+                  <span>by {post.authorName}</span>
+                )}
+              </div>
+            )}
+
+            <h4 style={{ 
+              fontSize: '0.95rem', 
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              color: 'var(--color-foreground)',
+              margin: '0 0 0.4rem 0',
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {post.title}
+            </h4>
+
+            {showTags && post.tags && post.tags.length > 0 && (
+              <span style={{
+                color: 'var(--color-primary)',
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase'
+              }}>
+                {post.tags[0]}
+              </span>
+            )}
+          </div>
+        </SmartLink>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ ...node.props.style, width: '100%' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
+        
+        {/* Section Header */}
+        {(eyebrow || headline) && (
+          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+            {eyebrow && <div style={{ color: eyebrowColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem', fontFamily: 'var(--font-sans)' }}>{eyebrow}</div>}
+            {headline && <h2 style={{ color: headlineColor, fontSize: headlineFontSize, fontFamily: 'var(--font-heading)', margin: 0, fontWeight: 700, letterSpacing: '-0.02em' }}><ReactMarkdown components={{ p: (({children}: any) => <>{children}</>) as any }}>{headline}</ReactMarkdown></h2>}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+            {[1, 2, 3].slice(0, columns).map((idx) => (
+              <div key={idx} style={{ background: cardBgColor, borderRadius: cardBorderRadius, border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '320px', opacity: 0.6 }}>
+                <div style={{ width: '100%', height: '180px', background: 'rgba(255,255,255,0.05)', borderRadius: cardBorderRadius }} />
+                <div style={{ width: '30%', height: '12px', background: 'rgba(255,255,255,0.05)' }} />
+                <div style={{ width: '80%', height: '24px', background: 'rgba(255,255,255,0.05)' }} />
+              </div>
+            ))}
+          </div>
+        ) : displayPosts.length === 0 ? (
+          <div style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-muted)', textAlign: 'center', padding: '4rem 2rem', border: '1px dashed var(--color-border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+            <LucideIcons.BookOpen size={32} color="var(--color-primary)" />
+            <span>No published blog posts.</span>
+          </div>
+        ) : (
+          <>
+            {layout === 'grid' && (
+              <SwipeScrollContainer
+                active={mobileLayout === 'swipe'}
+                gridTemplateColumns={gridTemplateColumns}
+                gap="2rem"
+                arrowColor={eyebrowColor}
+              >
+                {displayPosts.map((post) => renderCard(post, false))}
+              </SwipeScrollContainer>
+            )}
+
+            {layout === 'carousel' && (
+              <SwipeScrollContainer
+                active={true}
+                gridTemplateColumns={gridTemplateColumns}
+                gap="2rem"
+                arrowColor={eyebrowColor}
+              >
+                {displayPosts.map((post) => renderCard(post, false))}
+              </SwipeScrollContainer>
+            )}
+
+            {layout === 'featured' && (
+              <div className="dynamic-blog-featured-layout">
+                {/* CSS handles columns for large screen, flex for mobile */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .dynamic-blog-featured-layout {
+                    display: grid;
+                    grid-template-columns: 1.4fr 1fr;
+                    gap: 2rem;
+                  }
+                  @media (max-width: 900px) {
+                    .dynamic-blog-featured-layout {
+                      grid-template-columns: 1fr;
+                    }
+                    .dynamic-blog-featured-layout > div:first-child > div {
+                      flex-direction: column !important;
+                    }
+                    .dynamic-blog-featured-layout > div:first-child > div > div:first-child {
+                      width: 100% !important;
+                      min-height: 240px !important;
+                    }
+                    .dynamic-blog-featured-layout > div:first-child > div > div:last-child {
+                      width: 100% !important;
+                      padding: 1.5rem !important;
+                    }
+                  }
+                ` }} />
+                
+                {/* Left side: featured post */}
+                <div>
+                  {renderCard(displayPosts[0], true)}
+                </div>
+
+                {/* Right side: subsequent list posts */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {displayPosts.slice(1).map((post) => renderListCard(post))}
+                  {displayPosts.length === 1 && (
+                    <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: cardBorderRadius, color: 'var(--color-muted)', fontSize: '0.875rem', padding: '2rem', textAlign: 'center' }}>
+                      Additional published posts will appear here.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

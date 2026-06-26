@@ -8,7 +8,7 @@ import {
   DividerBlock, IconBlock, VideoBlock, MapBlock, AccordionBlock, AmenitiesBlock,
   PricingBlock, CrewBlock, ItineraryBlock, TestimonialsBlock, VideoHeroBlock, GalleryWithLightbox, HtmlBlock,
   EnhancedHeroBlock, TextMediaBlock, ExperiencesGridBlock, YachtFeatureBlock, TestimonialsGridBlock, CTABlock, ComparisonTableBlock,
-  ContentGridBlock, DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock
+  ContentGridBlock, DynamicCardBlock, DynamicCarousel, BookingWidget, DynamicDetailBlock, DynamicBlogBlock
 } from '@/components/builder/NewBlocks';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
@@ -73,13 +73,14 @@ function PreviewNodeRenderer({ node, allNodes }: { node: PageNode; allNodes: Rec
     case 'DynamicCarousel':Content = <DynamicCarousel node={node} />;      break;
     case 'BookingWidget':Content = <BookingWidget node={node} />;          break;
     case 'DynamicDetailBlock':Content = <DynamicDetailBlock node={node} />;break;
+    case 'DynamicBlogBlock':  Content = <DynamicBlogBlock node={node} />; break;
     default:           return null;
   }
 
   const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map',
     'Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html',
     'EnhancedHero', 'TextMedia', 'ExperiencesGrid', 'YachtFeature', 'TestimonialsGrid', 'CTA', 'ComparisonTable',
-    'ContentGrid', 'DynamicCardBlock', 'DynamicCarousel', 'BookingWidget', 'DynamicDetailBlock'
+    'ContentGrid', 'DynamicCardBlock', 'DynamicCarousel', 'BookingWidget', 'DynamicDetailBlock', 'DynamicBlogBlock'
   ].includes(node.type);
 
   return (
