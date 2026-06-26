@@ -42,3 +42,9 @@ next-env.d.ts
 
 # firebase
 .firebase/
+
+# Graphify / AST local structural artifacts
+graph.json
+graph.html
+GRAPH_REPORT.md
+

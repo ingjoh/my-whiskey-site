@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
       descriptions = [],
       keywords = [],
       negativeKeywords = [],
-      longHeadlines = []
+      longHeadlines = [],
+      campaignMode = 'new',
+      existingAdSetId
     } = await request.json();
 
     if (!publishTo) {
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
     let isSimulated = false;
 
     if (publishTo === 'facebook') {
-      isSimulated = !fbPageId || !fbPageToken || fbPageId === 'mock_id' || fbPageToken === 'mock_token' || !fbPageToken.startsWith('EAAB');
+      isSimulated = !fbPageId || !fbPageToken || fbPageId === 'mock_id' || fbPageToken === 'mock_token' || !fbPageToken.startsWith('EAA');
     } else if (publishTo === 'meta_ads') {
       isSimulated = !metaAdAccountId || !metaDeveloperToken || metaAdAccountId === 'mock_id' || metaAdAccountId === 'mock_account_id' || metaDeveloperToken === 'mock_token' || !metaDeveloperToken.startsWith('EAA');
     } else if (publishTo === 'google_search' || publishTo === 'google_pmax') {
@@ -106,11 +108,17 @@ export async function POST(request: NextRequest) {
           postId: 'simulated_fb_post_id_' + Math.random().toString(36).substring(2, 9) 
         });
       } else if (publishTo === 'meta_ads') {
-        console.log('\n--- [Meta Ads API Simulation] Creating Campaign ---');
+        console.log('\n--- [Meta Ads API Simulation] Creating Campaign/Ad ---');
         console.log(`Concept:         ${conceptName || 'N/A'}`);
-        console.log(`Campaign Name:   ${conceptName || 'Campaign'} - ${targetAudience || 'Audience'} - ${timestamp.split('T')[0]}`);
-        console.log(`Daily Budget:    $${dailyBudget || 10}`);
-        console.log(`Duration:        ${durationDays || 7} days`);
+        if (campaignMode === 'consolidated') {
+          console.log(`Mode:            Consolidated (Andromeda)`);
+          console.log(`Existing Ad Set: ${existingAdSetId || 'simulated_ad_set_id'}`);
+        } else {
+          console.log(`Mode:            Dedicated Campaign & Ad Set`);
+          console.log(`Campaign Name:   ${conceptName || 'Campaign'} - ${targetAudience || 'Audience'} - ${timestamp.split('T')[0]}`);
+          console.log(`Daily Budget:    $${dailyBudget || 10}`);
+          console.log(`Duration:        ${durationDays || 7} days`);
+        }
         console.log(`Target Audience: ${targetAudience || 'General'}`);
         console.log(`Ad Creative:`);
         console.log(`  - Primary Text:  ${message}`);
@@ -123,7 +131,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           simulated: true,
-          campaignId: 'simulated_meta_campaign_id_' + Math.random().toString(36).substring(2, 9)
+          campaignId: campaignMode === 'consolidated' ? 'simulated_meta_campaign_id_consolidated' : 'simulated_meta_campaign_id_' + Math.random().toString(36).substring(2, 9),
+          adSetId: campaignMode === 'consolidated' ? existingAdSetId : 'simulated_meta_adset_id_' + Math.random().toString(36).substring(2, 9),
+          adId: 'simulated_meta_ad_id_' + Math.random().toString(36).substring(2, 9)
         });
       } else if (publishTo === 'google_search') {
         console.log('\n--- [Google Ads API Search Simulation] Creating Campaign ---');
@@ -173,6 +183,23 @@ export async function POST(request: NextRequest) {
       let response: Response;
       const mediaUrl = mediaUrls[0]; // Take first bound image if exists
 
+      // Resolve Page Access Token from the System User token to avoid publish_actions deprecation
+      let pageAccessToken = fbPageToken;
+      try {
+        console.log(`[Facebook Graph API] Resolving Page Access Token for Page ID: ${fbPageId}`);
+        const tokenUrl = `https://graph.facebook.com/v20.0/${fbPageId}?fields=access_token&access_token=${fbPageToken}`;
+        const tokenRes = await fetch(tokenUrl);
+        const tokenData = await tokenRes.json();
+        if (tokenRes.ok && tokenData.access_token) {
+          pageAccessToken = tokenData.access_token;
+          console.log('[Facebook Graph API] Successfully resolved Page Access Token.');
+        } else {
+          console.warn('[Facebook Graph API] Could not resolve Page Access Token, using provided token:', JSON.stringify(tokenData));
+        }
+      } catch (tokenErr) {
+        console.error('[Facebook Graph API] Exception resolving Page Access Token:', tokenErr);
+      }
+
       if (mediaUrl) {
         const url = `https://graph.facebook.com/v20.0/${fbPageId}/photos`;
         response = await fetch(url, {
@@ -181,7 +208,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             url: mediaUrl,
             message: message,
-            access_token: fbPageToken
+            access_token: pageAccessToken
           })
         });
       } else {
@@ -191,7 +218,7 @@ export async function POST(request: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: message,
-            access_token: fbPageToken
+            access_token: pageAccessToken
           })
         });
       }
@@ -215,56 +242,76 @@ export async function POST(request: NextRequest) {
         normalizedAdAccountId = 'act_' + normalizedAdAccountId;
       }
 
-      // 1. Create Campaign
-      const campaignName = `${conceptName || 'Campaign'} - Paid Meta Ads - ${timestamp.split('T')[0]}`;
-      const campaignRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/campaigns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: campaignName,
-          objective: 'OUTCOME_TRAFFIC',
-          status: 'PAUSED',
-          special_ad_categories: 'NONE',
-          access_token: metaDeveloperToken
-        })
-      });
-      
-      const campaignJson = await campaignRes.json();
-      if (!campaignRes.ok) {
-        throw new Error(`Meta Campaign Error: ${campaignJson.error?.message || 'Unknown error'}`);
-      }
-      const campaignId = campaignJson.id;
+      let campaignId = '';
+      let adSetId = '';
 
-      // 2. Create Ad Set
-      const adSetName = `${conceptName || 'Campaign'} - Ad Set - ${targetAudience || 'General'}`;
-      const startTime = timestamp;
-      const endTime = new Date(Date.now() + (durationDays || 7) * 24 * 60 * 60 * 1000).toISOString();
+      if (campaignMode === 'consolidated') {
+        if (!existingAdSetId) {
+          return NextResponse.json({ error: 'Missing existingAdSetId for consolidated campaign' }, { status: 400 });
+        }
+        adSetId = existingAdSetId;
+        // Optionally fetch campaign ID to return in the response
+        try {
+          const adsetDetailsRes = await fetch(`https://graph.facebook.com/v20.0/${existingAdSetId}?fields=campaign&access_token=${metaDeveloperToken}`);
+          if (adsetDetailsRes.ok) {
+            const adsetDetailsJson = await adsetDetailsRes.json();
+            campaignId = adsetDetailsJson?.campaign?.id || '';
+          }
+        } catch (err) {
+          console.error('[Meta Ads] Failed to fetch campaign for existing ad set:', err);
+        }
+      } else {
+        // 1. Create Campaign
+        const campaignName = `${conceptName || 'Campaign'} - Paid Meta Ads - ${timestamp.split('T')[0]}`;
+        const campaignRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/campaigns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: campaignName,
+            objective: 'OUTCOME_TRAFFIC',
+            status: 'PAUSED',
+            special_ad_categories: 'NONE',
+            access_token: metaDeveloperToken
+          })
+        });
+        
+        const campaignJson = await campaignRes.json();
+        if (!campaignRes.ok) {
+          throw new Error(`Meta Campaign Error: ${campaignJson.error?.message || 'Unknown error'}`);
+        }
+        campaignId = campaignJson.id;
 
-      const adsetRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adsets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: adSetName,
-          campaign_id: campaignId,
-          daily_budget: Math.round((dailyBudget || 10) * 100), // convert to cents
-          billing_event: 'IMPRESSIONS',
-          optimization_goal: 'LINK_CLICKS',
-          bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-          targeting: JSON.stringify({
-            geo_locations: { countries: ['US'] }
-          }),
-          start_time: startTime,
-          end_time: endTime,
-          status: 'PAUSED',
-          access_token: metaDeveloperToken
-        })
-      });
-      
-      const adsetJson = await adsetRes.json();
-      if (!adsetRes.ok) {
-        throw new Error(`Meta AdSet Error: ${adsetJson.error?.message || 'Unknown error'}`);
+        // 2. Create Ad Set
+        const adSetName = `${conceptName || 'Campaign'} - Ad Set - ${targetAudience || 'General'}`;
+        const startTime = timestamp;
+        const endTime = new Date(Date.now() + (durationDays || 7) * 24 * 60 * 60 * 1000).toISOString();
+
+        const adsetRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adsets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: adSetName,
+            campaign_id: campaignId,
+            daily_budget: Math.round((dailyBudget || 10) * 100), // convert to cents
+            billing_event: 'IMPRESSIONS',
+            optimization_goal: 'LINK_CLICKS',
+            bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+            targeting: JSON.stringify({
+              geo_locations: { countries: ['US'] }
+            }),
+            start_time: startTime,
+            end_time: endTime,
+            status: 'PAUSED',
+            access_token: metaDeveloperToken
+          })
+        });
+        
+        const adsetJson = await adsetRes.json();
+        if (!adsetRes.ok) {
+          throw new Error(`Meta AdSet Error: ${adsetJson.error?.message || 'Unknown error'}`);
+        }
+        adSetId = adsetJson.id;
       }
-      const adSetId = adsetJson.id;
 
       // 3. Upload/Get Image Hash
       let imageHash = '';

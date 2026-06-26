@@ -874,9 +874,11 @@ export default function AdventureDetailView({
     }
     
     // 3. Captain availability check
-    const certifiedCaptainsForVessel = captains.filter(c => 
-      c.certifiedVessels && c.certifiedVessels.includes(vesselSlug)
-    );
+    const certifiedCaptainsForVessel = captains.filter(c => {
+      const isAssigned = (linkedStaff || []).some(s => s.id === c.id || s.slug === c.id);
+      if (!isAssigned) return false;
+      return c.certifiedVessels && c.certifiedVessels.includes(vesselSlug);
+    });
     const hasAvailableCaptain = certifiedCaptainsForVessel.length > 0 && certifiedCaptainsForVessel.some(cap => {
       const leadMins = getAdventureLeadTime(item);
       const guestMins = item.guestDurationMinutes || 240;
@@ -1129,8 +1131,10 @@ export default function AdventureDetailView({
   const selectedCaptainRate = selectedCaptain ? Number(selectedCaptain.hourlyRate || selectedCaptain.dailyRate || 0) : 0;
   const captainFee = selectedCaptain ? selectedCaptainRate * totalDutyHours : 0;
 
-  // Filter captains certified to the selected vessel
+  // Filter captains certified to the selected vessel AND assigned to this experience
   const certifiedCaptains = captains.filter(c => {
+    const isAssigned = (linkedStaff || []).some(s => s.id === c.id || s.slug === c.id);
+    if (!isAssigned) return false;
     if (!selectedVesselSlug) return true;
     return (c.certifiedVessels || []).includes(selectedVesselSlug);
   });

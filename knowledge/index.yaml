@@ -1,0 +1,176 @@
+# MY Whiskey - Knowledge Registry
+# Maps business concepts, their metadata, dependencies, and logical implementation systems.
+
+Booking:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Guest
+    - Adventure
+    - Vessel
+    - Payment
+  implemented_by:
+    - booking-service
+    - checkout-api
+  adr_references:
+    - 001-core-stack
+
+Proposal:
+  owner: Sales
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Guest
+    - Vessel
+    - Adventure
+  implemented_by:
+    - proposal-service
+
+Vessel:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on:
+    - Organization
+  implemented_by:
+    - asset-service
+
+Gear:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on:
+    - Organization
+  implemented_by:
+    - asset-service
+
+Guest:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - customer-db
+
+Adventure:
+  owner: Marketing
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Vessel
+  implemented_by:
+    - adventure-loader
+
+Blackout:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Vessel
+    - Gear
+  implemented_by:
+    - calendar-service
+
+Organization:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on: []
+  implemented_by:
+    - organization-db
+
+Payment:
+  owner: Finance
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Booking
+  implemented_by:
+    - stripe-connector
+  adr_references:
+    - 001-core-stack
+
+overview:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+system:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on: []
+  implemented_by: []
+
+deployment:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on: []
+  implemented_by: []
+
+001-core-stack:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+KNOWLEDGE_ARCHITECTURE_PLAN:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+technology-stack:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+technical-roadmap:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+architectural-principles:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+002-knowledge-architecture:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+ui-architecture:
+  owner: Design
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+component-strategy:
+  owner: Design
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+engineering:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []

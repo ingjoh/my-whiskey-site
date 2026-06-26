@@ -7,7 +7,7 @@ import {
   ChevronLeft, Save, Sparkles, RefreshCw, Layers, Settings, Eye, CheckCircle2,
   Trash2, Plus, AlertTriangle, ExternalLink, Image as ImageIcon, Search,
   Share2, ArrowRight, Globe, Compass, Calendar, MapPin, Tag, Video,
-  FolderOpen, Download, Check, Building, Users, Crown
+  FolderOpen, Download, Check, Building, Users, Crown, Play, Pause
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { 
@@ -465,10 +465,21 @@ export default function SocialAdsDashboard() {
   const [googleRefreshTokenInput, setGoogleRefreshTokenInput] = useState('');
 
   // UI Tabs State
-  const [activeTab, setActiveTab] = useState<'planner' | 'personas' | 'settings'>('planner');
+  const [activeTab, setActiveTab] = useState<'planner' | 'personas' | 'performance' | 'settings'>('planner');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Andromeda & Ad Performance Tracker States
+  const [campaignMode, setCampaignMode] = useState<'new' | 'consolidated'>('new');
+  const [campaignsList, setCampaignsList] = useState<any[]>([]);
+  const [isCampaignsLoading, setIsCampaignsLoading] = useState<boolean>(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [selectedAdSetId, setSelectedAdSetId] = useState<string>('');
+  const [performanceAds, setPerformanceAds] = useState<any[]>([]);
+  const [isLoadingPerformance, setIsLoadingPerformance] = useState<boolean>(false);
+  const [performanceFilter, setPerformanceFilter] = useState({ active: true, paused: true, stopped: false });
+  const [statusMutatingAdId, setStatusMutatingAdId] = useState<string | null>(null);
 
   // Calendar Events States
   const [eventsList, setEventsList] = useState<CalendarEvent[]>([]);
@@ -610,6 +621,102 @@ export default function SocialAdsDashboard() {
 
     loadData();
   }, []);
+
+  // Load campaigns list when publish mode is consolidated or when performance tab is active
+  useEffect(() => {
+    if (activeTab === 'performance') {
+      fetchPerformanceAds();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (isPublishModalOpen && publishChannel === 'meta_ads' && campaignMode === 'consolidated' && campaignsList.length === 0) {
+      fetchCampaigns();
+    }
+  }, [isPublishModalOpen, publishChannel, campaignMode]);
+
+  const fetchPerformanceAds = async () => {
+    setIsLoadingPerformance(true);
+    try {
+      const idToken = await user?.getIdToken();
+      const response = await fetch('/api/admin/social-ads/meta/performance', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPerformanceAds(data);
+      } else {
+        const err = await response.json();
+        showToast(err.error || 'Failed to fetch performance ads.', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error fetching performance ads.', 'error');
+    } finally {
+      setIsLoadingPerformance(false);
+    }
+  };
+
+  const fetchCampaigns = async () => {
+    setIsCampaignsLoading(true);
+    try {
+      const idToken = await user?.getIdToken();
+      const response = await fetch('/api/admin/social-ads/meta/campaigns', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCampaignsList(data);
+        if (data.length > 0) {
+          setSelectedCampaignId(data[0].id);
+          if (data[0].adsets && data[0].adsets.length > 0) {
+            setSelectedAdSetId(data[0].adsets[0].id);
+          }
+        }
+      } else {
+        const err = await response.json();
+        showToast(err.error || 'Failed to fetch existing campaigns.', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error fetching campaigns.', 'error');
+    } finally {
+      setIsCampaignsLoading(false);
+    }
+  };
+
+  const handleToggleAdStatus = async (adId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    setStatusMutatingAdId(adId);
+    try {
+      const idToken = await user?.getIdToken();
+      const response = await fetch('/api/admin/social-ads/meta/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ adId, status: nextStatus })
+      });
+
+      if (response.ok) {
+        showToast(`Ad status updated to ${nextStatus} successfully.`, 'success');
+        setPerformanceAds(prev => prev.map(ad => ad.id === adId ? { ...ad, status: nextStatus } : ad));
+      } else {
+        const err = await response.json();
+        showToast(err.error || 'Failed to toggle ad status.', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error updating ad status.', 'error');
+    } finally {
+      setStatusMutatingAdId(null);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setSaveStatus('saving');
@@ -839,7 +946,7 @@ export default function SocialAdsDashboard() {
       const idToken = await user?.getIdToken();
       const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
       
-      const payload = {
+      const payload: any = {
         conceptName: activeBundle?.conceptName || 'Campaign Post',
         message: publishCopy,
         mediaUrls: boundMedias,
@@ -853,6 +960,13 @@ export default function SocialAdsDashboard() {
         negativeKeywords: activeBundle?.negativeKeywords || [],
         longHeadlines: activeBundle?.longHeadlines || []
       };
+
+      if (publishChannel === 'meta_ads') {
+        payload.campaignMode = campaignMode;
+        if (campaignMode === 'consolidated') {
+          payload.existingAdSetId = selectedAdSetId;
+        }
+      }
 
       const response = await fetch('/api/admin/social-ads/publish', {
         method: 'POST',
@@ -1170,6 +1284,14 @@ export default function SocialAdsDashboard() {
             >
               Target Personas
             </button>
+
+            <button 
+              onClick={() => setActiveTab('performance')}
+              style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: activeTab === 'performance' ? '#B9783B' : 'transparent', color: activeTab === 'performance' ? 'white' : '#D8C7AF', fontWeight: activeTab === 'performance' ? 600 : 500, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              Ad Performance Tracker
+            </button>
+
             <button 
               onClick={() => setActiveTab('settings')}
               style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: activeTab === 'settings' ? '#B9783B' : 'transparent', color: activeTab === 'settings' ? 'white' : '#D8C7AF', fontWeight: activeTab === 'settings' ? 600 : 500, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
@@ -2590,6 +2712,190 @@ export default function SocialAdsDashboard() {
         </div>
       )}
 
+      {/* Tab CONTENT: Ad Performance Tracker */}
+      {activeTab === 'performance' && (
+        <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white', margin: 0, fontFamily: "'Cormorant Garamond', serif" }}>Meta Ads Performance Tracker</h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.78rem', color: '#D8C7AF', opacity: 0.8 }}>Monitor real-time performance of running creatives on Meta Ads Manager and manage lifecycle status.</p>
+            </div>
+            <button 
+              onClick={fetchPerformanceAds}
+              disabled={isLoadingPerformance}
+              style={{ background: '#B9783B', border: 'none', color: 'white', padding: '0.55rem 1.25rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseOver={e => { if(!isLoadingPerformance) e.currentTarget.style.background = '#a1652e'; }}
+              onMouseOut={e => { if(!isLoadingPerformance) e.currentTarget.style.background = '#B9783B'; }}
+            >
+              <RefreshCw className={isLoadingPerformance ? "animate-spin" : ""} size={14} /> 
+              {isLoadingPerformance ? 'Refreshing...' : 'Refresh Metrics'}
+            </button>
+          </div>
+
+          {/* Filter Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.15)', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters:</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={performanceFilter.active}
+                  onChange={(e) => setPerformanceFilter({ ...performanceFilter, active: e.target.checked })}
+                  style={{ accentColor: '#B9783B' }}
+                />
+                Active Ads
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={performanceFilter.paused}
+                  onChange={(e) => setPerformanceFilter({ ...performanceFilter, paused: e.target.checked })}
+                  style={{ accentColor: '#B9783B' }}
+                />
+                Paused Ads
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={performanceFilter.stopped}
+                  onChange={(e) => setPerformanceFilter({ ...performanceFilter, stopped: e.target.checked })}
+                  style={{ accentColor: '#B9783B' }}
+                />
+                Stopped / Archived
+              </label>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6 }}>
+              {(() => {
+                const filteredList = performanceAds.filter(ad => {
+                  const isActive = ad.status === 'ACTIVE';
+                  const isPaused = ad.status === 'PAUSED';
+                  const isStopped = !isActive && !isPaused;
+                  if (isActive && performanceFilter.active) return true;
+                  if (isPaused && performanceFilter.paused) return true;
+                  if (isStopped && performanceFilter.stopped) return true;
+                  return false;
+                });
+                return `Showing ${filteredList.length} of ${performanceAds.length} ads`;
+              })()}
+            </div>
+          </div>
+
+          {/* Performance Table */}
+          {isLoadingPerformance && performanceAds.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '3rem 0' }}>
+              <RefreshCw className="animate-spin" size={28} color="#B9783B" />
+              <span style={{ fontSize: '0.85rem', color: '#D8C7AF' }}>Querying Meta Ads Graph API...</span>
+            </div>
+          ) : (() => {
+            const filteredList = performanceAds.filter(ad => {
+              const isActive = ad.status === 'ACTIVE';
+              const isPaused = ad.status === 'PAUSED';
+              const isStopped = !isActive && !isPaused;
+              if (isActive && performanceFilter.active) return true;
+              if (isPaused && performanceFilter.paused) return true;
+              if (isStopped && performanceFilter.stopped) return true;
+              return false;
+            });
+
+            if (filteredList.length === 0) {
+              return (
+                <div style={{ textAlign: 'center', padding: '3rem 0', background: 'rgba(0,0,0,0.1)', border: '1px dashed rgba(255,255,255,0.04)', borderRadius: '6px', color: '#D8C7AF', fontSize: '0.85rem' }}>
+                  No running ads found matching the selected filters.
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#D8C7AF', opacity: 0.8 }}>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Ad Creative Name</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Status</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Impressions</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Clicks</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>CTR</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Spend</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>CPC</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'center' }}>Lifecycle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredList.map((ad) => {
+                      const isMutating = statusMutatingAdId === ad.id;
+                      const isAdActive = ad.status === 'ACTIVE';
+                      const isAdPaused = ad.status === 'PAUSED';
+
+                      return (
+                        <tr key={ad.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                          <td style={{ padding: '1rem' }}>
+                            <div style={{ color: 'white', fontWeight: 600, fontSize: '0.85rem' }}>{ad.name}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6, marginTop: '0.2rem' }}>
+                              Campaign: {ad.campaignName} &bull; Ad Set: {ad.adsetName}
+                            </div>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <span style={{ 
+                              display: 'inline-flex', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600,
+                              background: isAdActive ? 'rgba(74, 222, 128, 0.08)' : isAdPaused ? 'rgba(251, 146, 60, 0.08)' : 'rgba(255,255,255,0.05)',
+                              color: isAdActive ? '#4ade80' : isAdPaused ? '#fb923c' : '#9ca3af',
+                              border: `1px solid ${isAdActive ? 'rgba(74, 222, 128, 0.2)' : isAdPaused ? 'rgba(251, 146, 60, 0.2)' : 'rgba(255,255,255,0.1)'}`
+                            }}>
+                              {ad.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace', color: '#F4F1EA' }}>{ad.impressions.toLocaleString()}</td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace', color: '#F4F1EA' }}>{ad.clicks.toLocaleString()}</td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace', color: '#B9783B', fontWeight: 600 }}>{ad.ctr.toFixed(2)}%</td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace', color: '#F4F1EA' }}>${ad.spend.toFixed(2)}</td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace', color: '#F4F1EA' }}>${ad.cpc.toFixed(2)}</td>
+                          <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {(isAdActive || isAdPaused) ? (
+                                <button
+                                  onClick={() => handleToggleAdStatus(ad.id, ad.status)}
+                                  disabled={isMutating}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: isAdActive ? '#fb923c' : '#4ade80',
+                                    cursor: isMutating ? 'not-allowed' : 'pointer',
+                                    padding: '0.25rem',
+                                    borderRadius: '4px',
+                                    transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: isMutating ? 0.5 : 1
+                                  }}
+                                  title={isAdActive ? "Pause Ad" : "Resume Ad"}
+                                  onMouseOver={e => { if(!isMutating) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                  onMouseOut={e => { if(!isMutating) e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                  {isMutating ? (
+                                    <RefreshCw className="animate-spin" size={14} />
+                                  ) : isAdActive ? (
+                                    <Pause size={14} />
+                                  ) : (
+                                    <Play size={14} />
+                                  )}
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.4 }}>N/A</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Asset Library Dialog Modal */}
       <AssetLibraryModal 
         isOpen={isMediaModalOpen}
@@ -2810,44 +3116,134 @@ export default function SocialAdsDashboard() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paid Campaign Budget & Targeting</span>
                     
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Daily Budget ($USD)</label>
-                        <input 
-                          type="number" 
-                          min={5}
-                          max={500}
-                          value={dailyBudget}
-                          onChange={(e) => setDailyBudget(Number(e.target.value) || 25)}
-                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
-                        />
+                    {publishChannel === 'meta_ads' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem', marginBottom: '0.25rem' }}>
+                        <label style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>Campaign Structure Mode</label>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              name="campaignMode" 
+                              value="new" 
+                              checked={campaignMode === 'new'} 
+                              onChange={() => setCampaignMode('new')} 
+                            />
+                            Create New Campaign & Ad Set
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              name="campaignMode" 
+                              value="consolidated" 
+                              checked={campaignMode === 'consolidated'} 
+                              onChange={() => setCampaignMode('consolidated')} 
+                            />
+                            Add to Existing (Recommended for Andromeda)
+                          </label>
+                        </div>
                       </div>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Duration (Days)</label>
-                        <input 
-                          type="number" 
-                          min={1}
-                          max={90}
-                          value={durationDays}
-                          onChange={(e) => setDurationDays(Number(e.target.value) || 7)}
-                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
-                        />
-                      </div>
-                    </div>
+                    )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Audience Targeting Preset</label>
-                      <select 
-                        value={targetAudience}
-                        onChange={(e) => setTargetAudience(e.target.value)}
-                        style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
-                      >
-                        <option value="tourists">In-Region Destin/Sandestin Tourists (15mi radius)</option>
-                        <option value="couples">Romance & Couples - National Travelers</option>
-                        <option value="corporate">Corporate Event Planners & Executives</option>
-                      </select>
-                    </div>
+                    {publishChannel === 'meta_ads' && campaignMode === 'consolidated' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#B9783B', fontWeight: 600 }}>Select Target Evergreen Structure</span>
+                        {isCampaignsLoading ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#D8C7AF' }}>
+                            <RefreshCw className="animate-spin" size={12} style={{ marginRight: '0.25rem' }} /> Loading campaigns and adsets from Meta...
+                          </div>
+                        ) : campaignsList.length === 0 ? (
+                          <div style={{ fontSize: '0.75rem', color: '#f87171' }}>
+                            No active campaigns found. Please create a campaign first or use "Create New Campaign".
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                              <label style={{ fontSize: '0.68rem', color: '#D8C7AF' }}>Campaign</label>
+                              <select
+                                value={selectedCampaignId}
+                                onChange={(e) => {
+                                  setSelectedCampaignId(e.target.value);
+                                  const camp = campaignsList.find(c => c.id === e.target.value);
+                                  if (camp && camp.adsets && camp.adsets.length > 0) {
+                                    setSelectedAdSetId(camp.adsets[0].id);
+                                  } else {
+                                    setSelectedAdSetId('');
+                                  }
+                                }}
+                                style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '0.4rem', color: '#F4F1EA', fontSize: '0.75rem', outline: 'none' }}
+                              >
+                                {campaignsList.map((camp: any) => (
+                                  <option key={camp.id} value={camp.id}>{camp.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                              <label style={{ fontSize: '0.68rem', color: '#D8C7AF' }}>Ad Set</label>
+                              <select
+                                value={selectedAdSetId}
+                                onChange={(e) => setSelectedAdSetId(e.target.value)}
+                                style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '0.4rem', color: '#F4F1EA', fontSize: '0.75rem', outline: 'none' }}
+                              >
+                                {(() => {
+                                  const camp = campaignsList.find(c => c.id === selectedCampaignId);
+                                  const adsets = camp?.adsets || [];
+                                  if (adsets.length === 0) {
+                                    return <option value="">No active ad sets</option>;
+                                  }
+                                  return adsets.map((adset: any) => (
+                                    <option key={adset.id} value={adset.id}>{adset.name}</option>
+                                  ));
+                                })()}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!(publishChannel === 'meta_ads' && campaignMode === 'consolidated') && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Daily Budget ($USD)</label>
+                          <input 
+                            type="number" 
+                            min={5}
+                            max={500}
+                            value={dailyBudget}
+                            onChange={(e) => setDailyBudget(Number(e.target.value) || 25)}
+                            style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Duration (Days)</label>
+                          <input 
+                            type="number" 
+                            min={1}
+                            max={90}
+                            value={durationDays}
+                            onChange={(e) => setDurationDays(Number(e.target.value) || 7)}
+                            style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {!(publishChannel === 'meta_ads' && campaignMode === 'consolidated') && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Audience Targeting Preset</label>
+                        <select 
+                          value={targetAudience}
+                          onChange={(e) => setTargetAudience(e.target.value)}
+                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                        >
+                          <option value="tourists">In-Region Destin/Sandestin Tourists (15mi radius)</option>
+                          <option value="couples">Romance & Couples - National Travelers</option>
+                          <option value="corporate">Corporate Event Planners & Executives</option>
+                        </select>
+                      </div>
+                    )}
 
                     {/* UTM URL Generator Preview */}
                     {(() => {
