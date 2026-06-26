@@ -99,5 +99,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Blog posts rules
+    match /blog_posts/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

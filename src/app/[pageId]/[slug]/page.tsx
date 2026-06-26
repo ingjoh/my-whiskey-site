@@ -307,7 +307,7 @@ function AssetDetailView({
             {category}
           </div>
 
-          <h1 style={{ fontSize: '2.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: '0 0 1rem 0' }}>
+          <h1 style={{ fontSize: '2.5rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 1rem 0' }}>
             {item.title}
           </h1>
 
@@ -324,7 +324,7 @@ function AssetDetailView({
 
         {/* Right Details / Specs Panel */}
         <div style={{ background: '#1E2124', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '2.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-          <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>
             Asset Specifications
           </h2>
 
@@ -355,7 +355,7 @@ function AssetDetailView({
 
             {selectedFeatures.length > 0 && (
               <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', fontWeight: 600, marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontFamily: 'var(--font-heading)', color: 'white', fontWeight: 600, marginBottom: '1rem' }}>
                   Features & Amenities
                 </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -673,7 +673,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
           {/* Guest Testimonials inside Left Column */}
           {testimonials.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
                 Guest Testimonials
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -736,10 +736,10 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
                 Meet The Crew
               </span>
             </div>
-            <h1 style={{ fontSize: '3.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: '0 0 0.5rem 0', lineHeight: '1.1' }}>
+            <h1 style={{ fontSize: '3.5rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 0.5rem 0', lineHeight: '1.1' }}>
               {item.title}
             </h1>
-            <div style={{ fontSize: '1.3rem', color: '#D8C7AF', opacity: 0.8, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>
+            <div style={{ fontSize: '1.3rem', color: '#D8C7AF', opacity: 0.8, fontFamily: 'var(--font-heading)', fontStyle: 'italic' }}>
               {role} of M/Y Whiskey
             </div>
 
@@ -766,7 +766,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
 
           {/* Biography */}
           <div>
-            <h2 style={{ fontSize: '1.65rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.65rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
               Biography
             </h2>
             <div style={{ fontSize: '1.05rem', color: '#D8C7AF', lineHeight: '1.8', margin: 0, opacity: 0.9 }}>
@@ -781,7 +781,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
           {/* Certifications Card Grid */}
           {certs.length > 0 && (
             <div>
-              <h2 style={{ fontSize: '1.65rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.65rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Licenses & Professional Credentials
               </h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -812,7 +812,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
           {/* Hosted Experiences / Adventures portfolio */}
           {linkedAdventures.length > 0 && (
             <div>
-              <h2 style={{ fontSize: '1.65rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.65rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Experiences Hosted by {item.title.split(' ')[1] || item.title}
               </h2>
               <style dangerouslySetInnerHTML={{__html: `
@@ -853,7 +853,7 @@ function StaffDetailView({ item, theme, linkedAdventures = [], isLoggedIn = fals
                       <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>
                         Adventure
                       </span>
-                      <h4 style={{ fontSize: '1.15rem', color: 'white', fontWeight: 600, margin: '0 0 0.5rem 0', fontFamily: "'Cormorant Garamond', serif", flex: 1 }}>
+                      <h4 style={{ fontSize: '1.15rem', color: 'white', fontWeight: 600, margin: '0 0 0.5rem 0', fontFamily: 'var(--font-heading)', flex: 1 }}>
                         {adv.title}
                       </h4>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>

@@ -72,6 +72,15 @@ Blackout:
   implemented_by:
     - calendar-service
 
+Blog:
+  owner: Marketing
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - blog-service
+    - blog-api
+
 Organization:
   owner: Domain
   status: Authoritative
@@ -90,6 +99,15 @@ Payment:
     - stripe-connector
   adr_references:
     - 001-core-stack
+
+Usage:
+  owner: Finance
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - usage-api
+    - social-ads
 
 overview:
   owner: Domain

@@ -213,19 +213,39 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
             width: '100%', 
             background: theme.backgroundColor,
             color: theme.foregroundColor,
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: 'var(--font-sans)',
             display: 'flex',
-            flexDirection: 'column'
-          }}
+            flexDirection: 'column',
+            '--color-background': theme?.backgroundColor || '#1F2326',
+            '--color-foreground': theme?.foregroundColor || '#F4F1EA',
+            '--color-primary': theme?.primaryColor || '#B9783B',
+            '--color-surface': theme?.surfaceColor || '#1E3A4C',
+            '--color-muted': theme?.mutedColor || '#D8C7AF',
+            '--color-accent': theme?.accentColor || '#708C84',
+            '--font-heading': theme?.typography?.headingFontFamily || "'Cormorant Garamond', serif",
+            '--font-sans': theme?.typography?.bodyFontFamily || "'Inter', sans-serif",
+          } as React.CSSProperties}
         >
+          {theme?.typography?.headingFontFamily && theme.typography.headingFontFamily.split(',')[0].replace(/['"]/g, '').trim() !== 'Inter' && (
+            <link 
+              href={`https://fonts.googleapis.com/css2?family=${theme.typography.headingFontFamily.split(',')[0].replace(/['"]/g, '').trim().replace(/ /g, '+')}:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap`} 
+              rel="stylesheet" 
+            />
+          )}
+          {theme?.typography?.bodyFontFamily && theme.typography.bodyFontFamily.split(',')[0].replace(/['"]/g, '').trim() !== 'Inter' && (
+            <link 
+              href={`https://fonts.googleapis.com/css2?family=${theme.typography.bodyFontFamily.split(',')[0].replace(/['"]/g, '').trim().replace(/ /g, '+')}:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap`} 
+              rel="stylesheet" 
+            />
+          )}
           <PublicNavigation theme={theme} settings={siteSettings} />
           
           <div style={{ flex: 1, maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
             <div style={{ marginBottom: '3.5rem', textAlign: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>
                 M/Y Whiskey Collections
               </span>
-              <h1 style={{ fontSize: '3rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: '0 0 1rem 0' }}>
+              <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 1rem 0' }}>
                 {matchedConfig.pluralName}
               </h1>
               <p style={{ color: '#D8C7AF', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto', opacity: 0.8, lineHeight: '1.6' }}>
@@ -295,7 +315,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
                           )}
                         </div>
 
-                        <h3 style={{ fontSize: '1.35rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: '0 0 0.5rem 0' }}>
+                        <h3 style={{ fontSize: '1.35rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 0.5rem 0' }}>
                           {item.title}
                         </h3>
 

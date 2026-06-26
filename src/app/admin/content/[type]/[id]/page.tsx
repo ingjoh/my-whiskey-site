@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
+import AIFieldWrapper from '@/components/admin/AIFieldWrapper';
+import AdminMediaWrapper from '@/components/admin/AdminMediaWrapper';
 import { uploadFile } from '@/lib/storage';
 import ReactMarkdown from 'react-markdown';
 import { firebaseConfig } from '@/lib/firebase';
@@ -1536,14 +1538,16 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
                   Title / Name
-                  <input 
-                    type="text"
-                    value={title}
-                    onChange={e => handleTitleChange(e.target.value)}
-                    placeholder={type === 'staff' ? 'e.g. Capt. James Hook' : 'e.g. Sunset Snorkeling'}
-                    style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none' }}
-                    required
-                  />
+                  <AIFieldWrapper promptContext={`${type} title`} onGenerate={handleTitleChange} currentValue={title}>
+                    <input 
+                      type="text"
+                      value={title}
+                      onChange={e => handleTitleChange(e.target.value)}
+                      placeholder={type === 'staff' ? 'e.g. Capt. James Hook' : 'e.g. Sunset Snorkeling'}
+                      style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', width: '100%' }}
+                      required
+                    />
+                  </AIFieldWrapper>
                 </label>
 
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
@@ -1581,8 +1585,19 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                   {heroImage ? (
                     <div style={{ width: '80px', height: '60px', background: '#121416', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={heroImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <AdminMediaWrapper
+                        type="image"
+                        src={heroImage}
+                        contextText={title}
+                        onSave={(url) => {
+                          setHeroImage(url);
+                          showToast('success', 'Hero image refined and updated.');
+                        }}
+                        style={{ width: '100%', height: '100%' }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={heroImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      </AdminMediaWrapper>
                     </div>
                   ) : (
                     <div style={{ width: '80px', height: '60px', background: '#121416', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1638,13 +1653,15 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
                 Short Summary Description
-                <textarea 
-                  value={shortDescription}
-                  onChange={e => setShortDescription(e.target.value)}
-                  placeholder="Provide a brief summary card text..."
-                  rows={3}
-                  style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
-                />
+                <AIFieldWrapper promptContext={`${type} short description`} onGenerate={setShortDescription} currentValue={shortDescription}>
+                  <textarea 
+                    value={shortDescription}
+                    onChange={e => setShortDescription(e.target.value)}
+                    placeholder="Provide a brief summary card text..."
+                    rows={3}
+                    style={{ padding: '0.75rem', paddingRight: '2.5rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', resize: 'vertical', fontFamily: 'inherit', width: '100%' }}
+                  />
+                </AIFieldWrapper>
               </label>
             </div>
           </div>
@@ -1688,13 +1705,15 @@ export default function ContentItemEditor({ params }: { params: Promise<{ type: 
             ) : (
               <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
                 Detailed Content (Supports Markdown formatting)
-                <textarea
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="### Itinerary Highlights&#10;&#10;- Use headers like # or ##&#10;- Add bullet points or bold text&#10;- Embed lists and markdown elements..."
-                  rows={8}
-                  style={{ padding: '0.75rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: '1.5' }}
-                />
+                <AIFieldWrapper promptContext={`${type} detailed description`} onGenerate={setDescription} currentValue={description}>
+                  <textarea
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    placeholder="### Itinerary Highlights&#10;&#10;- Use headers like # or ##&#10;- Add bullet points or bold text&#10;- Embed lists and markdown elements..."
+                    rows={8}
+                    style={{ padding: '0.75rem', paddingRight: '2.5rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', fontSize: '0.875rem', outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: '1.5', width: '100%' }}
+                  />
+                </AIFieldWrapper>
               </label>
             )}
           </div>

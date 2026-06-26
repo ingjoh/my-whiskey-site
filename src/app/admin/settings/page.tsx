@@ -108,7 +108,8 @@ const DEFAULT_SETTINGS: SiteSettings = {
       { name: 'Deep Navy', value: '#1E3A4C' },
       { name: 'Muted Sand', value: '#D8C7AF' },
       { name: 'Sea Glass', value: '#708C84' },
-    ]
+    ],
+    brandSystemPrompt: ''
   },
   seo: {
     defaultTitle: 'M/Y Whiskey - Luxury Yacht Charter',
@@ -538,6 +539,32 @@ export default function SettingsPage() {
                     value={settings.brand?.logoSquareUrl} 
                     onChange={val => setSettings({ ...settings, brand: { ...settings.brand, logoSquareUrl: val } })}
                     inputStyle={inputStyle}
+                  />
+                </label>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '2.5rem 0' }} />
+                
+                <h2 style={{ marginBottom: '0.5rem', fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700 }}>Brand Guidelines</h2>
+                <p style={{ color: '#D8C7AF', opacity: 0.6, marginBottom: '2.5rem', fontSize: '0.875rem' }}>Specify design rules, tone-of-voice, visual guidelines, typography, and logo usage parameters for Vertex AI Imagen ad creation.</p>
+                
+                <label style={labelStyle}>
+                  Brand Guide System Prompt
+                  <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, fontWeight: 'normal', marginBottom: '0.5rem', display: 'block' }}>
+                    Enter the rules that the AI Imagen model must follow (e.g. font family names, style descriptors, color combination limitations).
+                  </span>
+                  <textarea
+                    placeholder="e.g. Always use serif fonts for headlines, prefer gold and deep navy overlays, ensure the logo is rendered clearly in the top right, keep design minimal and elegant."
+                    value={settings.brand?.brandSystemPrompt || ''}
+                    onChange={e => setSettings({ ...settings, brand: { ...settings.brand, brandSystemPrompt: e.target.value } })}
+                    style={{
+                      ...inputStyle,
+                      height: '120px',
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      padding: '0.75rem',
+                      lineHeight: '1.4',
+                      width: '100%'
+                    }}
                   />
                 </label>
               </div>

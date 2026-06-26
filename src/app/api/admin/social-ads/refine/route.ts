@@ -28,7 +28,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
-      // Retry on 429 (Too Many Requests), 503 (Service Unavailable), or other transient server errors
       if (response.status === 429 || response.status === 503 || response.status >= 500) {
         if (i < retries - 1) {
           const waitTime = response.status === 429 ? Math.max(delay, 6000) : delay;
@@ -60,9 +59,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { platform, persona, event, urgency, bookingWindow, searchIntent, mediaAssets, location } = body;
+    const { platform, ad, instruction, originalPromptContext } = body;
 
-    if (!platform || !persona || !urgency || !bookingWindow) {
+    if (!platform || !ad || !instruction) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
@@ -81,68 +80,23 @@ export async function POST(request: NextRequest) {
       console.error('Error loading social ads settings from DB, using defaults:', dbError);
     }
 
-    // Determine the prompt template
-    let template = '';
-    if (platform === 'meta') {
-      template = settings.metaPrompt;
-    } else if (platform === 'google-search') {
-      template = settings.googleSearchPrompt;
-    } else if (platform === 'google-pmax') {
-      template = settings.googlePMaxPrompt;
-    } else {
-      return NextResponse.json({ error: 'Invalid platform specified' }, { status: 400 });
-    }
-
-    // Compile the prompt
-    let compiledPrompt = template
-      .replace(/{{persona}}/g, persona || '')
-      .replace(/{{event}}/g, event || 'None')
-      .replace(/{{urgency}}/g, urgency || '')
-      .replace(/{{bookingWindow}}/g, bookingWindow || '')
-      .replace(/{{mediaAssets}}/g, mediaAssets || 'None')
-      .replace(/{{searchIntent}}/g, searchIntent || 'General')
-      .replace(/{{location}}/g, location || 'Destin, FL');
-
-    // Append strict limit instructions to prevent run-away list output (e.g. tag lists)
-    compiledPrompt += `\n\nCRITICAL SYSTEM LIMITATION INSTRUCTIONS:
-- For 'suggestedTags', you MUST list a maximum of 5 tags. Do not exceed 5 items.
-- For 'headlines', you MUST list a maximum of 15 items for Search Ads, and exactly 5 items for PMax.
-- For 'descriptions', you MUST list a maximum of 4 items.
-- For 'keywords', you MUST list a maximum of 8 items.
-- For 'negativeKeywords', you MUST list a maximum of 5 items.
-- For 'longHeadlines', you MUST list a maximum of 3 items.
-Failure to follow these limits will cause client parsing errors.`;
-
-    // Retrieve API key: 1. Custom DB settings key, 2. Env variable
+    // Retrieve API key
     const apiKey = settings.apiKey || process.env.GEMINI_API_KEY;
-
     if (!apiKey) {
       return NextResponse.json({ 
         error: 'Gemini API Key is not configured. Please add it in the settings tab or env variables.' 
       }, { status: 400 });
     }
 
-    // Call Gemini API
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    
-    // Define the response schema structure dynamically based on the platform to force JSON output
+    // Define response schema (representing a single bundle matching the input ad properties)
     let responseSchema: any = {
       type: 'OBJECT',
-      properties: {
-        bundles: {
-          type: 'ARRAY',
-          items: {
-            type: 'OBJECT',
-            properties: {},
-            required: []
-          }
-        }
-      },
-      required: ['bundles']
+      properties: {},
+      required: []
     };
 
     if (platform === 'meta') {
-      responseSchema.properties.bundles.items = {
+      responseSchema = {
         type: 'OBJECT',
         properties: {
           conceptName: { type: 'STRING' },
@@ -153,14 +107,14 @@ Failure to follow these limits will cause client parsing errors.`;
           suggestedTags: {
             type: 'ARRAY',
             items: { type: 'STRING' },
-            description: 'List of exactly 3-5 relevant media tags (e.g. ["sunset", "couples"])',
+            description: 'List of exactly 3-5 relevant media tags',
             maxItems: 5
           }
         },
         required: ['conceptName', 'rationale', 'hook', 'bodyCopy', 'headline', 'suggestedTags']
       };
     } else if (platform === 'google-search') {
-      responseSchema.properties.bundles.items = {
+      responseSchema = {
         type: 'OBJECT',
         properties: {
           conceptName: { type: 'STRING' },
@@ -168,13 +122,13 @@ Failure to follow these limits will cause client parsing errors.`;
           headlines: {
             type: 'ARRAY',
             items: { type: 'STRING' },
-            description: 'List of 10-15 high-converting headlines (each strictly under 30 characters).',
+            description: 'List of 10-15 headlines (strictly under 30 characters).',
             maxItems: 15
           },
           descriptions: {
             type: 'ARRAY',
             items: { type: 'STRING' },
-            description: 'List of 4 descriptions (each strictly under 90 characters).',
+            description: 'List of 4 descriptions (strictly under 90 characters).',
             maxItems: 4
           },
           keywords: {
@@ -193,11 +147,11 @@ Failure to follow these limits will cause client parsing errors.`;
         required: ['conceptName', 'rationale', 'headlines', 'descriptions', 'keywords', 'negativeKeywords']
       };
     } else if (platform === 'google-pmax') {
-      responseSchema.properties.bundles.items = {
+      responseSchema = {
         type: 'OBJECT',
         properties: {
           conceptName: { type: 'STRING' },
-          rationale: { type: 'STRING', description: 'Rationale and asset configuration guidance.' },
+          rationale: { type: 'STRING' },
           headlines: {
             type: 'ARRAY',
             items: { type: 'STRING' },
@@ -219,7 +173,30 @@ Failure to follow these limits will cause client parsing errors.`;
         },
         required: ['conceptName', 'rationale', 'headlines', 'longHeadlines', 'descriptions']
       };
+    } else {
+      return NextResponse.json({ error: 'Invalid platform specified' }, { status: 400 });
     }
+
+    const compiledPrompt = `You are a luxury marketing copywriter and optimization specialist for private yacht charters.
+We need to refine a single ad copy bundle that has been generated.
+
+Here is the current ad copy in JSON format:
+${JSON.stringify(ad, null, 2)}
+
+User Instruction for Refinement:
+"${instruction}"
+
+${originalPromptContext ? `Original Generation Context: ${originalPromptContext}\n` : ''}
+
+Task:
+Refine the ad copy. Make edits that address the user's instructions while keeping the luxury voice of M/Y Whiskey. Change ONLY what is requested or is necessary to satisfy the instruction. Leave unchanged fields as they are.
+
+Strict constraints:
+- Output MUST match the provided JSON schema.
+- Adhere to the character limits (Headlines under 30 characters, descriptions/long headlines under 90 characters).
+- Do not add conversational text or code fences outside of the JSON structure.`;
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(geminiUrl, {
       method: 'POST',
@@ -251,7 +228,6 @@ Failure to follow these limits will cause client parsing errors.`;
           errMsg = `Gemini API: ${errJson.error.message}`;
         }
       } catch (parseErr) {
-        // Fallback to text if JSON parsing fails
         if (errText) {
           errMsg = `Gemini API: ${errText.substring(0, 200)}`;
         }
@@ -260,8 +236,6 @@ Failure to follow these limits will cause client parsing errors.`;
     }
 
     const geminiJson = await response.json();
-    
-    // Parse Gemini's JSON structure from candidates[0].content.parts[0].text
     const rawText = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) {
       console.error('Invalid response structure from Gemini API:', JSON.stringify(geminiJson));
@@ -275,7 +249,6 @@ Failure to follow these limits will cause client parsing errors.`;
       const candidateTokens = usageMetadata?.candidatesTokenCount || 0;
       const totalTokens = promptTokens + candidateTokens;
       
-      // wholesale cost: $0.075/M input, $0.30/M output tokens for gemini-2.5-flash
       const costEst = parseFloat(((promptTokens * 0.075 + candidateTokens * 0.30) / 1000000).toFixed(6));
       
       let userId = 'system-admin';
@@ -288,7 +261,7 @@ Failure to follow these limits will cause client parsing errors.`;
           userId = decodedToken.uid || 'system-admin';
           organizationId = decodedToken.orgId || decodedToken.organizationId || 'default-org';
         } catch (authErr) {
-          // Dev fallback or unverified token
+          // Dev fallback
         }
       }
       
@@ -303,19 +276,24 @@ Failure to follow these limits will cause client parsing errors.`;
         });
       }
     } catch (logErr) {
-      console.error('Error extracting and logging Gemini token usage:', logErr);
+      console.error('Error logging Gemini usage in refine:', logErr);
     }
 
     try {
       const parsedOutput = JSON.parse(rawText);
-      return NextResponse.json(parsedOutput);
+      // Retain the user bindings and dynamic metadata from the original ad object if not overwritten
+      const mergedOutput = {
+        ...ad,
+        ...parsedOutput
+      };
+      return NextResponse.json(mergedOutput);
     } catch (parseError) {
-      console.error('Failed to parse Gemini output text as JSON:', rawText, parseError);
+      console.error('Failed to parse Gemini refine output text as JSON:', rawText, parseError);
       return NextResponse.json({ error: 'Failed to parse AI output as valid JSON' }, { status: 502 });
     }
 
   } catch (error: any) {
-    console.error('Error in social ads generation route:', error);
+    console.error('Error in social ads refinement route:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

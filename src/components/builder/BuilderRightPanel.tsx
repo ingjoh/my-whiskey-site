@@ -9,6 +9,7 @@ import { uploadFile } from '@/lib/storage';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
 import IconPickerModal from '@/components/builder/IconPickerModal';
 import BulkImportModal from '@/components/builder/BulkImportModal';
+import AIFieldWrapper from '@/components/admin/AIFieldWrapper';
 
 const TargetSelector = ({ value, onChange, label = "Link Open Behavior" }: { value?: string, onChange: (val: string) => void, label?: string }) => {
   return (
@@ -909,7 +910,9 @@ export default function BuilderRightPanel() {
                   <>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Text Content
-                      <textarea value={selectedNode.props.text || ''} onChange={(e) => updateNodeProps(selectedNodeId, { text: e.target.value })} rows={4} style={inputStyle} />
+                      <AIFieldWrapper promptContext="Page builder text content" onGenerate={(val) => updateNodeProps(selectedNodeId, { text: val })} currentValue={selectedNode.props.text || ''}>
+                        <textarea value={selectedNode.props.text || ''} onChange={(e) => updateNodeProps(selectedNodeId, { text: e.target.value })} rows={4} style={{ ...inputStyle, paddingRight: '2.5rem', width: '100%' }} />
+                      </AIFieldWrapper>
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Typographic Style
@@ -948,11 +951,15 @@ export default function BuilderRightPanel() {
                   <>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Headline
-                      <textarea value={selectedNode.props.headline || ''} onChange={(e) => updateNodeProps(selectedNodeId, { headline: e.target.value })} rows={3} style={inputStyle} />
+                      <AIFieldWrapper promptContext="Hero Section Headline" onGenerate={(val) => updateNodeProps(selectedNodeId, { headline: val })} currentValue={selectedNode.props.headline || ''}>
+                        <textarea value={selectedNode.props.headline || ''} onChange={(e) => updateNodeProps(selectedNodeId, { headline: e.target.value })} rows={3} style={{ ...inputStyle, paddingRight: '2.5rem', width: '100%' }} />
+                      </AIFieldWrapper>
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Subheadline
-                      <textarea value={selectedNode.props.subheadline || ''} onChange={(e) => updateNodeProps(selectedNodeId, { subheadline: e.target.value })} rows={3} style={inputStyle} />
+                      <AIFieldWrapper promptContext="Hero Section Subheadline" onGenerate={(val) => updateNodeProps(selectedNodeId, { subheadline: val })} currentValue={selectedNode.props.subheadline || ''}>
+                        <textarea value={selectedNode.props.subheadline || ''} onChange={(e) => updateNodeProps(selectedNodeId, { subheadline: e.target.value })} rows={3} style={{ ...inputStyle, paddingRight: '2.5rem', width: '100%' }} />
+                      </AIFieldWrapper>
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                       Button Text

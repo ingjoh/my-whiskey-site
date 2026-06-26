@@ -74,13 +74,29 @@ Moved the Events Calendar out of the nested sub-tab in the social ads campaign p
 
 ---
 
-## 7. Verification Output
+## Verification Results
 
-### Automated Compilation Verification
-* Executed `npm run build` which compiled successfully under Turbopack with zero TypeScript or ESLint errors.
+### Scratch Script Payload Verification
+We wrote and executed scratch scripts (`test_edit_payloads_18.js` and `test_edit_payloads_21.js`) targeting the `imagen-3.0-capability-001` endpoint with the new structures. Both returned `200 OK` successfully:
+```bash
+node scratch/test_edit_payloads_18.js
+=== Testing: Inpainting with RAW + MASK ===
+Response status: 200 OK
+SUCCESS! Got predictions.
+```
 
-### Manual Verification Scenarios
-* **Standalone Calendar Access**: Navigating to `/admin/calendar` renders the unified dark luxury events timeline with all controls.
+### Automated Build Verification
+- Ran `npm run build`. Next.js 16 (Turbopack) successfully completed type checking, static generation, page optimization, and production compilation with zero errors:
+```bash
+> next build
+▲ Next.js 16.2.6 (Turbopack)
+✓ Compiled successfully in 15.5s
+  Running TypeScript ...
+  Finished TypeScript in 24.0s ...
+  Generating static pages ...
+✓ Generating static pages using 15 workers (45/45) in 1219ms
+  Finalizing page optimization ...
+```
 * **Social Ads Integration**: Page load dynamically retrieves calendar events from Firestore and incorporates active dates into campaign recommendations.
 
 ---
@@ -89,3 +105,31 @@ Moved the Events Calendar out of the nested sub-tab in the social ads campaign p
 
 * Pushed updated codebases containing the standalone calendar manager and refactored social ads planner.
 * Merged `main` changes into `staging` to trigger automated Vercel deployment builds.
+
+---
+
+## 9. Vertex AI Imagen 3 - AI Ad Creator
+
+Integrated the professional AI Ad Creator sandbox directly inside the Vertex AI Image Studio dashboard, giving marketing teams the ability to generate print-ready luxury ad creatives from a base image.
+
+* **UI Mode Tab ([AIImageEditor.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/components/admin/AIImageEditor.tsx))**:
+  * Added a dedicated `'create-ad'` tab to the Vertex AI sandbox interface.
+  * Disables canvas mouse-drawing mask features and sets the mouse cursor to a standard pointer when the Ad Creator tab is active.
+* **State Management**:
+  * Configured state variables for the campaign's `adCopy` (pre-populated from the current mockup campaign copy), `systemPrompt` (guiding high-end graphic design parameters), `userPrompt` (for custom text placement/overlay guidelines), and `adAspectRatio` (output ratios: `1:1`, `16:9`, `9:16`).
+* **Payload Generation**:
+  * Programmatically creates a solid white mask of the reference image dimensions using an offscreen `<canvas>` buffer.
+  * Combines the system prompt, ad copy, and user instructions into a single unified design instruction.
+  * Automatically routes the payload to the `/api/admin/ai/image` endpoint with `action: 'edit'`, `editMode: 'inpainting-insert'`, and `aspectRatio: adAspectRatio`, enabling the Vertex AI Imagen model to recreate the scene with custom overlays.
+
+## Verification & Build
+
+* **Dynamic Style & Brand Guide Integration**:
+  * **Settings Configuration**: Added the `brandSystemPrompt` property to `SiteSettings` inside [db.ts](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/lib/db.ts) and created the **Brand Guidelines** input textarea in the settings dashboard [page.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/app/admin/settings/page.tsx).
+  * **Dynamic Prompts Assembly**: Configured [AIImageEditor.tsx](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/src/components/admin/AIImageEditor.tsx) to load settings and generate a detailed system prompt combining company name, hex color swatches, rectangular/square logo image URLs, and the saved custom brand design rules.
+* **Build compilation**: Ran `npm run build` to verify type safety and layout integrity across Next.js 16 App Router compilation, resulting in a clean successful build:
+  ```bash
+  ✓ Compiled successfully in 12.6s
+  Finished TypeScript in 29.2s ...
+  ✓ Generating static pages using 15 workers (45/45) in 1526ms
+  ```

@@ -4,6 +4,9 @@ import { detectProjectId } from './project-env';
 if (!admin.apps.length) {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   const projectId = detectProjectId();
+  const storageBucket = projectId === 'my-whiskey-prod'
+    ? 'my-whiskey-prod.firebasestorage.app'
+    : 'mywhiskey-97620.firebasestorage.app';
 
   if (serviceAccountJson) {
     try {
@@ -11,12 +14,14 @@ if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: projectId,
+        storageBucket: storageBucket,
       });
       console.log(`Firebase Admin SDK initialized using FIREBASE_SERVICE_ACCOUNT credentials. Project: ${projectId}`);
     } catch (e: any) {
       console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT environment variable:', e);
       admin.initializeApp({
         projectId: projectId,
+        storageBucket: storageBucket,
       });
     }
   } else {
@@ -24,6 +29,7 @@ if (!admin.apps.length) {
     // this will automatically pick up authentication, or fallback to default project.
     admin.initializeApp({
       projectId: projectId,
+      storageBucket: storageBucket,
     });
     console.log(`Firebase Admin SDK initialized using project ID fallback. Project: ${projectId}`);
   }

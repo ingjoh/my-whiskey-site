@@ -8,7 +8,7 @@ import {
   Anchor, Settings, Users, LogOut, FileText, Plus, Trash2, Building,
   Copy, Layout, AlertCircle, ArrowRight, Loader2, Edit3, Image as ImageIcon,
   Compass, Sliders, Ship, MapPin, Calendar, MessageSquare, Printer, DollarSign,
-  Tag, Share2
+  Tag, Share2, BookOpen
 } from 'lucide-react';
 import { 
   getAllPagesWithMetadata, PageMetadata, deletePageData, 
@@ -280,6 +280,36 @@ export default function AdminDashboard() {
             >
               <FileText size={18} style={{ color: activeWorkspace === 'cms' ? '#B9783B' : 'inherit' }} /> Website CMS
             </button>
+
+            <Link
+              href="/admin/blog"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.85rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'transparent',
+                color: '#D8C7AF',
+                fontWeight: 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                textDecoration: 'none',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s'
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <BookOpen size={18} style={{ color: '#D8C7AF' }} /> Blog Module
+            </Link>
 
             <button
               onClick={() => setActiveWorkspace('system')}
@@ -646,6 +676,13 @@ export default function AdminDashboard() {
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Events & Holiday Calendar</div>
                     <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Manage US holidays, regional events & business weights</div>
+                  </div>
+                </Link>
+                <Link href="/admin/blog" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                  <BookOpen size={20} color="#B9783B" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Blog Module &amp; Scheduler</div>
+                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Write articles, schedule posts, and generate AI outlines &amp; layouts</div>
                   </div>
                 </Link>
               </div>

@@ -19,3 +19,10 @@ This document tracks all manual and automated revisions made to the Knowledge Ca
 *   **System Files Modified**: `knowledge/architecture/overview.md` (Persistence model, Server/Client boundaries), `knowledge/design/system.md` (Design System tokens), `knowledge/index.yaml` (Registry records), `knowledge/architecture/KNOWLEDGE_ARCHITECTURE_PLAN.md` (Added frontmatter).
 *   **Author**: Antigravity Agent
 *   **Commit**: `main@HEAD`
+
+### 2026-06-25 (Blog & Usage Registry Registration)
+*   **Action**: Registered Blog and Usage concepts in the atomic Knowledge Object Catalog.
+*   **Concepts Added**: `Blog`, `Usage`.
+*   **System Files Modified**: `knowledge/index.yaml` (Registry records).
+*   **Author**: Antigravity Agent
+*   **Commit**: `main@HEAD`

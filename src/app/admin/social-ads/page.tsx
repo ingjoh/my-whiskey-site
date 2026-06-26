@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   ChevronLeft, Save, Sparkles, RefreshCw, Layers, Settings, Eye, CheckCircle2,
-  Trash2, Plus, AlertTriangle, ExternalLink, Image as ImageIcon, Search,
+  Trash2, Plus, X, UploadCloud, AlertTriangle, ExternalLink, Image as ImageIcon, Search,
   Share2, ArrowRight, Globe, Compass, Calendar, MapPin, Tag, Video,
   FolderOpen, Download, Check, Building, Users, Crown, Play, Pause
 } from 'lucide-react';
@@ -18,6 +18,10 @@ import {
   CalendarEvent, getCalendarEvents
 } from '@/lib/db';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
+import AIImageEditor from '@/components/admin/AIImageEditor';
+import AIVideoBuilder from '@/components/admin/AIVideoBuilder';
+import AdminMediaWrapper from '@/components/admin/AdminMediaWrapper';
+import { uploadFile } from '@/lib/storage';
 
 interface AdPersona {
   id: string;
@@ -49,6 +53,7 @@ interface AdBundle {
   // User bindings
   boundMedia?: string;
   boundMedias?: string[];
+  boundMediasByRatio?: Record<number, { feed_4_5?: string; story_9_16?: string; square_1_1?: string }>;
   // Dynamic tag
   personaName?: string;
   bookingWindowName?: string;
@@ -292,12 +297,22 @@ const MockupMediaCarousel = ({
   boundMedias = [], 
   activeMediaIndex, 
   setActiveMediaIndex,
-  height = '180px'
+  height = '180px',
+  contextText,
+  campaignName,
+  onSave,
+  boundMediasByRatio,
+  ratioMode
 }: { 
   boundMedias?: string[]; 
   activeMediaIndex: number; 
   setActiveMediaIndex: React.Dispatch<React.SetStateAction<number>>;
   height?: string;
+  contextText?: string;
+  campaignName?: string;
+  onSave?: (url: string) => void;
+  boundMediasByRatio?: any;
+  ratioMode?: 'feed_4_5' | 'story_9_16' | 'square_1_1';
 }) => {
   const DEFAULT_YACHT = 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c';
   
@@ -316,14 +331,49 @@ const MockupMediaCarousel = ({
     setActiveMediaIndex((prev) => (prev + 1) % total);
   };
 
+  const isVideoUrl = (url: string) => {
+    if (!url) return false;
+    const cleanUrl = url.toLowerCase().split('?')[0];
+    return cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') || url.includes('/video/') || url.startsWith('data:video');
+  };
+
+  const activeUrl = ratioMode && boundMediasByRatio?.[activeMediaIndex]?.[ratioMode]
+    ? boundMediasByRatio[activeMediaIndex][ratioMode]
+    : (medias[activeMediaIndex] || DEFAULT_YACHT);
+  const isVideo = isVideoUrl(activeUrl);
+
+  const mediaElement = isVideo ? (
+    <video 
+      src={activeUrl} 
+      autoPlay 
+      loop 
+      muted 
+      playsInline 
+      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+    />
+  ) : (
+    <img 
+      src={activeUrl} 
+      alt={`Mockup variant ${activeMediaIndex + 1}`} 
+      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+    />
+  );
+
   return (
     <div style={{ position: 'relative', width: '100%', height, overflow: 'hidden' }}>
-      {/* Media file */}
-      <img 
-        src={medias[activeMediaIndex] || DEFAULT_YACHT} 
-        alt={`Mockup variant ${activeMediaIndex + 1}`} 
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
-      />
+      {/* Reusable Admin Media Wrapper */}
+      <AdminMediaWrapper
+        type={isVideo ? 'video' : 'image'}
+        src={activeUrl}
+        contextText={contextText}
+        onSave={(url) => {
+          if (onSave) onSave(url);
+        }}
+        initialCampaignName={campaignName}
+        style={{ width: '100%', height: '100%' }}
+      >
+        {mediaElement}
+      </AdminMediaWrapper>
       
       {/* Variant badge overlay (glassmorphism style) */}
       {total > 1 && (
@@ -367,7 +417,7 @@ const MockupMediaCarousel = ({
               alignItems: 'center', 
               justifyContent: 'center', 
               cursor: 'pointer', 
-              zIndex: 6,
+              zIndex: 30,
               transition: 'background 0.2s',
               padding: 0
             }}
@@ -393,7 +443,7 @@ const MockupMediaCarousel = ({
               alignItems: 'center', 
               justifyContent: 'center', 
               cursor: 'pointer', 
-              zIndex: 6,
+              zIndex: 30,
               transition: 'background 0.2s',
               padding: 0
             }}
@@ -415,7 +465,7 @@ const MockupMediaCarousel = ({
           display: 'flex', 
           justifyContent: 'center', 
           gap: '0.3rem', 
-          zIndex: 6 
+          zIndex: 30 
         }}>
           {medias.map((_, idx) => (
             <button 
@@ -541,7 +591,17 @@ export default function SocialAdsDashboard() {
   const [draftStatus, setDraftStatus] = useState<'draft' | 'approved'>('draft');
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<SocialAdDraft[]>([]);
+  const [refineInstruction, setRefineInstruction] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+  const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
+  const [imageEditorCurrentUrl, setImageEditorCurrentUrl] = useState<string | undefined>(undefined);
+  const [isVideoBuilderOpen, setIsVideoBuilderOpen] = useState(false);
   
+  // Batch upload and aspect ratio selection states
+  const [activeRatioSlotTarget, setActiveRatioSlotTarget] = useState<{ variationIndex: number; ratioKey: 'feed_4_5' | 'story_9_16' | 'square_1_1' } | null>(null);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const [batchUploadStatus, setBatchUploadStatus] = useState('');
+
   // Print QR & Affiliate performance states
   const [performanceBookings, setPerformanceBookings] = useState<BookingRecord[]>([]);
   const [companies, setCompanies] = useState<ContentItem[]>([]);
@@ -945,11 +1005,13 @@ export default function SocialAdsDashboard() {
     try {
       const idToken = await user?.getIdToken();
       const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
+      const ratioImages = activeBundle?.boundMediasByRatio?.[activeMediaIndex] || null;
       
       const payload: any = {
         conceptName: activeBundle?.conceptName || 'Campaign Post',
         message: publishCopy,
         mediaUrls: boundMedias,
+        ratioImages: ratioImages,
         publishTo: publishChannel,
         dailyBudget,
         durationDays,
@@ -1139,6 +1201,49 @@ export default function SocialAdsDashboard() {
     }
   };
 
+  const handleRefineAdImmediate = async (instructionText: string) => {
+    if (!activeBundle) return;
+    setIsRefining(true);
+    try {
+      const idToken = user ? await user.getIdToken() : '';
+      
+      const response = await fetch('/api/admin/social-ads/refine', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          platform,
+          ad: activeBundle,
+          instruction: instructionText,
+          originalPromptContext: `Persona: ${activeBundle.personaName || ''}, Booking Window: ${activeBundle.bookingWindowName || ''}`
+        })
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error || 'Server error occurred during refinement.');
+      }
+
+      const refinedAd = await response.json();
+      const updated = [...bundles];
+      updated[selectedBundleIndex] = refinedAd;
+      setBundles(updated);
+      setRefineInstruction('');
+      showToast('AI copy refined successfully.', 'success');
+    } catch (error: any) {
+      console.error('Error refining ad copy:', error);
+      showToast(error.message || 'Failed to refine ad copy.', 'error');
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  const handleRefineAd = async () => {
+    await handleRefineAdImmediate(refineInstruction);
+  };
+
   const handleUpdateArrayElement = (field: 'headlines' | 'descriptions' | 'keywords' | 'negativeKeywords' | 'longHeadlines', index: number, value: string) => {
     const updated = [...bundles];
     if (updated[selectedBundleIndex]) {
@@ -1188,6 +1293,113 @@ export default function SocialAdsDashboard() {
   }
 
   const activeBundle = bundles[selectedBundleIndex] || null;
+
+  const adContextText = activeBundle
+    ? [
+        activeBundle.headline,
+        activeBundle.bodyCopy,
+        activeBundle.hook,
+        ...(activeBundle.headlines || []),
+        ...(activeBundle.descriptions || [])
+      ].filter(Boolean).join('\n')
+    : '';
+
+  const handleRefineMedia = (url: string) => {
+    const currentMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
+    const updated = [...bundles];
+    if (updated[selectedBundleIndex]) {
+      let updatedMedias = [...currentMedias];
+      if (updatedMedias.length > 0) {
+        updatedMedias[activeMediaIndex] = url;
+      } else {
+        updatedMedias = [url];
+      }
+      updated[selectedBundleIndex] = {
+        ...updated[selectedBundleIndex],
+        boundMedias: updatedMedias,
+        boundMedia: updatedMedias[0]
+      };
+      setBundles(updated);
+      showToast('Mockup media updated with AI refined creative.', 'success');
+    }
+  };
+
+  const handleBatchUploadRatioImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setIsBatchUploading(true);
+    setBatchUploadStatus('Reading file dimensions...');
+    
+    try {
+      const updated = [...bundles];
+      const bundle = updated[selectedBundleIndex];
+      if (!bundle) throw new Error('No campaign selected.');
+      
+      const currentRatios = bundle.boundMediasByRatio || {};
+      const variationRatios = { ...(currentRatios[activeMediaIndex] || {}) };
+      
+      const uploadPromises = Array.from(files).map((file) => {
+        return new Promise<void>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = async () => {
+              const width = img.naturalWidth;
+              const height = img.naturalHeight;
+              const ratio = height / width;
+              
+              let detectedRatioKey: 'feed_4_5' | 'story_9_16' | 'square_1_1' = 'square_1_1';
+              if (ratio >= 1.4) {
+                detectedRatioKey = 'story_9_16';
+              } else if (ratio >= 1.15) {
+                detectedRatioKey = 'feed_4_5';
+              } else {
+                detectedRatioKey = 'square_1_1';
+              }
+              
+              try {
+                setBatchUploadStatus(`Uploading ${file.name} as ${detectedRatioKey.replace('_', ' ')}...`);
+                const url = await uploadFile(file, 'library');
+                variationRatios[detectedRatioKey] = url;
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            };
+            img.onerror = () => reject(new Error('Failed to load image file dimensions.'));
+            img.src = event.target?.result as string;
+          };
+          reader.onerror = () => reject(new Error('Failed to read file.'));
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      await Promise.all(uploadPromises);
+      
+      bundle.boundMediasByRatio = {
+        ...currentRatios,
+        [activeMediaIndex]: variationRatios
+      };
+      
+      const primaryUrl = variationRatios.square_1_1 || variationRatios.feed_4_5 || variationRatios.story_9_16;
+      if (primaryUrl && (!bundle.boundMedias || bundle.boundMedias.length === 0)) {
+        bundle.boundMedias = [primaryUrl];
+        bundle.boundMedia = primaryUrl;
+      }
+      
+      setBundles(updated);
+      showToast('Batch aspect ratio images uploaded and assigned successfully!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Batch upload failed.', 'error');
+    } finally {
+      setIsBatchUploading(false);
+      setBatchUploadStatus('');
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const displayLocation = targetLocation || 'Destin, FL';
   const displayCity = displayLocation.split(',')[0].trim();
 
@@ -1949,6 +2161,92 @@ export default function SocialAdsDashboard() {
                         💡 {activeBundle.rationale}
                       </p>
 
+                      {/* AI Copy Refinement Panel */}
+                      <div style={{
+                        background: 'rgba(217, 119, 6, 0.03)',
+                        border: '1px dashed rgba(217, 119, 6, 0.25)',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Sparkles size={16} color="#d97706" />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#F4F1EA', letterSpacing: '0.02em' }}>
+                            Refine or Refresh this Ad with AI
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.85, lineHeight: 1.4 }}>
+                          Provide feedback to rewrite/tweak this specific ad (e.g. "make it more energetic", "focus on private dining options"), or click Refresh to regenerate a new copy angle.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <input 
+                            type="text"
+                            placeholder="Add comments or instructions for AI..."
+                            value={refineInstruction}
+                            onChange={(e) => setRefineInstruction(e.target.value)}
+                            disabled={isRefining}
+                            style={{
+                              flex: 1,
+                              background: '#121416',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: '4px',
+                              padding: '0.5rem',
+                              color: '#F4F1EA',
+                              fontSize: '0.8rem',
+                              outline: 'none'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleRefineAd}
+                            disabled={isRefining || !refineInstruction.trim()}
+                            style={{
+                              background: refineInstruction.trim() ? '#d97706' : 'rgba(255,255,255,0.05)',
+                              color: refineInstruction.trim() ? 'white' : 'rgba(255,255,255,0.3)',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '0.5rem 1rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: refineInstruction.trim() ? 'pointer' : 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {isRefining ? <span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /> : <Sparkles size={12} />}
+                            Refine
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRefineAdImmediate('Regenerate a completely new variation of this ad with a fresh creative hook.');
+                            }}
+                            disabled={isRefining}
+                            style={{
+                              background: 'rgba(255,255,255,0.05)',
+                              color: '#D8C7AF',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: '4px',
+                              padding: '0.5rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <RefreshCw size={12} />
+                            Refresh
+                          </button>
+                        </div>
+                      </div>
+
                       {/* META Platform Input Editor */}
                       {platform === 'meta' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.2s ease' }}>
@@ -2157,51 +2455,186 @@ export default function SocialAdsDashboard() {
                                   <span style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600 }}>
                                     Bind Campaign Media Assets ({boundMedias.length}/3)
                                   </span>
-                                  {boundMedias.length < 3 && (
+                                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                    {boundMedias.length < 3 && (
+                                      <button 
+                                        onClick={() => setIsMediaModalOpen(true)}
+                                        style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', color: '#B9783B', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}
+                                      >
+                                        <Plus size={12} /> Add Asset
+                                      </button>
+                                    )}
                                     <button 
-                                      onClick={() => setIsMediaModalOpen(true)}
-                                      style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', color: '#B9783B', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        setImageEditorCurrentUrl(boundMedias[activeMediaIndex] || undefined);
+                                        setIsImageEditorOpen(true);
+                                      }}
+                                      style={{ background: '#d97706', border: 'none', color: 'white', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}
                                     >
-                                      <Plus size={12} /> Add Asset
+                                      <Sparkles size={12} /> AI Image Studio
                                     </button>
-                                  )}
+                                    <button 
+                                      onClick={() => {
+                                        setIsVideoBuilderOpen(true);
+                                      }}
+                                      style={{ background: '#7e22ce', border: 'none', color: 'white', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}
+                                    >
+                                      <Video size={12} /> AI Video Studio
+                                    </button>
+                                  </div>
                                 </div>
                                 
                                 {boundMedias.length > 0 ? (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {boundMedias.map((mediaUrl, idx) => (
-                                      <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#121416', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)', minWidth: 0 }}>
-                                        <img src={mediaUrl} alt={`Selected Asset ${idx + 1}`} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px' }} />
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                          <div style={{ fontSize: '0.72rem', color: 'white', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCleanFileName(mediaUrl)}</div>
-                                          <span style={{ fontSize: '0.65rem', color: '#708C84' }}>Variation {idx + 1}</span>
-                                        </div>
-                                        <button 
-                                          onClick={() => {
-                                            const updatedMedias = boundMedias.filter((_, i) => i !== idx);
-                                            const updated = [...bundles];
-                                            if (updated[selectedBundleIndex]) {
-                                              updated[selectedBundleIndex] = {
-                                                ...updated[selectedBundleIndex],
-                                                boundMedias: updatedMedias,
-                                                boundMedia: updatedMedias[0] || undefined
-                                              };
-                                              setBundles(updated);
-                                              if (activeMediaIndex >= updatedMedias.length) {
-                                                setActiveMediaIndex(Math.max(0, updatedMedias.length - 1));
-                                              }
-                                              showToast(`Media variation ${idx + 1} removed.`, 'info');
-                                            }
+                                    {boundMedias.map((mediaUrl, idx) => {
+                                      const isActive = activeMediaIndex === idx;
+                                      return (
+                                        <div 
+                                          key={idx} 
+                                          onClick={() => setActiveMediaIndex(idx)}
+                                          style={{ 
+                                            display: 'flex', gap: '0.75rem', alignItems: 'center', 
+                                            background: isActive ? 'rgba(185, 120, 59, 0.08)' : '#121416', 
+                                            padding: '0.5rem', borderRadius: '6px', 
+                                            border: isActive ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.04)', 
+                                            minWidth: 0, cursor: 'pointer', transition: 'all 0.2s'
                                           }}
-                                          style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: '0.25rem' }}
                                         >
-                                          <Trash2 size={14} />
-                                        </button>
-                                      </div>
-                                    ))}
+                                          <img src={mediaUrl} alt={`Selected Asset ${idx + 1}`} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px' }} />
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.72rem', color: isActive ? '#B9783B' : 'white', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCleanFileName(mediaUrl)}</div>
+                                            <span style={{ fontSize: '0.65rem', color: '#708C84' }}>Variation {idx + 1} {isActive ? '(Active)' : ''}</span>
+                                          </div>
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const updatedMedias = boundMedias.filter((_, i) => i !== idx);
+                                              const updated = [...bundles];
+                                              if (updated[selectedBundleIndex]) {
+                                                // Clear this variation's aspect ratio overrides as well
+                                                const currentRatios = updated[selectedBundleIndex].boundMediasByRatio || {};
+                                                const newRatios = { ...currentRatios };
+                                                delete newRatios[idx];
+                                                
+                                                updated[selectedBundleIndex] = {
+                                                  ...updated[selectedBundleIndex],
+                                                  boundMedias: updatedMedias,
+                                                  boundMedia: updatedMedias[0] || undefined,
+                                                  boundMediasByRatio: newRatios
+                                                };
+                                                setBundles(updated);
+                                                if (activeMediaIndex >= updatedMedias.length) {
+                                                  setActiveMediaIndex(Math.max(0, updatedMedias.length - 1));
+                                                }
+                                                showToast(`Media variation ${idx + 1} removed.`, 'info');
+                                              }
+                                            }}
+                                            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: '0.25rem' }}
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <span style={{ fontSize: '0.7rem', color: '#D8C7AF', opacity: 0.6 }}>No media bound. Default yacht placeholders will be shown in mockups.</span>
+                                )}
+
+                                {/* Aspect Ratio Specific Overrides & Batch Uploader */}
+                                {boundMedias.length > 0 && (
+                                  <div style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                                    <div style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
+                                      Variation {activeMediaIndex + 1} Aspect Ratios
+                                    </div>
+                                    
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                      {(['feed_4_5', 'story_9_16', 'square_1_1'] as const).map((ratioKey) => {
+                                        const label = ratioKey === 'feed_4_5' ? 'Feed (4:5)' : ratioKey === 'story_9_16' ? 'Story (9:16)' : 'Square (1:1)';
+                                        const dimensions = ratioKey === 'feed_4_5' ? '1080×1350' : ratioKey === 'story_9_16' ? '1080×1920' : '1080×1080';
+                                        const url = activeBundle.boundMediasByRatio?.[activeMediaIndex]?.[ratioKey];
+                                        
+                                        return (
+                                          <div key={ratioKey} style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '0.4rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: 0 }}>
+                                            <span style={{ fontSize: '0.62rem', color: '#D8C7AF', fontWeight: 'bold' }}>{label}</span>
+                                            <span style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.3rem' }}>{dimensions}</span>
+                                            
+                                            {url ? (
+                                              <div style={{ position: 'relative', width: '100%', height: '42px', borderRadius: '4px', overflow: 'hidden', background: '#08080a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <img src={url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                <button 
+                                                  onClick={() => {
+                                                    const updated = [...bundles];
+                                                    if (updated[selectedBundleIndex]) {
+                                                      const currentRatios = updated[selectedBundleIndex].boundMediasByRatio || {};
+                                                      const variationRatios = { ...(currentRatios[activeMediaIndex] || {}) };
+                                                      delete variationRatios[ratioKey];
+                                                      
+                                                      updated[selectedBundleIndex] = {
+                                                        ...updated[selectedBundleIndex],
+                                                        boundMediasByRatio: {
+                                                          ...currentRatios,
+                                                          [activeMediaIndex]: variationRatios
+                                                        }
+                                                      };
+                                                      setBundles(updated);
+                                                      showToast(`${label} ratio cleared.`, 'info');
+                                                    }
+                                                  }}
+                                                  style={{ position: 'absolute', top: '0.1rem', right: '0.1rem', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', color: '#ef4444', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                                                >
+                                                  <X size={10} />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button 
+                                                onClick={() => {
+                                                  setActiveRatioSlotTarget({ variationIndex: activeMediaIndex, ratioKey });
+                                                  setIsMediaModalOpen(true);
+                                                }}
+                                                style={{ width: '100%', background: '#1E2124', border: '1px dashed rgba(255,255,255,0.1)', color: '#B9783B', borderRadius: '4px', padding: '0.35rem 0', fontSize: '0.62rem', fontWeight: 600, cursor: 'pointer' }}
+                                                onMouseOver={e => e.currentTarget.style.borderColor = '#B9783B'}
+                                                onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                                              >
+                                                Select Image
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Batch Uploader drag/drop helper */}
+                                    <div style={{ position: 'relative' }}>
+                                      <label style={{
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        background: '#121416', border: '1px dashed rgba(185, 120, 59, 0.3)', borderRadius: '6px',
+                                        padding: '0.6rem 1rem', cursor: isBatchUploading ? 'default' : 'pointer', transition: 'all 0.2s',
+                                        opacity: isBatchUploading ? 0.7 : 1
+                                      }}>
+                                        {isBatchUploading ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#B9783B' }}>
+                                            <RefreshCw size={12} className="animate-spin" />
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>{batchUploadStatus}</span>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <UploadCloud size={14} color="#B9783B" style={{ marginBottom: '0.2rem' }} />
+                                            <span style={{ fontSize: '0.68rem', color: '#D8C7AF', fontWeight: 600 }}>Batch Upload Aspect Ratios</span>
+                                            <span style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.1rem' }}>Auto-detects Feed, Story, or Square sizes</span>
+                                          </>
+                                        )}
+                                        <input 
+                                          type="file" 
+                                          multiple 
+                                          accept="image/*"
+                                          disabled={isBatchUploading}
+                                          onChange={handleBatchUploadRatioImages} 
+                                          style={{ display: 'none' }} 
+                                        />
+                                      </label>
+                                    </div>
+                                  </div>
                                 )}
                               </>
                             );
@@ -2254,6 +2687,11 @@ export default function SocialAdsDashboard() {
                                   activeMediaIndex={activeMediaIndex}
                                   setActiveMediaIndex={setActiveMediaIndex}
                                   height="180px"
+                                  contextText={adContextText}
+                                  campaignName={activeBundle.conceptName}
+                                  onSave={handleRefineMedia}
+                                  boundMediasByRatio={activeBundle.boundMediasByRatio}
+                                  ratioMode="feed_4_5"
                                 />
                                 <div style={{ background: '#f0f2f5', padding: '0.6rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
@@ -2273,6 +2711,11 @@ export default function SocialAdsDashboard() {
                                 activeMediaIndex={activeMediaIndex}
                                 setActiveMediaIndex={setActiveMediaIndex}
                                 height="100%"
+                                contextText={adContextText}
+                                campaignName={activeBundle.conceptName}
+                                onSave={handleRefineMedia}
+                                boundMediasByRatio={activeBundle.boundMediasByRatio}
+                                ratioMode="story_9_16"
                               />
                               <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', gap: '0.4rem', alignItems: 'center', zIndex: 10 }}>
                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#B9783B', border: '1px solid white' }} />
@@ -2351,6 +2794,11 @@ export default function SocialAdsDashboard() {
                                 activeMediaIndex={activeMediaIndex}
                                 setActiveMediaIndex={setActiveMediaIndex}
                                 height="110px"
+                                contextText={adContextText}
+                                campaignName={activeBundle.conceptName}
+                                onSave={handleRefineMedia}
+                                boundMediasByRatio={activeBundle.boundMediasByRatio}
+                                ratioMode="square_1_1"
                               />
                               <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -2378,6 +2826,11 @@ export default function SocialAdsDashboard() {
                                 activeMediaIndex={activeMediaIndex}
                                 setActiveMediaIndex={setActiveMediaIndex}
                                 height="100%"
+                                contextText={adContextText}
+                                campaignName={activeBundle.conceptName}
+                                onSave={handleRefineMedia}
+                                boundMediasByRatio={activeBundle.boundMediasByRatio}
+                                ratioMode="feed_4_5"
                               />
                               
                               {/* Bottom overlay ad details */}
@@ -2901,6 +3354,30 @@ export default function SocialAdsDashboard() {
         isOpen={isMediaModalOpen}
         onClose={() => setIsMediaModalOpen(false)}
         onSelect={(url) => {
+          if (activeRatioSlotTarget) {
+            const { variationIndex, ratioKey } = activeRatioSlotTarget;
+            const updated = [...bundles];
+            if (updated[selectedBundleIndex]) {
+              const currentRatios = updated[selectedBundleIndex].boundMediasByRatio || {};
+              const variationRatios = currentRatios[variationIndex] || {};
+              
+              updated[selectedBundleIndex] = {
+                ...updated[selectedBundleIndex],
+                boundMediasByRatio: {
+                  ...currentRatios,
+                  [variationIndex]: {
+                    ...variationRatios,
+                    [ratioKey]: url
+                  }
+                }
+              };
+              setBundles(updated);
+              showToast(`Asset bound to Variation ${variationIndex + 1} ${ratioKey.replace('_', ' ')} slot.`, 'success');
+            }
+            setActiveRatioSlotTarget(null);
+            setIsMediaModalOpen(false);
+            return;
+          }
           const currentMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
           if (currentMedias.length >= 3) {
             showToast('You can bind a maximum of 3 media assets per bundle.', 'error');
@@ -2921,6 +3398,109 @@ export default function SocialAdsDashboard() {
           showToast(`Media variation ${updatedMedias.length} bound to ad concept mockup.`, 'success');
         }}
       />
+
+      {/* Vertex AI Imagen 3 Sandbox Modal */}
+      {isImageEditorOpen && activeBundle && (
+        <AIImageEditor
+          currentImageUrl={imageEditorCurrentUrl}
+          contextText={adContextText}
+          onClose={() => {
+            setIsImageEditorOpen(false);
+            setImageEditorCurrentUrl(undefined);
+          }}
+          onSelectImage={(url) => {
+            // Auto-detect ratio of the AI generated image and assign to the correct slot
+            const img = new Image();
+            img.onload = () => {
+              const width = img.naturalWidth;
+              const height = img.naturalHeight;
+              const ratio = height / width;
+              
+              let ratioKey: 'feed_4_5' | 'story_9_16' | 'square_1_1' = 'square_1_1';
+              if (ratio >= 1.4) {
+                ratioKey = 'story_9_16';
+              } else if (ratio >= 1.15) {
+                ratioKey = 'feed_4_5';
+              }
+              
+              const updated = [...bundles];
+              if (updated[selectedBundleIndex]) {
+                const currentRatios = updated[selectedBundleIndex].boundMediasByRatio || {};
+                const variationRatios = { ...(currentRatios[activeMediaIndex] || {}) };
+                variationRatios[ratioKey] = url;
+                
+                updated[selectedBundleIndex] = {
+                  ...updated[selectedBundleIndex],
+                  boundMediasByRatio: {
+                    ...currentRatios,
+                    [activeMediaIndex]: variationRatios
+                  }
+                };
+                setBundles(updated);
+              }
+            };
+            img.src = url;
+
+            const currentMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
+            const updated = [...bundles];
+            if (updated[selectedBundleIndex]) {
+              let updatedMedias = [...currentMedias];
+              if (currentMedias.length >= 3) {
+                // Replace current variation
+                updatedMedias[activeMediaIndex] = url;
+                showToast('Current media variation replaced with AI creative.', 'success');
+              } else {
+                // Append as new variation
+                updatedMedias = [...currentMedias, url];
+                setActiveMediaIndex(updatedMedias.length - 1);
+                showToast('New AI creative bound to campaign.', 'success');
+              }
+              updated[selectedBundleIndex] = {
+                ...updated[selectedBundleIndex],
+                boundMedias: updatedMedias,
+                boundMedia: updatedMedias[0]
+              };
+              setBundles(updated);
+            }
+            setIsImageEditorOpen(false);
+            setImageEditorCurrentUrl(undefined);
+          }}
+        />
+      )}
+
+      {/* Vertex AI Video Studio Modal */}
+      {isVideoBuilderOpen && activeBundle && (
+        <AIVideoBuilder
+          initialCampaignName={activeBundle.conceptName}
+          contextText={adContextText}
+          onClose={() => {
+            setIsVideoBuilderOpen(false);
+          }}
+          onSelectVideo={(url) => {
+            const currentMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
+            const updated = [...bundles];
+            if (updated[selectedBundleIndex]) {
+              let updatedMedias = [...currentMedias];
+              if (currentMedias.length >= 3) {
+                // Replace current variation
+                updatedMedias[activeMediaIndex] = url;
+                showToast('Current media variation replaced with AI ad video.', 'success');
+              } else {
+                // Append as new variation
+                updatedMedias = [...currentMedias, url];
+                setActiveMediaIndex(updatedMedias.length - 1);
+                showToast('New AI ad video bound to campaign.', 'success');
+              }
+              updated[selectedBundleIndex] = {
+                ...updated[selectedBundleIndex],
+                boundMedias: updatedMedias,
+                boundMedia: updatedMedias[0]
+              };
+              setBundles(updated);
+            }
+          }}
+        />
+      )}
 
 
 

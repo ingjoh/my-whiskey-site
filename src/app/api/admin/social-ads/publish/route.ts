@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       conceptName,
       message,
       mediaUrls = [],
+      ratioImages = null,
       publishTo,
       dailyBudget,
       durationDays,
@@ -99,6 +100,9 @@ export async function POST(request: NextRequest) {
         console.log(`Concept:   ${conceptName || 'N/A'}`);
         console.log(`Message:   ${message}`);
         console.log(`Media:     ${mediaUrls.length > 0 ? mediaUrls.join(', ') : 'None (Text-only)'}`);
+        if (ratioImages) {
+          console.log(`Ratio Media: ${JSON.stringify(ratioImages)}`);
+        }
         console.log(`Target:    Facebook Page (${fbPageId || 'simulated_page_id'})`);
         console.log('------------------------------------------------------------\n');
         
@@ -125,6 +129,9 @@ export async function POST(request: NextRequest) {
         console.log(`  - Headlines:     ${headlines.join(' | ') || 'N/A'}`);
         console.log(`  - Descriptions:  ${descriptions.join(' | ') || 'N/A'}`);
         console.log(`  - Media URLs:    ${mediaUrls.join(', ') || 'None'}`);
+        if (ratioImages) {
+          console.log(`  - Ratio Medias:  ${JSON.stringify(ratioImages)}`);
+        }
         console.log(`Ad Account:      act_${metaAdAccountId || 'simulated_account_id'}`);
         console.log('----------------------------------------------------\n');
 
@@ -167,6 +174,9 @@ export async function POST(request: NextRequest) {
         console.log(`  - Descriptions:    ${descriptions.join(' | ') || 'N/A'}`);
         console.log(`  - Long Headlines:  ${longHeadlines.join(' | ') || 'N/A'}`);
         console.log(`  - Media URLs:      ${mediaUrls.join(', ') || 'None'}`);
+        if (ratioImages) {
+          console.log(`  - Ratio Medias:    ${JSON.stringify(ratioImages)}`);
+        }
         console.log(`Customer ID:     ${googleCustomerId || 'simulated_customer_id'}`);
         console.log('----------------------------------------------------------\n');
 
@@ -181,7 +191,7 @@ export async function POST(request: NextRequest) {
     // Execute Real API Publish
     if (publishTo === 'facebook') {
       let response: Response;
-      const mediaUrl = mediaUrls[0]; // Take first bound image if exists
+      const finalMediaUrl = ratioImages?.feed_4_5 || ratioImages?.square_1_1 || ratioImages?.story_9_16 || mediaUrls[0];
 
       // Resolve Page Access Token from the System User token to avoid publish_actions deprecation
       let pageAccessToken = fbPageToken;
@@ -200,13 +210,13 @@ export async function POST(request: NextRequest) {
         console.error('[Facebook Graph API] Exception resolving Page Access Token:', tokenErr);
       }
 
-      if (mediaUrl) {
+      if (finalMediaUrl) {
         const url = `https://graph.facebook.com/v20.0/${fbPageId}/photos`;
         response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            url: mediaUrl,
+            url: finalMediaUrl,
             message: message,
             access_token: pageAccessToken
           })
@@ -315,23 +325,64 @@ export async function POST(request: NextRequest) {
 
       // 3. Upload/Get Image Hash
       let imageHash = '';
-      if (mediaUrls[0]) {
-        const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: mediaUrls[0],
-            access_token: metaDeveloperToken
-          })
-        });
-        const imageJson = await imageRes.json();
-        if (imageRes.ok && imageJson.images) {
-          const keys = Object.keys(imageJson.images);
-          if (keys.length > 0) {
-            imageHash = imageJson.images[keys[0]].hash;
+      const hashesByRatio: { feed_4_5?: string; story_9_16?: string; square_1_1?: string } = {};
+
+      if (ratioImages && typeof ratioImages === 'object') {
+        const uploadPromises = Object.entries(ratioImages).map(async ([ratioKey, url]) => {
+          if (!url || typeof url !== 'string') return;
+          try {
+            console.log(`[Meta Ads API] Uploading ratio image for key: ${ratioKey}, url: ${url}`);
+            const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url,
+                access_token: metaDeveloperToken
+              })
+            });
+            const imageJson = await imageRes.json();
+            if (imageRes.ok && imageJson.images) {
+              const keys = Object.keys(imageJson.images);
+              if (keys.length > 0) {
+                const hash = imageJson.images[keys[0]].hash;
+                hashesByRatio[ratioKey as 'feed_4_5' | 'story_9_16' | 'square_1_1'] = hash;
+                console.log(`[Meta Ads API] Successfully uploaded ${ratioKey} image hash: ${hash}`);
+              }
+            } else {
+              console.error(`[Meta Ads API] Failed to upload ${ratioKey} image to Meta:`, JSON.stringify(imageJson));
+            }
+          } catch (err) {
+            console.error(`[Meta Ads API] Error uploading ratio image ${ratioKey} to Meta:`, err);
           }
+        });
+        await Promise.all(uploadPromises);
+      }
+
+      // If we don't have ratio images, or if they failed, upload the default media URL
+      if (mediaUrls[0] && Object.keys(hashesByRatio).length === 0) {
+        try {
+          const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: mediaUrls[0],
+              access_token: metaDeveloperToken
+            })
+          });
+          const imageJson = await imageRes.json();
+          if (imageRes.ok && imageJson.images) {
+            const keys = Object.keys(imageJson.images);
+            if (keys.length > 0) {
+              imageHash = imageJson.images[keys[0]].hash;
+            }
+          }
+        } catch (err) {
+          console.error('[Meta Ads API] Error uploading default image to Meta:', err);
         }
       }
+
+      // Resolve the default base image hash to use inside object_story_spec.link_data
+      const baseImageHash = hashesByRatio.feed_4_5 || hashesByRatio.square_1_1 || hashesByRatio.story_9_16 || imageHash;
 
       // 4. Create Ad Creative
       const creativeName = `${conceptName || 'Campaign'} - Creative`;
@@ -347,10 +398,35 @@ export async function POST(request: NextRequest) {
           }
         }
       };
-      if (imageHash) {
-        creativeBody.object_story_spec.link_data.image_hash = imageHash;
+
+      if (baseImageHash) {
+        creativeBody.object_story_spec.link_data.image_hash = baseImageHash;
       } else if (mediaUrls[0]) {
         creativeBody.object_story_spec.link_data.picture = mediaUrls[0];
+      }
+
+      // Add platform_customizations if story_9_16 or feed_4_5 is available
+      if (hashesByRatio.story_9_16 || hashesByRatio.feed_4_5) {
+        const platformCustomizations: any = {};
+        
+        if (hashesByRatio.story_9_16) {
+          platformCustomizations.instagram = {
+            image_hash: hashesByRatio.story_9_16
+          };
+          platformCustomizations.audience_network = {
+            image_hash: hashesByRatio.story_9_16
+          };
+        }
+        
+        if (hashesByRatio.feed_4_5) {
+          platformCustomizations.facebook = {
+            image_hash: hashesByRatio.feed_4_5
+          };
+        }
+        
+        if (Object.keys(platformCustomizations).length > 0) {
+          creativeBody.platform_customizations = platformCustomizations;
+        }
       }
 
       const creativeRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adcreatives`, {

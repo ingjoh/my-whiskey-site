@@ -5,7 +5,7 @@ import { SmartLink } from '@/components/SmartLink';
 import { usePathname } from 'next/navigation';
 import { Anchor, X, ChevronDown, ExternalLink, Menu } from 'lucide-react';
 import { ThemeConfig } from '@/store/useBuilderStore';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSiteSettings } from '@/components/SiteSettingsProvider';
 import WeatherWidget from './WeatherWidget';
 import { getContentItems, getContentTypeConfigs } from '@/lib/db';
@@ -19,15 +19,24 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const logoText = theme?.header?.logoText || settings?.general?.siteName || 'M/Y Whiskey';
-  const links = settings?.navigation?.links || theme?.header?.links || [
+  const defaultLinks = useMemo(() => [
     { label: 'Home', url: '/' },
     { label: 'The Fleet', url: '/fleet' },
     { label: 'Contact Us', url: '/contact' }
-  ];
+  ], []);
+
+  const links = settings?.navigation?.links || theme?.header?.links || defaultLinks;
 
   const [dynamicLinks, setDynamicLinks] = useState<any[]>(links);
+  const lastLinksStrRef = useRef<string>('');
 
   useEffect(() => {
+    const currentLinksStr = JSON.stringify(links);
+    if (lastLinksStrRef.current === currentLinksStr) {
+      return;
+    }
+    lastLinksStrRef.current = currentLinksStr;
+
     let isMounted = true;
     async function loadDynamic() {
       try {
@@ -70,7 +79,9 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
           };
         });
 
-        setDynamicLinks(updatedLinks);
+        if (isMounted) {
+          setDynamicLinks(updatedLinks);
+        }
       } catch (err) {
         console.error('Error fetching dynamic sublinks:', err);
       }

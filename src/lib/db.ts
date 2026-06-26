@@ -62,6 +62,7 @@ function parseFirestoreFields(fields: any): any {
 }
 
 export interface SiteSettings {
+  theme?: ThemeConfig;
   general: {
     siteName: string;
     faviconUrl?: string;
@@ -72,6 +73,7 @@ export interface SiteSettings {
     faviconUrl?: string;
     logoRectUrl?: string;
     logoSquareUrl?: string;
+    brandSystemPrompt?: string;
   };
   seo: {
     defaultTitle: string;
@@ -120,10 +122,10 @@ export async function savePageData(
   updateGlobalHeaderFooter: boolean = false
 ) {
   try {
+    // 1. Save page-specific data (nodes, title, updatedAt) to the page collection
     const pageRef = doc(db, PAGE_COLLECTION, route);
     const dataToSave: any = {
       nodes,
-      theme,
       updatedAt: new Date().toISOString(),
     };
     if (title !== undefined) {
@@ -131,19 +133,12 @@ export async function savePageData(
     }
     await setDoc(pageRef, dataToSave, { merge: true });
 
-    if (updateGlobalHeaderFooter && route !== 'home') {
-      try {
-        const homeRef = doc(db, PAGE_COLLECTION, 'home');
-        await setDoc(homeRef, {
-          theme: {
-            header: theme.header || null,
-            footer: theme.footer || null,
-          }
-        }, { merge: true });
-      } catch (homeError) {
-        console.error('Error updating home page header/footer config:', homeError);
-      }
-    }
+    // 2. Save theme site-wide in settings/global
+    const settingsRef = doc(db, SETTINGS_COLLECTION, 'global');
+    await setDoc(settingsRef, {
+      theme: theme,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
 
     return true;
   } catch (error) {
@@ -431,18 +426,34 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
         next: { revalidate: 0 } // bypass fetch caching to load fresh edits
       });
 
+      // Load global theme
+      let globalTheme: ThemeConfig | null = null;
+      try {
+        const settingsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${SETTINGS_COLLECTION}/global`;
+        const settingsResponse = await fetch(settingsUrl, { next: { revalidate: 0 } });
+        if (settingsResponse.ok) {
+          const settingsJson = await settingsResponse.json();
+          const settingsFields = parseFirestoreFields(settingsJson.fields);
+          if (settingsFields.theme) {
+            globalTheme = settingsFields.theme as ThemeConfig;
+          }
+        }
+      } catch (themeError) {
+        console.error('Error loading global theme in REST loadPageData:', themeError);
+      }
+
       if (response.status === 404) {
         if (route === 'terms') {
           return {
             nodes: DEFAULT_TERMS_PAGE.nodes as Record<string, PageNode>,
-            theme: DEFAULT_TERMS_PAGE.theme as ThemeConfig,
+            theme: globalTheme || DEFAULT_TERMS_PAGE.theme as ThemeConfig,
             title: DEFAULT_TERMS_PAGE.title
           };
         }
         if (route === 'insurance') {
           return {
             nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
-            theme: DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
+            theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
             title: DEFAULT_INSURANCE_PAGE.title
           };
         }
@@ -454,7 +465,7 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
         const fields = parseFirestoreFields(json.fields);
         return {
           nodes: fields.nodes as Record<string, PageNode>,
-          theme: fields.theme as ThemeConfig,
+          theme: globalTheme || fields.theme as ThemeConfig,
           title: fields.title as string | undefined
         };
       }
@@ -470,25 +481,40 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
     const pageRef = doc(db, PAGE_COLLECTION, route);
     const docSnap = await getDoc(pageRef);
 
+    // Load global theme via SDK
+    let globalTheme: ThemeConfig | null = null;
+    try {
+      const settingsRef = doc(db, SETTINGS_COLLECTION, 'global');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        if (settingsData.theme) {
+          globalTheme = settingsData.theme as ThemeConfig;
+        }
+      }
+    } catch (themeError) {
+      console.error('Error loading global theme in SDK loadPageData:', themeError);
+    }
+
     if (docSnap.exists()) {
       const data = docSnap.data();
       return { 
         nodes: data.nodes as Record<string, PageNode>, 
-        theme: data.theme as ThemeConfig,
+        theme: globalTheme || data.theme as ThemeConfig,
         title: data.title as string | undefined
       };
     } else {
       if (route === 'terms') {
         return {
           nodes: DEFAULT_TERMS_PAGE.nodes as Record<string, PageNode>,
-          theme: DEFAULT_TERMS_PAGE.theme as ThemeConfig,
+          theme: globalTheme || DEFAULT_TERMS_PAGE.theme as ThemeConfig,
           title: DEFAULT_TERMS_PAGE.title
         };
       }
       if (route === 'insurance') {
         return {
           nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
-          theme: DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
+          theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
           title: DEFAULT_INSURANCE_PAGE.title
         };
       }
@@ -496,17 +522,30 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
     }
   } catch (error) {
     console.error('Error loading page data:', error);
+    // Fallback logic
+    let globalTheme: ThemeConfig | null = null;
+    try {
+      const settingsRef = doc(db, SETTINGS_COLLECTION, 'global');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        if (settingsData.theme) {
+          globalTheme = settingsData.theme as ThemeConfig;
+        }
+      }
+    } catch (e) {}
+
     if (route === 'terms') {
       return {
         nodes: DEFAULT_TERMS_PAGE.nodes as Record<string, PageNode>,
-        theme: DEFAULT_TERMS_PAGE.theme as ThemeConfig,
+        theme: globalTheme || DEFAULT_TERMS_PAGE.theme as ThemeConfig,
         title: DEFAULT_TERMS_PAGE.title
       };
     }
     if (route === 'insurance') {
       return {
         nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
-        theme: DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
+        theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
         title: DEFAULT_INSURANCE_PAGE.title
       };
     }
@@ -826,6 +865,37 @@ export interface ContentTypeConfig {
   isEnabled: boolean;
   isPublic?: boolean; // if false, public page catcher returns 404
   updatedAt?: string;
+}
+export interface UsageRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: 'ai_text' | 'ai_image' | 'ai_video' | 'email' | 'sms';
+  provider: 'gemini' | 'vertex_ai' | 'resend' | 'telnyx';
+  units: number;
+  costEst: number;
+  timestamp: string;
+}
+
+export interface BlogPost {
+  id: string; // Document ID / Slug
+  slug: string;
+  title: string;
+  summary: string;
+  content: string; // Markdown format
+  status: 'draft' | 'scheduled' | 'published';
+  publishDate: string; // YYYY-MM-DD
+  publishTime?: string; // HH:MM
+  heroImage?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  authorName?: string;
+}
+
+export interface BlogSettings {
+  globalTheme: 'dark' | 'light';
+  updatedAt: string;
 }
 
 export interface ContentItem {
@@ -3586,6 +3656,109 @@ export async function deleteCalendarEvent(id: string): Promise<boolean> {
     return false;
   }
 }
+
+// ==========================================
+// BLOG MODULE DATABASE HELPERS
+// ==========================================
+
+export async function getBlogPosts(status?: 'draft' | 'scheduled' | 'published'): Promise<BlogPost[]> {
+  try {
+    const blogCol = collection(db, 'blog_posts');
+    const q = query(blogCol, orderBy('publishDate', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const posts: BlogPost[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const post = {
+        ...data,
+        id: docSnap.id
+      } as BlogPost;
+      if (!status || post.status === status) {
+        posts.push(post);
+      }
+    });
+    return posts;
+  } catch (error) {
+    console.error('Error loading blog posts:', error);
+    return [];
+  }
+}
+
+export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+  try {
+    const postRef = doc(db, 'blog_posts', slug);
+    const docSnap = await getDoc(postRef);
+    if (docSnap.exists()) {
+      return {
+        ...docSnap.data(),
+        id: docSnap.id
+      } as BlogPost;
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error loading blog post by slug (${slug}):`, error);
+    return null;
+  }
+}
+
+export async function saveBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Promise<string> {
+  try {
+    const id = post.id || post.slug;
+    const postRef = doc(db, 'blog_posts', id);
+    const now = new Date().toISOString();
+    const saveData = {
+      ...post,
+      id,
+      createdAt: post.createdAt || now,
+      updatedAt: now
+    };
+    await setDoc(postRef, saveData, { merge: true });
+    return id;
+  } catch (error) {
+    console.error('Error saving blog post:', error);
+    throw error;
+  }
+}
+
+export async function deleteBlogPost(id: string): Promise<boolean> {
+  try {
+    const postRef = doc(db, 'blog_posts', id);
+    await deleteDoc(postRef);
+    return true;
+  } catch (error) {
+    console.error('Error deleting blog post:', error);
+    return false;
+  }
+}
+
+export async function getBlogSettings(): Promise<BlogSettings> {
+  try {
+    const settingsRef = doc(db, 'settings', 'blog');
+    const docSnap = await getDoc(settingsRef);
+    if (docSnap.exists()) {
+      return docSnap.data() as BlogSettings;
+    }
+    return { globalTheme: 'dark', updatedAt: new Date().toISOString() };
+  } catch (error) {
+    console.error('Error loading blog settings:', error);
+    return { globalTheme: 'dark', updatedAt: new Date().toISOString() };
+  }
+}
+
+export async function saveBlogSettings(settings: Omit<BlogSettings, 'updatedAt'> & { updatedAt?: string }): Promise<boolean> {
+  try {
+    const settingsRef = doc(db, 'settings', 'blog');
+    await setDoc(settingsRef, {
+      ...settings,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving blog settings:', error);
+    return false;
+  }
+}
+
 
 
 
