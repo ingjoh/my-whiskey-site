@@ -190,7 +190,8 @@ export const DEFAULT_TERMS_PAGE = {
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '/privacy' }
+        { label: 'Privacy Policy', url: '/privacy' },
+        { label: 'Data Deletion Instructions', url: '/data-deletion' }
       ]
     }
   },
@@ -323,7 +324,8 @@ export const DEFAULT_INSURANCE_PAGE = {
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '/privacy' }
+        { label: 'Privacy Policy', url: '/privacy' },
+        { label: 'Data Deletion Instructions', url: '/data-deletion' }
       ]
     }
   },
@@ -454,7 +456,8 @@ export const DEFAULT_PRIVACY_PAGE = {
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '/privacy' }
+        { label: 'Privacy Policy', url: '/privacy' },
+        { label: 'Data Deletion Instructions', url: '/data-deletion' }
       ]
     }
   },
@@ -544,6 +547,139 @@ We use cookies to improve your browsing experience, analyze site traffic, and tr
   }
 };
 
+export const DEFAULT_DATA_DELETION_PAGE = {
+  title: 'Data Deletion Instructions',
+  theme: {
+    backgroundColor: '#121416',
+    foregroundColor: '#F4F1EA',
+    primaryColor: '#B9783B',
+    surfaceColor: '#1E2124',
+    mutedColor: '#D8C7AF',
+    accentColor: '#708C84',
+    typography: {
+      headingFontFamily: "'Cormorant Garamond', serif",
+      bodyFontFamily: "'Inter', sans-serif",
+      h1: { fontSize: '3.5rem', fontWeight: '800' },
+      h1Mobile: { fontSize: '2.25rem', fontWeight: '800' },
+      h2: { fontSize: '2.5rem', fontWeight: '700' },
+      h2Mobile: { fontSize: '1.75rem', fontWeight: '700' },
+      h3: { fontSize: '1.5rem', fontWeight: '600' },
+      h3Mobile: { fontSize: '1.25rem', fontWeight: '600' },
+      p: { fontSize: '1rem', fontWeight: '400' },
+      pMobile: { fontSize: '0.925rem', fontWeight: '400' },
+      large: { fontSize: '1.2rem', fontWeight: '400' },
+      largeMobile: { fontSize: '1.1rem', fontWeight: '400' },
+      small: { fontSize: '0.825rem', fontWeight: '400' },
+      smallMobile: { fontSize: '0.775rem', fontWeight: '400' },
+      a: { fontSize: '0.95rem', fontWeight: '600' },
+      aMobile: { fontSize: '0.875rem', fontWeight: '600' },
+    },
+    styles: {
+      radius: '0.5rem',
+      padding: '4rem 2rem',
+    },
+    header: {
+      logoText: 'M/Y Whiskey',
+      links: [
+        { label: 'Home', url: '/' },
+        { label: 'The Fleet', url: '/fleet' },
+        { label: 'Contact Us', url: '/contact' }
+      ]
+    },
+    footer: {
+      text: '© 2026 M/Y Whiskey. All rights reserved.',
+      links: [
+        { label: 'Terms of Service', url: '/terms' },
+        { label: 'Privacy Policy', url: '/privacy' },
+        { label: 'Data Deletion Instructions', url: '/data-deletion' }
+      ]
+    }
+  },
+  nodes: {
+    'root': {
+      id: 'root',
+      type: 'Section' as const,
+      props: {
+        style: {
+          minHeight: '100%',
+          padding: '0px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0px',
+          background: '#121416',
+        }
+      },
+      children: ['hero-block', 'content-block']
+    },
+    'hero-block': {
+      id: 'hero-block',
+      type: 'EnhancedHero' as const,
+      props: {
+        eyebrow: 'M/Y WHISKEY',
+        headline: 'Data Deletion Instructions',
+        subheadline: 'Instructions on how to request the deletion of your personal data.',
+        bgImage: 'https://images.unsplash.com/photo-1567664724217-105dfbc5ec3a?w=1600&q=80',
+        overlayOpacity: 0.7,
+        fullWidth: true,
+        minHeight: '40vh',
+        textAlignment: 'center',
+        eyebrowColor: 'var(--color-primary)',
+        headlineColor: 'inherit',
+        subheadlineColor: '#e0e0e0',
+        primaryButtonText: '',
+        secondaryButtonText: '',
+        locationText: ''
+      },
+      children: []
+    },
+    'content-block': {
+      id: 'content-block',
+      type: 'Section' as const,
+      props: {
+        style: {
+          maxWidth: '800px',
+          margin: '0 auto',
+          padding: '4rem 2rem',
+          color: '#F4F1EA',
+          lineHeight: '1.7',
+        }
+      },
+      children: ['deletion-text']
+    },
+    'deletion-text': {
+      id: 'deletion-text',
+      type: 'Text' as const,
+      props: {
+        typographyPreset: 'p',
+        text: `### How to Request Data Deletion
+
+M/Y Whiskey is committed to protecting your privacy and giving you control over your personal data. If you wish to request the deletion of your personal information collected by our website, booking application, or linked Facebook/Meta login integrations, please follow the instructions below.
+
+#### Step 1: Submit a Deletion Request
+You can request the deletion of your account and associated data by:
+* **Email:** Send an email to **concierge@motoryachtwhiskey.com** with the subject line "Data Deletion Request".
+* **Support Request:** Contact our concierge desk directly at **+1 (800) 555-0199** to confirm your account details.
+
+#### Step 2: What Data is Deleted?
+Upon receiving and verifying your request, we will permanently delete:
+* Your customer profile and account login credentials.
+* Your contact information (email, phone number, physical address).
+* Historical marketing preferences and campaign tracking associations.
+
+*Note: In compliance with maritime safety and legal standards, certain transactional records (such as signed Bareboat charter agreements, passenger manifests, and Stripe financial transaction history) must be retained for mandatory compliance periods and cannot be immediately deleted.*
+
+#### Step 3: Deletion Confirmation
+Once your request has been processed, our concierge team will send you a confirmation email verifying that all eligible personal data has been permanently removed from our databases. This process is typically completed within 5-7 business days.`,
+        style: {
+          fontSize: '1rem',
+          color: '#D8C7AF'
+        }
+      },
+      children: []
+    }
+  }
+};
+
 /**
  * Loads the builder nodes from Firestore for a specific page route.
  * @param route The page route (e.g., 'home', 'about')
@@ -595,6 +731,13 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
             nodes: DEFAULT_PRIVACY_PAGE.nodes as Record<string, PageNode>,
             theme: globalTheme || DEFAULT_PRIVACY_PAGE.theme as ThemeConfig,
             title: DEFAULT_PRIVACY_PAGE.title
+          };
+        }
+        if (route === 'data-deletion') {
+          return {
+            nodes: DEFAULT_DATA_DELETION_PAGE.nodes as Record<string, PageNode>,
+            theme: globalTheme || DEFAULT_DATA_DELETION_PAGE.theme as ThemeConfig,
+            title: DEFAULT_DATA_DELETION_PAGE.title
           };
         }
         return null;
@@ -665,6 +808,13 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
           title: DEFAULT_PRIVACY_PAGE.title
         };
       }
+      if (route === 'data-deletion') {
+        return {
+          nodes: DEFAULT_DATA_DELETION_PAGE.nodes as Record<string, PageNode>,
+          theme: globalTheme || DEFAULT_DATA_DELETION_PAGE.theme as ThemeConfig,
+          title: DEFAULT_DATA_DELETION_PAGE.title
+        };
+      }
       return null;
     }
   } catch (error) {
@@ -682,18 +832,18 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
       }
     } catch (e) {}
 
-    if (route === 'terms') {
+    if (route === 'privacy') {
       return {
-        nodes: DEFAULT_TERMS_PAGE.nodes as Record<string, PageNode>,
-        theme: globalTheme || DEFAULT_TERMS_PAGE.theme as ThemeConfig,
-        title: DEFAULT_TERMS_PAGE.title
+        nodes: DEFAULT_PRIVACY_PAGE.nodes as Record<string, PageNode>,
+        theme: globalTheme || DEFAULT_PRIVACY_PAGE.theme as ThemeConfig,
+        title: DEFAULT_PRIVACY_PAGE.title
       };
     }
-    if (route === 'insurance') {
+    if (route === 'data-deletion') {
       return {
-        nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
-        theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
-        title: DEFAULT_INSURANCE_PAGE.title
+        nodes: DEFAULT_DATA_DELETION_PAGE.nodes as Record<string, PageNode>,
+        theme: globalTheme || DEFAULT_DATA_DELETION_PAGE.theme as ThemeConfig,
+        title: DEFAULT_DATA_DELETION_PAGE.title
       };
     }
     return null;
@@ -727,6 +877,12 @@ export async function getAllPages(): Promise<string[]> {
     }
     if (!ids.includes('insurance')) {
       ids.push('insurance');
+    }
+    if (!ids.includes('privacy')) {
+      ids.push('privacy');
+    }
+    if (!ids.includes('data-deletion')) {
+      ids.push('data-deletion');
     }
     return ids;
   } catch (error) {
@@ -828,8 +984,29 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
       }
     }
 
-    // Self-healing: Update terms and insurance page footer links in Firestore if they contain '#' placeholders
-    for (const pageId of ['terms', 'insurance']) {
+    // Seed data deletion page automatically if it doesn't exist in Firestore
+    const hasDataDeletion = pages.some(p => p.id === 'data-deletion');
+    if (!hasDataDeletion) {
+      try {
+        console.log('Seeding Data Deletion Instructions page to Firestore...');
+        await savePageData('data-deletion', DEFAULT_DATA_DELETION_PAGE.nodes, DEFAULT_DATA_DELETION_PAGE.theme, DEFAULT_DATA_DELETION_PAGE.title);
+        pages.push({
+          id: 'data-deletion',
+          title: DEFAULT_DATA_DELETION_PAGE.title,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (seedError) {
+        console.error('Failed to seed data-deletion page:', seedError);
+        pages.push({
+          id: 'data-deletion',
+          title: DEFAULT_DATA_DELETION_PAGE.title,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    // Self-healing: Update footer links in Firestore pages if they contain '#' placeholders or lack the new data-deletion instructions page link
+    for (const pageId of ['terms', 'insurance', 'privacy', 'data-deletion']) {
       try {
         const docRef = doc(db, PAGE_COLLECTION, pageId);
         const docSnap = await getDoc(docRef);
@@ -837,13 +1014,31 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
           const data = docSnap.data();
           let changed = false;
           if (data.theme?.footer?.links) {
-            data.theme.footer.links = data.theme.footer.links.map((link: any) => {
+            let links = [...data.theme.footer.links];
+            let changedLocal = false;
+            
+            links = links.map((link: any) => {
               if (link.label === 'Privacy Policy' && link.url === '#') {
-                changed = true;
+                changedLocal = true;
                 return { ...link, url: '/privacy' };
+              }
+              if (link.label === 'Terms of Service' && link.url === '#') {
+                changedLocal = true;
+                return { ...link, url: '/terms' };
               }
               return link;
             });
+
+            const hasDeletion = links.some((link: any) => link.url === '/data-deletion' || link.label === 'Data Deletion Instructions');
+            if (!hasDeletion) {
+              links.push({ label: 'Data Deletion Instructions', url: '/data-deletion' });
+              changedLocal = true;
+            }
+
+            if (changedLocal) {
+              data.theme.footer.links = links;
+              changed = true;
+            }
           }
           if (changed) {
             console.log(`Healing footer links for page: ${pageId}`);
@@ -855,7 +1050,7 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
       }
     }
 
-    // Self-healing: Update global settings footer links if they contain '#' placeholders
+    // Self-healing: Update global settings footer links if they contain '#' placeholders or lack the data-deletion link
     try {
       const globalSettingsRef = doc(db, SETTINGS_COLLECTION, 'global');
       const settingsSnap = await getDoc(globalSettingsRef);
@@ -863,13 +1058,39 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
         const settingsData = settingsSnap.data();
         let changed = false;
         if (settingsData.theme?.footer?.links) {
-          settingsData.theme.footer.links = settingsData.theme.footer.links.map((link: any) => {
+          let links = [...settingsData.theme.footer.links];
+          let changedLocal = false;
+          
+          links = links.map((link: any) => {
             if (link.label === 'Privacy Policy' && link.url === '#') {
-              changed = true;
+              changedLocal = true;
               return { ...link, url: '/privacy' };
+            }
+            if (link.label === 'Terms of Service' && link.url === '#') {
+              changedLocal = true;
+              return { ...link, url: '/terms' };
             }
             return link;
           });
+
+          const hasLegal = links.some((link: any) => {
+            const url = (link.url || '').toLowerCase();
+            const label = (link.label || '').toLowerCase();
+            return url.includes('terms') || url.includes('privacy') || label.includes('terms') || label.includes('privacy');
+          });
+
+          if (hasLegal) {
+            const hasDeletion = links.some((link: any) => link.url === '/data-deletion' || link.label === 'Data Deletion Instructions');
+            if (!hasDeletion) {
+              links.push({ label: 'Data Deletion Instructions', url: '/data-deletion' });
+              changedLocal = true;
+            }
+          }
+
+          if (changedLocal) {
+            settingsData.theme.footer.links = links;
+            changed = true;
+          }
         }
         if (changed) {
           console.log('Healing footer links in global settings');

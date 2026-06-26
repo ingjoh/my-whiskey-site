@@ -11,10 +11,34 @@ import { getContentItems, getContentTypeConfigs } from '@/lib/db';
 export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
   const { settings } = useSiteSettings();
   const text = theme?.footer?.text || `© ${new Date().getFullYear()} ${settings?.general?.siteName || 'M/Y Whiskey'}. All rights reserved.`;
-  const footerLinks = theme?.footer?.legalLinks || theme?.footer?.links || [
+  const defaultLegalLinks = [
     { label: 'Terms of Service', url: '/terms' },
-    { label: 'Privacy Policy', url: '/privacy' }
+    { label: 'Privacy Policy', url: '/privacy' },
+    { label: 'Data Deletion Instructions', url: '/data-deletion' }
   ];
+
+  const getFooterLinks = () => {
+    if (theme?.footer?.legalLinks && theme.footer.legalLinks.length > 0) {
+      return theme.footer.legalLinks;
+    }
+    const configuredLinks = theme?.footer?.links;
+    if (configuredLinks && configuredLinks.length > 0) {
+      const hasLegal = configuredLinks.some((link: any) => {
+        const url = (link.url || '').toLowerCase();
+        const label = (link.label || '').toLowerCase();
+        return (
+          url.includes('terms') || url.includes('privacy') || url.includes('delete') || url.includes('legal') ||
+          label.includes('terms') || label.includes('privacy') || label.includes('delete') || label.includes('legal')
+        );
+      });
+      if (hasLegal) {
+        return configuredLinks;
+      }
+    }
+    return defaultLegalLinks;
+  };
+
+  const footerLinks = getFooterLinks();
 
   const navLinks = settings?.navigation?.links;
   const [dynamicNavLinks, setDynamicNavLinks] = useState<any[]>(navLinks || []);
