@@ -2940,7 +2940,7 @@ export const DynamicDetailBlock = ({ node }: { node: PageNode }) => {
   );
 };
 
-export const DynamicBlogBlock = ({ node }: { node: PageNode }) => {
+export const DynamicBlogBlock = ({ node, preFetchedPosts }: { node: PageNode; preFetchedPosts?: BlogPost[] }) => {
   const {
     eyebrow = 'LATEST INSIGHTS',
     headline = 'From the Captain\'s Log',
@@ -2967,6 +2967,15 @@ export const DynamicBlogBlock = ({ node }: { node: PageNode }) => {
   useEffect(() => {
     let active = true;
     setLoading(true);
+
+    if (preFetchedPosts) {
+      if (active) {
+        setPosts(preFetchedPosts.slice(0, limit));
+        setLoading(false);
+      }
+      return;
+    }
+
     getBlogPosts('published')
       .then((allPosts) => {
         if (active) {
@@ -2978,10 +2987,11 @@ export const DynamicBlogBlock = ({ node }: { node: PageNode }) => {
         console.error('Error fetching blog posts for dynamic block:', err);
         if (active) setLoading(false);
       });
+
     return () => {
       active = false;
     };
-  }, [limit]);
+  }, [limit, preFetchedPosts]);
 
   const placeholderPosts: BlogPost[] = [
     {

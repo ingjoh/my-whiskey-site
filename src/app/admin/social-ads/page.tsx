@@ -1005,7 +1005,7 @@ export default function SocialAdsDashboard() {
     try {
       const idToken = await user?.getIdToken();
       const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
-      const ratioImages = activeBundle?.boundMediasByRatio?.[activeMediaIndex] || null;
+      const ratioImages = activeBundle?.boundMediasByRatio || null;
       
       const payload: any = {
         conceptName: activeBundle?.conceptName || 'Campaign Post',
@@ -3843,12 +3843,25 @@ export default function SocialAdsDashboard() {
                 {/* Media Preview Box */}
                 {(publishChannel === 'facebook' || publishChannel === 'meta_ads' || publishChannel === 'google_pmax') && (() => {
                   const boundMedias = activeBundle.boundMedias || (activeBundle.boundMedia ? [activeBundle.boundMedia] : []);
+                  const allAttachedMedias: string[] = [];
+                  boundMedias.forEach((mainUrl, idx) => {
+                    const ratios = activeBundle.boundMediasByRatio?.[idx];
+                    let addedAny = false;
+                    if (ratios) {
+                      if (ratios.feed_4_5) { allAttachedMedias.push(ratios.feed_4_5); addedAny = true; }
+                      if (ratios.story_9_16) { allAttachedMedias.push(ratios.story_9_16); addedAny = true; }
+                      if (ratios.square_1_1) { allAttachedMedias.push(ratios.square_1_1); addedAny = true; }
+                    }
+                    if (!addedAny) {
+                      allAttachedMedias.push(mainUrl);
+                    }
+                  });
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase' }}>Attached Media Assets ({boundMedias.length})</label>
-                      {boundMedias.length > 0 ? (
+                      <label style={{ fontSize: '0.75rem', color: '#D8C7AF', fontWeight: 600, textTransform: 'uppercase' }}>Attached Media Assets ({allAttachedMedias.length})</label>
+                      {allAttachedMedias.length > 0 ? (
                         <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', background: 'rgba(0,0,0,0.1)', padding: '0.5rem', borderRadius: '6px', border: '1px dashed rgba(255,255,255,0.06)' }}>
-                          {boundMedias.map((url, idx) => (
+                          {allAttachedMedias.map((url, idx) => (
                             <img key={idx} src={url} alt={`Preview ${idx + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }} />
                           ))}
                         </div>

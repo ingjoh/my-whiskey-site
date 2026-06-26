@@ -42,6 +42,8 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
       try {
         const configs = await getContentTypeConfigs();
         const activeConfigs = configs.filter(c => c.isEnabled && c.isPublic !== false);
+        
+        // Fetch all content items once in a single query
         const allItems = await getContentItems();
         
         if (!isMounted) return;
@@ -128,11 +130,11 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
     <>
       <style dangerouslySetInnerHTML={{__html: `
         .desktop-nav { display: flex; gap: 1.25rem; align-items: center; }
-        .mobile-nav-toggle { display: none; background: transparent; border: none; color: ${theme?.header?.textColor || 'white'}; cursor: pointer; padding: 0.5rem; }
+        .mobile-nav-toggle { display: none; align-items: center; justify-content: center; background: transparent; border: none; color: ${theme?.header?.textColor || 'white'}; cursor: pointer; padding: 0.5rem; }
         .mobile-weather-widget { display: none; }
         @media (max-width: 1024px) {
           .desktop-nav { display: none !important; }
-          .mobile-nav-toggle { display: block !important; }
+          .mobile-nav-toggle { display: flex !important; }
           .mobile-weather-widget { display: block !important; }
         }
       `}} />
@@ -143,7 +145,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
         right: 0,
         width: '100%',
         boxSizing: 'border-box',
-        zIndex: 50,
+        zIndex: 1000,
         background: (isSticky && isScrolled)
           ? (theme?.header?.bgColor ? `${theme.header.bgColor}e6` : 'rgba(0,0,0,0.2)')
           : (theme?.header?.bgColor || 'var(--color-surface, #171717)'),
@@ -179,7 +181,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
               <WeatherWidget location={theme.header.weatherLocation || 'Destin, FL, USA'} />
             </div>
           )}
-          <button className="mobile-nav-toggle" onClick={() => setMobileMenuOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="mobile-nav-toggle" onClick={() => setMobileMenuOpen(true)}>
             <Menu size={28} />
           </button>
         </div>
@@ -308,83 +310,89 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                       display: 'flex',
                       flexDirection: 'column',
                     }}>
-                      {(link.children || []).map((child: any, cIdx: number) => (
-                        <SmartLink
-                          key={cIdx}
-                          href={isEditorMode ? '#' : child.url}
-                          target={child.target}
-                          onClick={(e: any) => {
-                            if (isEditorMode) {
-                              e.preventDefault();
-                              if (child.url && child.url !== '#') {
-                                window.open(child.url, '_blank');
+                      {link.children && link.children.length > 0 ? (
+                        link.children.map((child: any, cIdx: number) => (
+                          <SmartLink
+                            key={cIdx}
+                            href={isEditorMode ? '#' : child.url}
+                            target={child.target}
+                            onClick={(e: any) => {
+                              if (isEditorMode) {
+                                e.preventDefault();
+                                if (child.url && child.url !== '#') {
+                                  window.open(child.url, '_blank');
+                                }
                               }
-                            }
-                          }}
-                          style={{
-                            padding: '0.6rem 1.25rem',
-                            color: theme?.header?.textColor ? `${theme.header.textColor}d9` : 'rgba(244, 241, 234, 0.8)',
-                            textDecoration: 'none',
-                            fontSize: '0.85rem',
-                            fontWeight: child.isAllLink ? 700 : 500,
-                            transition: 'all 0.15s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}
-                          onMouseOver={(e: any) => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                            e.currentTarget.style.color = theme?.header?.accentColor || 'var(--color-primary, #c05c08)';
-                          }}
-                          onMouseOut={(e: any) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = theme?.header?.textColor ? `${theme.header.textColor}d9` : 'rgba(244, 241, 234, 0.8)';
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
-                            {!child.isAllLink && child.heroImage ? (
-                              <img 
-                                src={child.heroImage} 
-                                alt={child.label} 
-                                style={{ 
-                                  width: '28px', 
-                                  height: '28px', 
-                                  borderRadius: '4px', 
-                                  objectFit: 'cover', 
-                                  background: 'rgba(255,255,255,0.05)',
-                                  border: '1px solid rgba(255,255,255,0.1)',
-                                  flexShrink: 0
-                                }} 
-                              />
-                            ) : (
-                              !child.isAllLink && (
-                                <div style={{ 
-                                  width: '28px', 
-                                  height: '28px', 
-                                  borderRadius: '4px', 
-                                  background: 'rgba(255,255,255,0.05)',
-                                  border: '1px solid rgba(255,255,255,0.1)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.65rem',
-                                  color: 'var(--color-muted)',
-                                  flexShrink: 0
-                                }}>
-                                  ⚓
-                                </div>
-                              )
-                            )}
-                            <span style={{ 
-                              color: child.isAllLink ? (theme?.header?.accentColor || 'var(--color-primary, #B9783B)') : 'inherit',
-                              fontWeight: child.isAllLink ? 700 : 'inherit'
-                            }}>
-                              {child.label}
-                            </span>
-                          </div>
-                          {child.target === '_blank' && <ExternalLink size={12} style={{ opacity: 0.5 }} />}
-                        </SmartLink>
-                      ))}
+                            }}
+                            style={{
+                              padding: '0.6rem 1.25rem',
+                              color: theme?.header?.textColor ? `${theme.header.textColor}d9` : 'rgba(244, 241, 234, 0.8)',
+                              textDecoration: 'none',
+                              fontSize: '0.85rem',
+                              fontWeight: child.isAllLink ? 700 : 500,
+                              transition: 'all 0.15s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                            }}
+                            onMouseOver={(e: any) => {
+                              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                              e.currentTarget.style.color = theme?.header?.accentColor || 'var(--color-primary, #c05c08)';
+                            }}
+                            onMouseOut={(e: any) => {
+                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.color = theme?.header?.textColor ? `${theme.header.textColor}d9` : 'rgba(244, 241, 234, 0.8)';
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                              {!child.isAllLink && child.heroImage ? (
+                                <img 
+                                  src={child.heroImage} 
+                                  alt={child.label} 
+                                  style={{ 
+                                    width: '28px', 
+                                    height: '28px', 
+                                    borderRadius: '4px', 
+                                    objectFit: 'cover', 
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    flexShrink: 0
+                                  }} 
+                                />
+                              ) : (
+                                !child.isAllLink && (
+                                  <div style={{ 
+                                    width: '28px', 
+                                    height: '28px', 
+                                    borderRadius: '4px', 
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.65rem',
+                                    color: 'var(--color-muted)',
+                                    flexShrink: 0
+                                  }}>
+                                    ⚓
+                                  </div>
+                                )
+                              )}
+                              <span style={{ 
+                                color: child.isAllLink ? (theme?.header?.accentColor || 'var(--color-primary, #B9783B)') : 'inherit',
+                                fontWeight: child.isAllLink ? 700 : 'inherit'
+                              }}>
+                                {child.label}
+                              </span>
+                            </div>
+                            {child.target === '_blank' && <ExternalLink size={12} style={{ opacity: 0.5 }} />}
+                          </SmartLink>
+                        ))
+                      ) : (
+                        <div style={{ padding: '0.75rem 1.25rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', textAlign: 'center' }}>
+                          ⚓ Loading...
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -483,25 +491,29 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
                   </SmartLink>
                   {hasChildren && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingLeft: '1.25rem', borderLeft: '2px solid rgba(255, 255, 255, 0.08)' }}>
-                      {(link.children || []).map((child: any, cIdx: number) => (
-                        <SmartLink
-                          key={cIdx}
-                          href={isEditorMode ? '#' : child.url}
-                          target={child.target}
-                          onClick={() => {
-                            if (!isEditorMode) setMobileMenuOpen(false);
-                          }}
-                          style={{
-                            color: theme?.header?.textColor ? `${theme.header.textColor}b3` : 'rgba(255,255,255,0.7)',
-                            textDecoration: 'none',
-                            fontSize: '0.95rem',
-                            fontWeight: 400,
-                            lineHeight: 1.3
-                          }}
-                        >
-                          {child.label}
-                        </SmartLink>
-                      ))}
+                      {link.children && link.children.length > 0 ? (
+                        link.children.map((child: any, cIdx: number) => (
+                          <SmartLink
+                            key={cIdx}
+                            href={isEditorMode ? '#' : child.url}
+                            target={child.target}
+                            onClick={() => {
+                              if (!isEditorMode) setMobileMenuOpen(false);
+                            }}
+                            style={{
+                              color: theme?.header?.textColor ? `${theme.header.textColor}b3` : 'rgba(255,255,255,0.7)',
+                              textDecoration: 'none',
+                              fontSize: '0.95rem',
+                              fontWeight: 400,
+                              lineHeight: 1.3
+                            }}
+                          >
+                            {child.label}
+                          </SmartLink>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)' }}>⚓ Loading...</span>
+                      )}
                     </div>
                   )}
                 </div>

@@ -191,7 +191,10 @@ export async function POST(request: NextRequest) {
     // Execute Real API Publish
     if (publishTo === 'facebook') {
       let response: Response;
-      const finalMediaUrl = ratioImages?.feed_4_5 || ratioImages?.square_1_1 || ratioImages?.story_9_16 || mediaUrls[0];
+      const variant0Ratios = (ratioImages && typeof ratioImages === 'object')
+        ? (ratioImages['0'] || ratioImages[0] || null)
+        : ratioImages;
+      const finalMediaUrl = variant0Ratios?.feed_4_5 || variant0Ratios?.square_1_1 || variant0Ratios?.story_9_16 || mediaUrls[0];
 
       // Resolve Page Access Token from the System User token to avoid publish_actions deprecation
       let pageAccessToken = fbPageToken;
@@ -323,20 +326,61 @@ export async function POST(request: NextRequest) {
         adSetId = adsetJson.id;
       }
 
-      // 3. Upload/Get Image Hash
-      let imageHash = '';
-      const hashesByRatio: { feed_4_5?: string; story_9_16?: string; square_1_1?: string } = {};
+      // 3. Upload/Get Image Hash for each variation
+      const createdAdIds: string[] = [];
+      const createdCreativeIds: string[] = [];
 
-      if (ratioImages && typeof ratioImages === 'object') {
-        const uploadPromises = Object.entries(ratioImages).map(async ([ratioKey, url]) => {
-          if (!url || typeof url !== 'string') return;
+      const variantsToPublish = mediaUrls.length > 0 ? mediaUrls : [null];
+
+      for (let idx = 0; idx < variantsToPublish.length; idx++) {
+        const mediaUrl = variantsToPublish[idx];
+        const variantRatios = (ratioImages && typeof ratioImages === 'object')
+          ? (ratioImages[idx] || ratioImages[String(idx)] || null)
+          : (idx === 0 ? ratioImages : null);
+
+        let imageHash = '';
+        const hashesByRatio: { feed_4_5?: string; story_9_16?: string; square_1_1?: string } = {};
+
+        if (variantRatios && typeof variantRatios === 'object') {
+          const uploadPromises = Object.entries(variantRatios).map(async ([ratioKey, url]) => {
+            if (!url || typeof url !== 'string') return;
+            try {
+              console.log(`[Meta Ads API] Uploading ratio image for variant ${idx}, key: ${ratioKey}, url: ${url}`);
+              const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url,
+                  access_token: metaDeveloperToken
+                })
+              });
+              const imageJson = await imageRes.json();
+              if (imageRes.ok && imageJson.images) {
+                const keys = Object.keys(imageJson.images);
+                if (keys.length > 0) {
+                  const hash = imageJson.images[keys[0]].hash;
+                  hashesByRatio[ratioKey as 'feed_4_5' | 'story_9_16' | 'square_1_1'] = hash;
+                  console.log(`[Meta Ads API] Successfully uploaded variant ${idx} ${ratioKey} image hash: ${hash}`);
+                }
+              } else {
+                console.error(`[Meta Ads API] Failed to upload variant ${idx} ${ratioKey} image to Meta:`, JSON.stringify(imageJson));
+              }
+            } catch (err) {
+              console.error(`[Meta Ads API] Error uploading variant ${idx} ratio image ${ratioKey} to Meta:`, err);
+            }
+          });
+          await Promise.all(uploadPromises);
+        }
+
+        // If we don't have ratio images, or if they failed, upload the default variant reference URL
+        if (mediaUrl && Object.keys(hashesByRatio).length === 0) {
           try {
-            console.log(`[Meta Ads API] Uploading ratio image for key: ${ratioKey}, url: ${url}`);
+            console.log(`[Meta Ads API] Uploading fallback reference image for variant ${idx}, url: ${mediaUrl}`);
             const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                url,
+                url: mediaUrl,
                 access_token: metaDeveloperToken
               })
             });
@@ -344,127 +388,104 @@ export async function POST(request: NextRequest) {
             if (imageRes.ok && imageJson.images) {
               const keys = Object.keys(imageJson.images);
               if (keys.length > 0) {
-                const hash = imageJson.images[keys[0]].hash;
-                hashesByRatio[ratioKey as 'feed_4_5' | 'story_9_16' | 'square_1_1'] = hash;
-                console.log(`[Meta Ads API] Successfully uploaded ${ratioKey} image hash: ${hash}`);
+                imageHash = imageJson.images[keys[0]].hash;
+                console.log(`[Meta Ads API] Successfully uploaded variant ${idx} default image hash: ${imageHash}`);
               }
-            } else {
-              console.error(`[Meta Ads API] Failed to upload ${ratioKey} image to Meta:`, JSON.stringify(imageJson));
             }
           } catch (err) {
-            console.error(`[Meta Ads API] Error uploading ratio image ${ratioKey} to Meta:`, err);
+            console.error(`[Meta Ads API] Error uploading variant ${idx} default image to Meta:`, err);
           }
-        });
-        await Promise.all(uploadPromises);
-      }
+        }
 
-      // If we don't have ratio images, or if they failed, upload the default media URL
-      if (mediaUrls[0] && Object.keys(hashesByRatio).length === 0) {
-        try {
-          const imageRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adimages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: mediaUrls[0],
-              access_token: metaDeveloperToken
-            })
-          });
-          const imageJson = await imageRes.json();
-          if (imageRes.ok && imageJson.images) {
-            const keys = Object.keys(imageJson.images);
-            if (keys.length > 0) {
-              imageHash = imageJson.images[keys[0]].hash;
+        // Resolve the default base image hash to use inside object_story_spec.link_data
+        const baseImageHash = hashesByRatio.feed_4_5 || hashesByRatio.square_1_1 || hashesByRatio.story_9_16 || imageHash;
+
+        // 4. Create Ad Creative for this variant
+        const creativeName = `${conceptName || 'Campaign'} - Creative - Variant ${idx + 1}`;
+        const creativeBody: any = {
+          name: creativeName,
+          access_token: metaDeveloperToken,
+          object_story_spec: {
+            page_id: fbPageId,
+            link_data: {
+              link: `https://mywhiskeysite.com?utm_source=meta&utm_medium=paid_social&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`,
+              message: message || headlines[0] || 'Luxury Yacht Charters aboard M/Y Whiskey',
+              call_to_action: { type: 'BOOK_TRAVEL' }
             }
           }
-        } catch (err) {
-          console.error('[Meta Ads API] Error uploading default image to Meta:', err);
+        };
+
+        if (baseImageHash) {
+          creativeBody.object_story_spec.link_data.image_hash = baseImageHash;
+        } else if (mediaUrl) {
+          creativeBody.object_story_spec.link_data.picture = mediaUrl;
         }
-      }
 
-      // Resolve the default base image hash to use inside object_story_spec.link_data
-      const baseImageHash = hashesByRatio.feed_4_5 || hashesByRatio.square_1_1 || hashesByRatio.story_9_16 || imageHash;
-
-      // 4. Create Ad Creative
-      const creativeName = `${conceptName || 'Campaign'} - Creative`;
-      const creativeBody: any = {
-        name: creativeName,
-        access_token: metaDeveloperToken,
-        object_story_spec: {
-          page_id: fbPageId,
-          link_data: {
-            link: `https://mywhiskeysite.com?utm_source=meta&utm_medium=paid_social&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`,
-            message: message || headlines[0] || 'Luxury Yacht Charters aboard M/Y Whiskey',
-            call_to_action: { type: 'BOOK_TRAVEL' }
+        // Add platform_customizations if story_9_16 or feed_4_5 is available
+        if (hashesByRatio.story_9_16 || hashesByRatio.feed_4_5) {
+          const platformCustomizations: any = {};
+          
+          if (hashesByRatio.story_9_16) {
+            platformCustomizations.instagram = {
+              image_hash: hashesByRatio.story_9_16
+            };
+            platformCustomizations.audience_network = {
+              image_hash: hashesByRatio.story_9_16
+            };
+          }
+          
+          if (hashesByRatio.feed_4_5) {
+            platformCustomizations.facebook = {
+              image_hash: hashesByRatio.feed_4_5
+            };
+          }
+          
+          if (Object.keys(platformCustomizations).length > 0) {
+            creativeBody.platform_customizations = platformCustomizations;
           }
         }
-      };
 
-      if (baseImageHash) {
-        creativeBody.object_story_spec.link_data.image_hash = baseImageHash;
-      } else if (mediaUrls[0]) {
-        creativeBody.object_story_spec.link_data.picture = mediaUrls[0];
-      }
-
-      // Add platform_customizations if story_9_16 or feed_4_5 is available
-      if (hashesByRatio.story_9_16 || hashesByRatio.feed_4_5) {
-        const platformCustomizations: any = {};
+        const creativeRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adcreatives`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(creativeBody)
+        });
         
-        if (hashesByRatio.story_9_16) {
-          platformCustomizations.instagram = {
-            image_hash: hashesByRatio.story_9_16
-          };
-          platformCustomizations.audience_network = {
-            image_hash: hashesByRatio.story_9_16
-          };
+        const creativeJson = await creativeRes.json();
+        if (!creativeRes.ok) {
+          throw new Error(`Meta Creative Error (Variant ${idx + 1}): ${creativeJson.error?.message || 'Unknown error'}`);
         }
-        
-        if (hashesByRatio.feed_4_5) {
-          platformCustomizations.facebook = {
-            image_hash: hashesByRatio.feed_4_5
-          };
-        }
-        
-        if (Object.keys(platformCustomizations).length > 0) {
-          creativeBody.platform_customizations = platformCustomizations;
-        }
-      }
+        const adCreativeId = creativeJson.id;
+        createdCreativeIds.push(adCreativeId);
 
-      const creativeRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/adcreatives`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(creativeBody)
-      });
-      
-      const creativeJson = await creativeRes.json();
-      if (!creativeRes.ok) {
-        throw new Error(`Meta Creative Error: ${creativeJson.error?.message || 'Unknown error'}`);
-      }
-      const adCreativeId = creativeJson.id;
-
-      // 5. Create Ad
-      const adRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/ads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${conceptName || 'Campaign'} - Ad`,
-          adset_id: adSetId,
-          creative: { creative_id: adCreativeId },
-          status: 'PAUSED',
-          access_token: metaDeveloperToken
-        })
-      });
-      
-      const adJson = await adRes.json();
-      if (!adRes.ok) {
-        throw new Error(`Meta Ad Error: ${adJson.error?.message || 'Unknown error'}`);
+        // 5. Create Ad for this variant
+        const adRes = await fetch(`https://graph.facebook.com/v20.0/${normalizedAdAccountId}/ads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `${conceptName || 'Campaign'} - Ad - Variant ${idx + 1}`,
+            adset_id: adSetId,
+            creative: { creative_id: adCreativeId },
+            status: 'PAUSED',
+            access_token: metaDeveloperToken
+          })
+        });
+        
+        const adJson = await adRes.json();
+        if (!adRes.ok) {
+          throw new Error(`Meta Ad Error (Variant ${idx + 1}): ${adJson.error?.message || 'Unknown error'}`);
+        }
+        createdAdIds.push(adJson.id);
       }
 
       return NextResponse.json({
         success: true,
         campaignId,
         adSetId,
-        adCreativeId,
-        adId: adJson.id
+        adCreativeIds: createdCreativeIds,
+        adCreativeId: createdCreativeIds[0] || '',
+        adIds: createdAdIds,
+        adId: createdAdIds[0] || ''
       });
 
     } else if (publishTo === 'google_search' || publishTo === 'google_pmax') {

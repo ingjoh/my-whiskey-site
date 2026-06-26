@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
-import { getBlogPostBySlug, getBlogSettings, BlogPost, BlogSettings } from '@/lib/db';
+import { getBlogPostBySlug, getBlogSettings, getBlogPosts, getContentItems, getContentTypeConfigs, BlogPost, BlogSettings } from '@/lib/db';
 import { useSiteSettings } from '@/components/SiteSettingsProvider';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
 import ReactMarkdown from 'react-markdown';
 import { Calendar, Clock, ChevronLeft, Anchor } from 'lucide-react';
+import { DynamicCardBlock, DynamicBlogBlock } from '@/components/builder/NewBlocks';
 
 export default function BlogDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
@@ -17,6 +18,9 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
   const [post, setPost] = useState<BlogPost | null>(null);
   const [blogSettings, setBlogSettings] = useState<BlogSettings>({ globalTheme: 'dark', updatedAt: '' });
   const [isLoading, setIsLoading] = useState(true);
+  const [relatedAdventures, setRelatedAdventures] = useState<any[]>([]);
+  const [allPublishedPosts, setAllPublishedPosts] = useState<BlogPost[]>([]);
+  const [experiencesPath, setExperiencesPath] = useState('experiences');
 
   useEffect(() => {
     async function loadData() {
@@ -25,15 +29,53 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
         const loadedPost = await getBlogPostBySlug(slug);
         const loadedSettings = await getBlogSettings();
         
+        // Load content type configurations to resolve experiences path dynamically
+        try {
+          const configs = await getContentTypeConfigs();
+          const advConfig = configs.find(c => c.id === 'adventure');
+          if (advConfig && advConfig.slugPrefix) {
+            setExperiencesPath(advConfig.slugPrefix);
+          }
+        } catch (configErr) {
+          console.warn('Failed to load content type configs on blog detail page:', configErr);
+        }
+        
         // Hide future scheduled posts or drafts for public users
         const todayStr = new Date().toISOString().split('T')[0];
+        let activePost: BlogPost | null = null;
         if (loadedPost && (loadedPost.status === 'published' && loadedPost.publishDate <= todayStr)) {
+          activePost = loadedPost;
           setPost(loadedPost);
         } else {
           setPost(null);
         }
         
         setBlogSettings(loadedSettings);
+
+        if (activePost) {
+          // Load adventures/experiences
+          const allAdventures = await getContentItems('adventure');
+          const publishedAdventures = allAdventures.filter(item => item.status === 'published');
+          
+          let matched = publishedAdventures;
+          if (activePost.tags && activePost.tags.length > 0) {
+            const postTags = activePost.tags.map(t => t.toLowerCase().trim());
+            matched = publishedAdventures.filter(adv => {
+              const titleLower = adv.title.toLowerCase();
+              const descLower = (adv.shortDescription || '').toLowerCase();
+              return postTags.some(tag => titleLower.includes(tag) || descLower.includes(tag));
+            });
+            if (matched.length === 0) {
+              matched = publishedAdventures;
+            }
+          }
+          setRelatedAdventures(matched);
+
+          // Load other blog posts
+          const allPosts = await getBlogPosts('published');
+          const otherPosts = allPosts.filter(p => p.slug !== slug);
+          setAllPublishedPosts(otherPosts);
+        }
       } catch (err) {
         console.error('Error loading blog post details:', err);
       } finally {
@@ -142,8 +184,8 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
       {/* Navigation */}
       <PublicNavigation theme={theme} settings={siteSettings} />
 
-      <main style={{ flex: 1, padding: '4rem 1.5rem 6rem' }}>
-        <article style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '4rem 0 6rem' }}>
+        <article style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem' }}>
           {/* Back button */}
           <Link href="/blog" style={{ 
             display: 'inline-flex', 
@@ -263,61 +305,42 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
             </div>
           )}
 
-          {/* Luxury Booking CTA Card */}
+          {/* Refined Inline booking CTA bar */}
           <div style={{ 
-            background: 'linear-gradient(135deg, #17191b 0%, #0d0e0f 100%)', 
-            border: '1px solid rgba(217, 119, 6, 0.2)', 
-            borderRadius: '12px', 
-            padding: '2.5rem', 
-            textAlign: 'center', 
+            borderTop: `1px solid ${themeStyles.cardBorder}`, 
+            paddingTop: '2.5rem',
             marginTop: '4rem',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.4), 0 0 30px rgba(217, 119, 6, 0.05)'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '1rem'
           }}>
-            <div style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              width: '50px', 
-              height: '50px', 
-              borderRadius: '50%', 
-              background: 'rgba(217, 119, 6, 0.1)', 
-              color: '#d97706',
-              marginBottom: '1.25rem'
-            }}>
-              <Anchor size={24} />
-            </div>
-            <h3 style={{ 
-              fontSize: '1.6rem', 
+            <h4 style={{ 
+              fontSize: '1.25rem', 
               fontFamily: "var(--font-heading, 'Outfit', sans-serif)", 
               fontWeight: 700, 
-              color: '#F4F1EA',
-              marginBottom: '0.75rem',
+              margin: 0,
               letterSpacing: '-0.01em'
             }}>
-              Embark on M/Y Whiskey
-            </h3>
-            <p style={{ 
-              color: '#D8C7AF', 
-              fontSize: '0.925rem', 
-              maxWidth: '500px', 
-              margin: '0 auto 1.75rem', 
-              lineHeight: 1.5 
-            }}>
-              Ready to write your own chapter? Schedule a luxury private yacht charter in Destin, Florida. Experience custom catering, premium water excursions, and world-class crew service.
+              Ready to Plan Your Yacht Adventure?
+            </h4>
+            <p style={{ color: themeStyles.mutedText, fontSize: '0.875rem', maxWidth: '480px', margin: 0, lineHeight: 1.4 }}>
+              Contact our charter specialists today to customize your bespoke itinerary aboard M/Y Whiskey.
             </p>
-            <Link href="/" style={{ textDecoration: 'none' }}>
+            <Link href={`/${experiencesPath}`} style={{ textDecoration: 'none', marginTop: '0.5rem' }}>
               <button style={{
                 background: 'var(--color-primary, #d97706)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                padding: '0.85rem 2.5rem',
-                fontSize: '0.875rem',
+                padding: '0.65rem 2rem',
+                fontSize: '0.8rem',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'opacity 0.2s'
               }}
               onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
               onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
@@ -326,8 +349,130 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
               </button>
             </Link>
           </div>
-
         </article>
+
+        {/* Dynamic Related Experiences Grid */}
+        <div style={{ width: '100%', marginTop: '4rem', borderTop: `1px solid ${themeStyles.cardBorder}`, paddingTop: '1rem' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <DynamicCardBlock 
+              node={{
+                id: 'related-experiences',
+                type: 'dynamic_cards',
+                props: {
+                  contentType: 'adventure',
+                  eyebrow: 'Private Coastal Charters',
+                  headline: 'Related Experiences',
+                  limit: 3,
+                  columns: 3,
+                  showImage: true,
+                  showTitle: true,
+                  showDescription: true,
+                  showLocation: true,
+                  showDuration: true,
+                  showPrice: true,
+                  showButton: true,
+                  mobileLayout: 'swipe',
+                  cardBgColor: themeStyles.cardBackground,
+                  cardTextColor: themeStyles.color,
+                  eyebrowColor: themeStyles.primaryColor,
+                  headlineColor: themeStyles.titleColor,
+                  headlineFontSize: 'clamp(1.5rem, 4vw, 2rem)',
+                  style: { padding: '3rem 2rem 1rem' }
+                }
+              } as any} 
+              preFetchedItems={relatedAdventures} 
+            />
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem', marginBottom: '3rem' }}>
+              <Link href={`/${experiencesPath}`} style={{ textDecoration: 'none' }}>
+                <button style={{
+                  background: 'transparent',
+                  border: `1px solid ${themeStyles.primaryColor}`,
+                  color: themeStyles.primaryColor,
+                  borderRadius: '4px',
+                  padding: '0.6rem 1.75rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = themeStyles.primaryColor;
+                  e.currentTarget.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = themeStyles.primaryColor;
+                }}
+                >
+                  View All Experiences
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Latest Journal Entries Grid */}
+        <div style={{ width: '100%', borderTop: `1px solid ${themeStyles.cardBorder}`, paddingTop: '1rem' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <DynamicBlogBlock 
+              node={{
+                id: 'latest-blogs',
+                type: 'dynamic_blog',
+                props: {
+                  layout: 'grid',
+                  eyebrow: 'From the Captain\'s Log',
+                  headline: 'Latest Journal Entries',
+                  limit: 3,
+                  columns: 3,
+                  showImage: true,
+                  showSummary: true,
+                  showDate: true,
+                  showAuthor: true,
+                  showTags: false,
+                  showButton: true,
+                  mobileLayout: 'swipe',
+                  cardBgColor: themeStyles.cardBackground,
+                  cardTextColor: themeStyles.color,
+                  eyebrowColor: themeStyles.primaryColor,
+                  headlineColor: themeStyles.titleColor,
+                  buttonText: 'Read Entry',
+                  style: { padding: '3rem 2rem 1rem' }
+                }
+              } as any} 
+              preFetchedPosts={allPublishedPosts} 
+            />
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem', marginBottom: '2rem' }}>
+              <Link href="/blog" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  background: 'transparent',
+                  border: `1px solid ${themeStyles.primaryColor}`,
+                  color: themeStyles.primaryColor,
+                  borderRadius: '4px',
+                  padding: '0.6rem 1.75rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = themeStyles.primaryColor;
+                  e.currentTarget.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = themeStyles.primaryColor;
+                }}
+                >
+                  View All Journal Entries
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Footer */}
