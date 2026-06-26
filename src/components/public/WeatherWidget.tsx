@@ -7,6 +7,14 @@ export default function WeatherWidget({ location }: { location: string }) {
   const [weather, setWeather] = useState<any>(null);
   const [error, setError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, [isOpen]);
 
   useEffect(() => {
     async function fetchWeather() {
@@ -81,10 +89,15 @@ export default function WeatherWidget({ location }: { location: string }) {
     <div 
       style={{ position: 'relative' }}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsOpen(false);
+      }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div 
         title={`Current weather in ${location}`}
+        onClick={() => setIsOpen(!isOpen)}
         style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -93,11 +106,11 @@ export default function WeatherWidget({ location }: { location: string }) {
           fontSize: '0.85rem', 
           fontWeight: 600, 
           padding: '0.4rem 0.75rem', 
-          background: isHovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)', 
+          background: (isHovered || isOpen) ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)', 
           borderRadius: '2rem', 
           whiteSpace: 'nowrap',
           border: '1px solid rgba(255,255,255,0.1)',
-          cursor: 'default',
+          cursor: 'pointer',
           transition: 'all 0.2s'
         }}
       >
@@ -105,22 +118,22 @@ export default function WeatherWidget({ location }: { location: string }) {
         {currentTemp}°F
       </div>
 
-      {isHovered && (
+      {(isHovered || isOpen) && (
         <div style={{
           position: 'absolute',
           top: 'calc(100% + 0.5rem)',
           right: 0,
           background: 'var(--color-surface, #171717)',
-          border: '1px solid var(--color-border)',
+          border: '1px solid var(--color-border, rgba(255, 255, 255, 0.1))',
           borderRadius: 'var(--radius-md)',
           padding: '1rem',
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
           zIndex: 100,
-          minWidth: '220px',
+          minWidth: '250px',
           color: 'var(--color-foreground, white)',
           fontSize: '0.85rem'
         }}>
-          <div style={{ fontWeight: 600, marginBottom: '0.75rem', color: 'var(--color-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             5-Day Forecast
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -143,8 +156,8 @@ export default function WeatherWidget({ location }: { location: string }) {
                     <span style={{ color: 'rgba(255,255,255,0.5)' }}>{minT}°</span>
                     <span style={{ fontWeight: 600 }}>{maxT}°</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: '60px', justifyContent: 'flex-end', color: 'var(--color-muted)' }} title={`Wind: ${windSpeed} mph`}>
-                    <span style={{ fontSize: '0.75rem' }}>{windSpeed}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', width: '70px', justifyContent: 'flex-end', color: 'rgba(255, 255, 255, 0.6)' }} title={`Wind: ${windSpeed} mph`}>
+                    <span style={{ fontSize: '0.75rem' }}>{windSpeed} mph</span>
                     <Navigation size={12} style={{ transform: `rotate(${windDir}deg)`, opacity: 0.8 }} />
                   </div>
                 </div>

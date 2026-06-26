@@ -118,9 +118,11 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
       <style dangerouslySetInnerHTML={{__html: `
         .desktop-nav { display: flex; gap: 1.25rem; align-items: center; }
         .mobile-nav-toggle { display: none; background: transparent; border: none; color: ${theme?.header?.textColor || 'white'}; cursor: pointer; padding: 0.5rem; }
+        .mobile-weather-widget { display: none; }
         @media (max-width: 1024px) {
           .desktop-nav { display: none !important; }
           .mobile-nav-toggle { display: block !important; }
+          .mobile-weather-widget { display: block !important; }
         }
       `}} />
       <header style={{
@@ -160,9 +162,16 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
           )}
         </Link>
         
-        <button className="mobile-nav-toggle" onClick={() => setMobileMenuOpen(true)}>
-          <Menu size={28} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {theme?.header?.showWeather && (
+            <div className="mobile-weather-widget">
+              <WeatherWidget location={theme.header.weatherLocation || 'Destin, FL, USA'} />
+            </div>
+          )}
+          <button className="mobile-nav-toggle" onClick={() => setMobileMenuOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Menu size={28} />
+          </button>
+        </div>
 
         <div className="desktop-nav">
           {dynamicLinks.map((link: any, idx: number) => {
@@ -488,11 +497,6 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
               );
             })}
           </div>
-          {theme?.header?.showWeather && (
-            <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '2rem' }}>
-              <WeatherWidget location={theme.header.weatherLocation || 'Destin, FL, USA'} />
-            </div>
-          )}
         </div>
       )}
 
