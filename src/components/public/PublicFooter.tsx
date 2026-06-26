@@ -13,7 +13,7 @@ export default function PublicFooter({ theme }: { theme?: ThemeConfig }) {
   const text = theme?.footer?.text || `© ${new Date().getFullYear()} ${settings?.general?.siteName || 'M/Y Whiskey'}. All rights reserved.`;
   const footerLinks = theme?.footer?.legalLinks || theme?.footer?.links || [
     { label: 'Terms of Service', url: '/terms' },
-    { label: 'Privacy Policy', url: '#' }
+    { label: 'Privacy Policy', url: '/privacy' }
   ];
 
   const navLinks = settings?.navigation?.links;

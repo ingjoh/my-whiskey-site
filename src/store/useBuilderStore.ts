@@ -180,7 +180,7 @@ export const useBuilderStore = create<BuilderState>((set) => ({
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '#' }
+        { label: 'Privacy Policy', url: '/privacy' }
       ],
       bgColor: '#0B0C0E',
       textColor: '#F4F1EA',

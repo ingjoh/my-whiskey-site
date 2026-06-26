@@ -190,7 +190,7 @@ export const DEFAULT_TERMS_PAGE = {
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '#' }
+        { label: 'Privacy Policy', url: '/privacy' }
       ]
     }
   },
@@ -323,7 +323,7 @@ export const DEFAULT_INSURANCE_PAGE = {
       text: '© 2026 M/Y Whiskey. All rights reserved.',
       links: [
         { label: 'Terms of Service', url: '/terms' },
-        { label: 'Privacy Policy', url: '#' }
+        { label: 'Privacy Policy', url: '/privacy' }
       ]
     }
   },
@@ -411,6 +411,139 @@ Trip Protection covers elective cancellations as well as cancellations due to:
   }
 };
 
+export const DEFAULT_PRIVACY_PAGE = {
+  title: 'Privacy Policy',
+  theme: {
+    backgroundColor: '#121416',
+    foregroundColor: '#F4F1EA',
+    primaryColor: '#B9783B',
+    surfaceColor: '#1E2124',
+    mutedColor: '#D8C7AF',
+    accentColor: '#708C84',
+    typography: {
+      headingFontFamily: "'Cormorant Garamond', serif",
+      bodyFontFamily: "'Inter', sans-serif",
+      h1: { fontSize: '3.5rem', fontWeight: '800' },
+      h1Mobile: { fontSize: '2.25rem', fontWeight: '800' },
+      h2: { fontSize: '2.5rem', fontWeight: '700' },
+      h2Mobile: { fontSize: '1.75rem', fontWeight: '700' },
+      h3: { fontSize: '1.5rem', fontWeight: '600' },
+      h3Mobile: { fontSize: '1.25rem', fontWeight: '600' },
+      p: { fontSize: '1rem', fontWeight: '400' },
+      pMobile: { fontSize: '0.925rem', fontWeight: '400' },
+      large: { fontSize: '1.2rem', fontWeight: '400' },
+      largeMobile: { fontSize: '1.1rem', fontWeight: '400' },
+      small: { fontSize: '0.825rem', fontWeight: '400' },
+      smallMobile: { fontSize: '0.775rem', fontWeight: '400' },
+      a: { fontSize: '0.95rem', fontWeight: '600' },
+      aMobile: { fontSize: '0.875rem', fontWeight: '600' },
+    },
+    styles: {
+      radius: '0.5rem',
+      padding: '4rem 2rem',
+    },
+    header: {
+      logoText: 'M/Y Whiskey',
+      links: [
+        { label: 'Home', url: '/' },
+        { label: 'The Fleet', url: '/fleet' },
+        { label: 'Contact Us', url: '/contact' }
+      ]
+    },
+    footer: {
+      text: '© 2026 M/Y Whiskey. All rights reserved.',
+      links: [
+        { label: 'Terms of Service', url: '/terms' },
+        { label: 'Privacy Policy', url: '/privacy' }
+      ]
+    }
+  },
+  nodes: {
+    'root': {
+      id: 'root',
+      type: 'Section' as const,
+      props: {
+        style: {
+          minHeight: '100%',
+          padding: '0px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0px',
+          background: '#121416',
+        }
+      },
+      children: ['hero-block', 'content-block']
+    },
+    'hero-block': {
+      id: 'hero-block',
+      type: 'EnhancedHero' as const,
+      props: {
+        eyebrow: 'M/Y WHISKEY',
+        headline: 'Privacy Policy',
+        subheadline: 'How we collect, use, and protect your personal information.',
+        bgImage: 'https://images.unsplash.com/photo-1567664724217-105dfbc5ec3a?w=1600&q=80',
+        overlayOpacity: 0.7,
+        fullWidth: true,
+        minHeight: '40vh',
+        textAlignment: 'center',
+        eyebrowColor: 'var(--color-primary)',
+        headlineColor: 'inherit',
+        subheadlineColor: '#e0e0e0',
+        primaryButtonText: '',
+        secondaryButtonText: '',
+        locationText: ''
+      },
+      children: []
+    },
+    'content-block': {
+      id: 'content-block',
+      type: 'Section' as const,
+      props: {
+        style: {
+          maxWidth: '800px',
+          margin: '0 auto',
+          padding: '4rem 2rem',
+          color: '#F4F1EA',
+          lineHeight: '1.7',
+        }
+      },
+      children: ['privacy-text']
+    },
+    'privacy-text': {
+      id: 'privacy-text',
+      type: 'Text' as const,
+      props: {
+        typographyPreset: 'p',
+        text: `### 1. Information We Collect
+We collect personal information that you provide to us directly when booking a charter on M/Y Whiskey, registering an admin account, or submitting contact inquiries. This includes:
+* **Contact Information:** Name, email address, phone number, and mailing address.
+* **Booking Details:** Voyage dates, preferences, guest list details, and captain selections.
+* **Payment Information:** Stored securely by our third-party processor (Stripe). We do not store full credit card numbers on our servers.
+
+### 2. How We Use Your Information
+We use your information to facilitate your booking, process payments, send reminders, and comply with safety and legal requirements (such as U.S. Coast Guard regulations). We also use it to communicate promotions and manage advertising campaigns via third-party services like Meta and Google.
+
+### 3. Sharing Your Information
+We do not sell your personal information. We share it only with third-party service providers (such as Stripe for payments, Telnyx for SMS notifications, and Meta/Google for ad campaign tracking) to the extent necessary to deliver our services.
+
+### 4. Data Security
+We implement standard security measures to protect your personal information against unauthorized access, alteration, or disclosure. However, no internet transmission is 100% secure.
+
+### 5. Cookies and Tracking
+We use cookies to improve your browsing experience, analyze site traffic, and track campaign performance (using UTM parameters).
+
+### 6. Updates to This Policy
+ We may update this Privacy Policy from time to time. The updated version will be indicated by an updated revision date.`,
+        style: {
+          fontSize: '1rem',
+          color: '#D8C7AF'
+        }
+      },
+      children: []
+    }
+  }
+};
+
 /**
  * Loads the builder nodes from Firestore for a specific page route.
  * @param route The page route (e.g., 'home', 'about')
@@ -455,6 +588,13 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
             nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
             theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
             title: DEFAULT_INSURANCE_PAGE.title
+          };
+        }
+        if (route === 'privacy') {
+          return {
+            nodes: DEFAULT_PRIVACY_PAGE.nodes as Record<string, PageNode>,
+            theme: globalTheme || DEFAULT_PRIVACY_PAGE.theme as ThemeConfig,
+            title: DEFAULT_PRIVACY_PAGE.title
           };
         }
         return null;
@@ -516,6 +656,13 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
           nodes: DEFAULT_INSURANCE_PAGE.nodes as Record<string, PageNode>,
           theme: globalTheme || DEFAULT_INSURANCE_PAGE.theme as ThemeConfig,
           title: DEFAULT_INSURANCE_PAGE.title
+        };
+      }
+      if (route === 'privacy') {
+        return {
+          nodes: DEFAULT_PRIVACY_PAGE.nodes as Record<string, PageNode>,
+          theme: globalTheme || DEFAULT_PRIVACY_PAGE.theme as ThemeConfig,
+          title: DEFAULT_PRIVACY_PAGE.title
         };
       }
       return null;
@@ -658,6 +805,79 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
           updatedAt: new Date().toISOString()
         });
       }
+    }
+
+    // Seed privacy page automatically if it doesn't exist in Firestore
+    const hasPrivacy = pages.some(p => p.id === 'privacy');
+    if (!hasPrivacy) {
+      try {
+        console.log('Seeding Privacy Policy page to Firestore...');
+        await savePageData('privacy', DEFAULT_PRIVACY_PAGE.nodes, DEFAULT_PRIVACY_PAGE.theme, DEFAULT_PRIVACY_PAGE.title);
+        pages.push({
+          id: 'privacy',
+          title: DEFAULT_PRIVACY_PAGE.title,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (seedError) {
+        console.error('Failed to seed privacy page:', seedError);
+        pages.push({
+          id: 'privacy',
+          title: DEFAULT_PRIVACY_PAGE.title,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    // Self-healing: Update terms and insurance page footer links in Firestore if they contain '#' placeholders
+    for (const pageId of ['terms', 'insurance']) {
+      try {
+        const docRef = doc(db, PAGE_COLLECTION, pageId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          let changed = false;
+          if (data.theme?.footer?.links) {
+            data.theme.footer.links = data.theme.footer.links.map((link: any) => {
+              if (link.label === 'Privacy Policy' && link.url === '#') {
+                changed = true;
+                return { ...link, url: '/privacy' };
+              }
+              return link;
+            });
+          }
+          if (changed) {
+            console.log(`Healing footer links for page: ${pageId}`);
+            await setDoc(docRef, data, { merge: true });
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to heal footer links for ${pageId}:`, err);
+      }
+    }
+
+    // Self-healing: Update global settings footer links if they contain '#' placeholders
+    try {
+      const globalSettingsRef = doc(db, SETTINGS_COLLECTION, 'global');
+      const settingsSnap = await getDoc(globalSettingsRef);
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        let changed = false;
+        if (settingsData.theme?.footer?.links) {
+          settingsData.theme.footer.links = settingsData.theme.footer.links.map((link: any) => {
+            if (link.label === 'Privacy Policy' && link.url === '#') {
+              changed = true;
+              return { ...link, url: '/privacy' };
+            }
+            return link;
+          });
+        }
+        if (changed) {
+          console.log('Healing footer links in global settings');
+          await setDoc(globalSettingsRef, settingsData, { merge: true });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to heal global settings footer links:', err);
     }
     return pages;
   } catch (error) {

@@ -42,7 +42,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     text: '© 2026 M/Y Whiskey. All rights reserved.',
     links: [
       { label: 'Terms of Service', url: '/terms' },
-      { label: 'Privacy Policy', url: '#' }
+      { label: 'Privacy Policy', url: '/privacy' }
     ]
   }
 };
