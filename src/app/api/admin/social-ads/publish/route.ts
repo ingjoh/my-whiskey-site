@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
       negativeKeywords = [],
       longHeadlines = [],
       campaignMode = 'new',
-      existingAdSetId
+      existingAdSetId,
+      destinationUrl
     } = await request.json();
 
     if (!publishTo) {
@@ -402,13 +403,14 @@ export async function POST(request: NextRequest) {
 
         // 4. Create Ad Creative for this variant
         const creativeName = `${conceptName || 'Campaign'} - Creative - Variant ${idx + 1}`;
+        const baseLink = destinationUrl || 'https://www.motoryachtwhiskey.com/experiences';
         const creativeBody: any = {
           name: creativeName,
           access_token: metaDeveloperToken,
           object_story_spec: {
             page_id: fbPageId,
             link_data: {
-              link: `https://mywhiskeysite.com?utm_source=meta&utm_medium=paid_social&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`,
+              link: `${baseLink}${baseLink.includes('?') ? '&' : '?'}utm_source=meta&utm_medium=paid_social&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`,
               message: message || headlines[0] || 'Luxury Yacht Charters aboard M/Y Whiskey',
               call_to_action: { type: 'BOOK_TRAVEL' }
             }
@@ -511,7 +513,8 @@ export async function POST(request: NextRequest) {
       const operations: any[] = [];
       const campaignName = `${conceptName || 'Campaign'} - ${publishTo === 'google_pmax' ? 'PMax' : 'Search'} - ${timestamp.split('T')[0]}`;
       const budgetName = `Budget - ${conceptName || 'Campaign'} - ${Date.now()}`;
-      const finalUrl = `https://mywhiskeysite.com?utm_source=google&utm_medium=cpc&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`;
+      const baseLink = destinationUrl || 'https://www.motoryachtwhiskey.com/experiences';
+      const finalUrl = `${baseLink}${baseLink.includes('?') ? '&' : '?'}utm_source=google&utm_medium=cpc&utm_campaign=${encodeURIComponent((conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`;
       
       const startDateStr = timestamp.split('T')[0].replace(/-/g, '');
       const endDateStr = new Date(Date.now() + (durationDays || 7) * 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '');

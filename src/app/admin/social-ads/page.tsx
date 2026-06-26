@@ -15,7 +15,7 @@ import {
   SocialAdsSettings, DEFAULT_SOCIAL_ADS_SETTINGS,
   loadSocialAdDrafts, saveSocialAdDraft, deleteSocialAdDraft, SocialAdDraft,
   BookingRecord, getCommissionLedger, getAllBookings,
-  CalendarEvent, getCalendarEvents
+  CalendarEvent, getCalendarEvents, getContentTypeConfigs
 } from '@/lib/db';
 import AssetLibraryModal from '@/components/admin/AssetLibraryModal';
 import AIImageEditor from '@/components/admin/AIImageEditor';
@@ -548,6 +548,9 @@ export default function SocialAdsDashboard() {
   const [dailyBudget, setDailyBudget] = useState<number>(25);
   const [durationDays, setDurationDays] = useState<number>(7);
   const [targetAudience, setTargetAudience] = useState<string>('tourists');
+  const [experiencesPath, setExperiencesPath] = useState('experiences');
+  const [destinationType, setDestinationType] = useState<string>('experiences');
+  const [customDestinationUrl, setCustomDestinationUrl] = useState<string>('');
 
   // AI Recommendation proposal
   interface RecommendedGoal {
@@ -629,7 +632,7 @@ export default function SocialAdsDashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [adsSettings, draftsList, ledgerBookings, allBookings, allCompanies, allStaff, allLocations, allOwners, events] = await Promise.all([
+        const [adsSettings, draftsList, ledgerBookings, allBookings, allCompanies, allStaff, allLocations, allOwners, events, contentTypes] = await Promise.all([
           loadSocialAdsSettings(),
           loadSocialAdDrafts(),
           getCommissionLedger(),
@@ -638,8 +641,16 @@ export default function SocialAdsDashboard() {
           getContentItems('staff'),
           getContentItems('location'),
           getContentItems('owner'),
-          getCalendarEvents()
+          getCalendarEvents(),
+          getContentTypeConfigs()
         ]);
+
+        if (contentTypes) {
+          const advConfig = contentTypes.find(c => c.id === 'adventure');
+          if (advConfig && advConfig.slugPrefix) {
+            setExperiencesPath(advConfig.slugPrefix);
+          }
+        }
 
         if (adsSettings) {
           setSettings(adsSettings);
@@ -1007,6 +1018,22 @@ export default function SocialAdsDashboard() {
       const boundMedias = activeBundle?.boundMedias || (activeBundle?.boundMedia ? [activeBundle.boundMedia] : []);
       const ratioImages = activeBundle?.boundMediasByRatio || null;
       
+      let destinationUrl = `https://www.motoryachtwhiskey.com/${experiencesPath}`;
+      if (destinationType === 'fleet') {
+        destinationUrl = 'https://www.motoryachtwhiskey.com/fleet';
+      } else if (destinationType === 'home') {
+        destinationUrl = 'https://www.motoryachtwhiskey.com/';
+      } else if (destinationType === 'custom') {
+        const customUrl = customDestinationUrl.trim();
+        if (customUrl) {
+          if (customUrl.startsWith('http://') || customUrl.startsWith('https://')) {
+            destinationUrl = customUrl;
+          } else {
+            destinationUrl = `https://www.motoryachtwhiskey.com${customUrl.startsWith('/') ? '' : '/'}${customUrl}`;
+          }
+        }
+      }
+
       const payload: any = {
         conceptName: activeBundle?.conceptName || 'Campaign Post',
         message: publishCopy,
@@ -1016,6 +1043,7 @@ export default function SocialAdsDashboard() {
         dailyBudget,
         durationDays,
         targetAudience,
+        destinationUrl,
         headlines: activeBundle?.headlines || [],
         descriptions: activeBundle?.descriptions || [],
         keywords: activeBundle?.keywords || [],
@@ -3825,11 +3853,54 @@ export default function SocialAdsDashboard() {
                       </div>
                     )}
 
+                    {/* Destination Page Selector */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Destination Page</label>
+                      <select 
+                        value={destinationType}
+                        onChange={(e) => setDestinationType(e.target.value)}
+                        style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                      >
+                        <option value="experiences">Experiences Page (Default)</option>
+                        <option value="fleet">The Fleet Page</option>
+                        <option value="home">Home Page</option>
+                        <option value="custom">Custom URL / Path...</option>
+                      </select>
+                    </div>
+
+                    {destinationType === 'custom' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Custom Path or URL</label>
+                        <input 
+                          type="text" 
+                          value={customDestinationUrl}
+                          onChange={(e) => setCustomDestinationUrl(e.target.value)}
+                          placeholder="e.g. /contact or https://..."
+                          style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.5rem', color: '#F4F1EA', outline: 'none', fontSize: '0.8rem' }}
+                        />
+                      </div>
+                    )}
+
                     {/* UTM URL Generator Preview */}
                     {(() => {
+                      const getDestinationBaseUrl = () => {
+                        let path = `/${experiencesPath}`; // default
+                        if (destinationType === 'fleet') path = '/fleet';
+                        else if (destinationType === 'home') path = '/';
+                        else if (destinationType === 'custom') {
+                          path = customDestinationUrl.trim() || `/${experiencesPath}`;
+                        }
+                        
+                        if (path.startsWith('http://') || path.startsWith('https://')) {
+                          return path;
+                        }
+                        return `https://www.motoryachtwhiskey.com${path.startsWith('/') ? '' : '/'}${path}`;
+                      };
+                      
                       const utmSource = publishChannel === 'meta_ads' ? 'meta' : 'google';
                       const campaignSlug = (activeBundle.conceptName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-                      const generatedUrl = `https://motoryachtwhiskey.com/bookings?utm_source=${utmSource}&utm_medium=cpc&utm_campaign=${campaignSlug}`;
+                      const baseDest = getDestinationBaseUrl();
+                      const generatedUrl = `${baseDest}${baseDest.includes('?') ? '&' : '?'}utm_source=${utmSource}&utm_medium=cpc&utm_campaign=${campaignSlug}`;
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
                           <span style={{ fontSize: '0.65rem', color: '#D8C7AF', opacity: 0.6 }}>Auto-Generated Campaign URL (UTM tracking):</span>
