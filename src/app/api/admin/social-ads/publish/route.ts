@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
             objective: 'OUTCOME_TRAFFIC',
             status: 'PAUSED',
             special_ad_categories: ['NONE'],
+            is_adset_budget_sharing_enabled: false,
             access_token: metaDeveloperToken
           })
         });
