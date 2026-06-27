@@ -6,6 +6,7 @@ import { sendEmail } from '@/lib/email';
 import { sendSms } from '@/lib/sms';
 import { enrollBookingInFlow, parseMarkdownToHtml } from '@/lib/notifications';
 import MasterEmailWrapper from '@/components/emails/MasterEmailWrapper';
+import { sendMetaServerEvent } from '@/lib/meta-capi';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
   apiVersion: '2023-10-16' as any,
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
         const utmSource = session.metadata?.utmSource;
         const utmMedium = session.metadata?.utmMedium;
         const utmCampaign = session.metadata?.utmCampaign;
+        const fbp = session.metadata?.fbp;
+        const fbc = session.metadata?.fbc;
 
         if (!bookingId) {
           console.log('Skipping session: No bookingId found in metadata.');
@@ -156,6 +159,44 @@ export async function POST(request: NextRequest) {
         await bookingRef.set(updatePayload, { merge: true });
 
         console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}". Paid: $${amountPaidTodayCalculated}, Due Later: $${amountDueLaterCalculated}`);
+
+        // Trigger Meta Conversions API (CAPI) purchase event
+        try {
+          const guestEmail = existingData.guestEmail || session.customer_details?.email || '';
+          const guestPhone = existingData.guestPhone || session.customer_details?.phone || '';
+          const guestName = existingData.guestName || session.customer_details?.name || '';
+          const nameParts = guestName.trim().split(/\s+/);
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+          
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.motoryachtwhiskey.com';
+          const experienceSlug = existingData.experienceSlug || session.metadata?.experienceSlug || '';
+          const eventSourceUrl = `${siteUrl}/experiences/${experienceSlug}`;
+
+          // Get client IP and User Agent from request headers
+          const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '';
+          const userAgent = request.headers.get('user-agent') || '';
+
+          await sendMetaServerEvent({
+            eventName: 'Purchase',
+            eventId: bookingId, // matches client eventID for deduplication
+            eventSourceUrl,
+            amount: amountPaid,
+            currency: 'USD',
+            userData: {
+              email: guestEmail,
+              phone: guestPhone,
+              firstName,
+              lastName,
+              clientIpAddress: clientIp.split(',')[0].trim(),
+              clientUserAgent: userAgent,
+              fbp,
+              fbc
+            }
+          });
+        } catch (capiErr) {
+          console.error('Meta CAPI: Failed to track purchase event in webhook:', capiErr);
+        }
 
         // Send notifications via Flow Manager (only on initial booking)
         if (!isBalancePayment && targetStatus === 'pending waiver') {

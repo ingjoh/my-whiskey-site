@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
     const utmSource = request.cookies.get('whiskey_utm_source')?.value;
     const utmMedium = request.cookies.get('whiskey_utm_medium')?.value;
     const utmCampaign = request.cookies.get('whiskey_utm_campaign')?.value;
+    const fbp = request.cookies.get('_fbp')?.value;
+    const fbc = request.cookies.get('_fbc')?.value;
 
     // Fetch and load the actual booking from Firestore
     const bookingRef = adminDb.collection('pages').doc(`booking-${bookingId}`);
@@ -257,6 +259,8 @@ export async function POST(request: NextRequest) {
         utmSource: utmSource || '',
         utmMedium: utmMedium || '',
         utmCampaign: utmCampaign || '',
+        fbp: fbp || '',
+        fbc: fbc || '',
       },
       success_url: successUrl,
       cancel_url: cancelUrl,
