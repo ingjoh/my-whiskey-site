@@ -1643,6 +1643,15 @@ export default function AdventureDetailView({
       const res = await acquireCheckoutLock(selectedVesselSlug, selectedDate, selectedStartTime, guestEmail);
       if (res.success) {
         setLockTimeRemaining(10 * 60);
+
+        // Trigger Meta Pixel custom tracking event for Step 2 completion
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+          (window as any).fbq('trackCustom', 'BookingStep2_Complete', {
+            vessel_slug: selectedVesselSlug,
+            gear_count: Object.keys(selectedGearSlugs).filter(slug => selectedGearSlugs[slug]).length
+          });
+        }
+
         setBookingStep(3);
         refreshAvailabilityData();
       } else {
@@ -1677,6 +1686,16 @@ export default function AdventureDetailView({
   const handleProcessPayment = async () => {
     setIsProcessingPayment(true);
     try {
+      // Trigger Meta Pixel standard InitiateCheckout event
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'InitiateCheckout', {
+          content_type: 'product',
+          contents: [{ id: item.id || '' }],
+          currency: 'USD',
+          value: amountDueToday
+        });
+      }
+
       const leadMins = getAdventureLeadTime(item);
       const crewMins = item.crewDurationMinutes || item.guestDurationMinutes || 240;
 
@@ -3699,6 +3718,15 @@ export default function AdventureDetailView({
                     onClick={() => {
                       // Simulated Lead Capture write to DB/Log
                       console.log('Abandoned Cart Trigger: Captured guest info', { guestName, guestEmail, guestPhone, guestCount, specialConsiderations, selectedDate, selectedVesselSlug });
+                      
+                      // Trigger Meta Pixel custom tracking event for Step 1 completion
+                      if (typeof window !== 'undefined' && (window as any).fbq) {
+                        (window as any).fbq('trackCustom', 'BookingStep1_Complete', {
+                          vessel_slug: selectedVesselSlug,
+                          departure_date: selectedDate
+                        });
+                      }
+
                       setBookingStep(2);
                     }}
                     style={{
