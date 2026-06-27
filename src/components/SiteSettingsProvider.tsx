@@ -148,6 +148,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
               fbq('init', '${settings.injection.metaPixelId}');
+              fbq('set', 'autoConfig', false, '${settings.injection.metaPixelId}');
               fbq('track', 'PageView');
             `}
           </Script>
