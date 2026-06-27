@@ -3725,6 +3725,15 @@ export default function AdventureDetailView({
                           vessel_slug: selectedVesselSlug,
                           departure_date: selectedDate
                         });
+
+                        // Only fire subscription tracking if the marketing opt-in checkbox is checked
+                        if (marketingOptIn) {
+                          (window as any).fbq('track', 'Subscribe', {
+                            content_name: 'Newsletter Opt-in',
+                            status: 'success'
+                          });
+                          (window as any).fbq('trackCustom', 'SubscribedButtonClick');
+                        }
                       }
 
                       setBookingStep(2);
