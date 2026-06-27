@@ -135,6 +135,51 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
         </>
       )}
 
+      {!isAdminPage && settings?.injection?.metaPixelId && (
+        <>
+          <Script id="meta-pixel" strategy="afterInteractive">
+            {`
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', '${settings.injection.metaPixelId}');
+              fbq('track', 'PageView');
+            `}
+          </Script>
+          <Script id="meta-pixel-purchase" strategy="afterInteractive">
+            {`
+              (function() {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('status') === 'success') {
+                  const bookingId = params.get('bookingId') || params.get('id');
+                  if (bookingId) {
+                    const trackedKey = 'fb_tracked_purchase_' + bookingId;
+                    if (!localStorage.getItem(trackedKey)) {
+                      window.fbq('track', 'Purchase', {
+                        content_type: 'product',
+                        contents: [{ id: bookingId }],
+                        currency: 'USD'
+                      }, { eventID: bookingId });
+                      localStorage.setItem(trackedKey, 'true');
+                    }
+                  }
+                }
+              })();
+            `}
+          </Script>
+          <noscript>
+            <img height="1" width="1" style={{ display: 'none' }} 
+              src={`https://www.facebook.com/tr?id=${settings.injection.metaPixelId}&ev=PageView&noscript=1`} />
+          </noscript>
+        </>
+      )}
+
+
       {children}
 
       {!isAdminPage && settings?.injection?.bodyCode && (

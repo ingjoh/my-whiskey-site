@@ -83,6 +83,8 @@ export interface SiteSettings {
     googleAnalyticsId?: string;
     headCode?: string;
     bodyCode?: string;
+    metaPixelId?: string;
+    metaConversionsApiToken?: string;
   };
   navigation?: {
     links: NavLink[];

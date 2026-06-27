@@ -118,7 +118,9 @@ const DEFAULT_SETTINGS: SiteSettings = {
   injection: {
     googleAnalyticsId: '',
     headCode: '',
-    bodyCode: ''
+    bodyCode: '',
+    metaPixelId: '',
+    metaConversionsApiToken: ''
   },
   navigation: {
     links: [
@@ -1064,6 +1066,30 @@ export default function SettingsPage() {
                   placeholder="G- or GTM-"
                   value={settings.injection.googleAnalyticsId} 
                   onChange={e => setSettings({ ...settings, injection: { ...settings.injection, googleAnalyticsId: e.target.value } })}
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+              </label>
+
+              <label style={labelStyle}>
+                Meta Pixel ID / Dataset ID
+                <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, fontWeight: 'normal' }}>Used for ad attribution tracking. e.g. 1718522669485893</span>
+                <input 
+                  type="text" 
+                  placeholder="e.g. 1718522669485893"
+                  value={settings.injection.metaPixelId || ''} 
+                  onChange={e => setSettings({ ...settings, injection: { ...settings.injection, metaPixelId: e.target.value } })}
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+              </label>
+
+              <label style={labelStyle}>
+                Meta Conversions API Access Token
+                <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.6, fontWeight: 'normal' }}>Used for server-side purchase tracking. Generate this in Meta Events Manager settings.</span>
+                <input 
+                  type="password" 
+                  placeholder="EAAXZB..."
+                  value={settings.injection.metaConversionsApiToken || ''} 
+                  onChange={e => setSettings({ ...settings, injection: { ...settings.injection, metaConversionsApiToken: e.target.value } })}
                   style={{ ...inputStyle, width: '100%' }}
                 />
               </label>
