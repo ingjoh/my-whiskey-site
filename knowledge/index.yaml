@@ -228,6 +228,20 @@ architectural-principles:
   depends_on: []
   implemented_by: []
 
+003-logical-tenant-data-isolation:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+004-organization-aware-role-based-authorization:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
 ui-architecture:
   owner: Design
   status: Authoritative
