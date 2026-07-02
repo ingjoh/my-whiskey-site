@@ -2780,14 +2780,18 @@ export async function getAllBookings(): Promise<BookingRecord[]> {
       }
     });
 
-    const newBookingsSnap = await getDocs(collection(db, 'bookings'));
-    const newBookingsPromises: Promise<BookingRecord | null>[] = [];
-    newBookingsSnap.forEach((docSnap) => {
-      newBookingsPromises.push(translateNewToLegacyBooking(docSnap.data()));
-    });
-
-    const translatedNewBookings = (await Promise.all(newBookingsPromises))
-      .filter((b): b is BookingRecord => b !== null);
+    let translatedNewBookings: BookingRecord[] = [];
+    try {
+      const newBookingsSnap = await getDocs(collection(db, 'bookings'));
+      const newBookingsPromises: Promise<BookingRecord | null>[] = [];
+      newBookingsSnap.forEach((docSnap) => {
+        newBookingsPromises.push(translateNewToLegacyBooking(docSnap.data()));
+      });
+      translatedNewBookings = (await Promise.all(newBookingsPromises))
+        .filter((b): b is BookingRecord => b !== null);
+    } catch (newBookingsErr) {
+      console.warn('Client lacks read permissions for new bookings collection. Skipping guest-level query:', newBookingsErr);
+    }
 
     const allBookings = [...legacyBookings, ...translatedNewBookings];
     return allBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
