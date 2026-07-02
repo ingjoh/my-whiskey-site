@@ -6,7 +6,7 @@ Booking:
   status: Authoritative
   review_frequency: Quarterly
   depends_on:
-    - Guest
+    - Person
     - Adventure
     - Vessel
     - Payment
@@ -21,7 +21,7 @@ Proposal:
   status: Authoritative
   review_frequency: Quarterly
   depends_on:
-    - Guest
+    - Person
     - Vessel
     - Adventure
   implemented_by:
@@ -45,13 +45,69 @@ Gear:
   implemented_by:
     - asset-service
 
-Guest:
+Person:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
   depends_on: []
   implemented_by:
-    - customer-db
+    - identity-service
+
+User:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+  implemented_by:
+    - identity-service
+    - firebase-auth
+
+Partnership:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+    - Organization
+  implemented_by:
+    - identity-service
+
+Role:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Permission
+  implemented_by:
+    - identity-service
+
+Permission:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - identity-service
+
+RoleAssignment:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+    - Role
+  implemented_by:
+    - identity-service
+
+Capability:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+  implemented_by:
+    - identity-service
 
 Adventure:
   owner: Marketing

@@ -47,3 +47,12 @@ This document tracks all manual and automated revisions made to the Knowledge Ca
 *   **System Files Modified**: `knowledge/index.yaml` (Registry records), `knowledge/log.md`.
 *   **Author**: Antigravity Agent
 *   **Commit**: `main@HEAD`
+
+### 2026-07-02 (Epic 1 Identity Foundation Knowledge Refactoring)
+*   **Action**: Retired the Guest concept, updated the Organization concept, and created Person, User, Partnership, Role, Permission, RoleAssignment, and Capability concepts.
+*   **Concepts Added**: `Person`, `User`, `Partnership`, `Role`, `Permission`, `RoleAssignment`, `Capability`.
+*   **Concepts Deleted**: `Guest`.
+*   **System Files Added**: `knowledge/concepts/Person.md`, `knowledge/concepts/User.md`, `knowledge/concepts/Partnership.md`, `knowledge/concepts/Role.md`, `knowledge/concepts/Permission.md`, `knowledge/concepts/RoleAssignment.md`, `knowledge/concepts/Capability.md`.
+*   **System Files Modified**: `knowledge/concepts/Organization.md`, `knowledge/index.yaml` (Registry records), `knowledge/log.md`.
+*   **Author**: Antigravity Agent
+*   **Commit**: `epic/platform-transformation@HEAD`
