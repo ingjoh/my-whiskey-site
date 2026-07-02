@@ -162,5 +162,37 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
+
+    // Commercial schemas rules (new collections added in Epic 2)
+    match /experiences/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /experiences/{experienceId}/itinerary_templates/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /listings/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    match /proposals/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    match /offers/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    match /bookings/{document} {
+      allow get: if true; // Guests can retrieve single bookings by ID
+      allow list: if request.auth != null; // Authenticated staff only can list bookings
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
   }
 }
