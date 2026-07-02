@@ -52,6 +52,84 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        const offerId = session.metadata?.offerId;
+        
+        if (offerId) {
+          const paymentPlan = session.metadata?.paymentPlan;
+          const paymentIntentId = session.payment_intent as string;
+          const paymentStatus = session.payment_status;
+
+          console.log(`Processing checkout.session.completed for Offer: ${offerId}`);
+
+          const offerRef = adminDb.collection('offers').doc(offerId);
+          const offerSnap = await offerRef.get();
+          if (!offerSnap.exists) {
+            console.error(`Offer ${offerId} not found in database.`);
+            return NextResponse.json({ error: `Offer ${offerId} not found` }, { status: 404 });
+          }
+
+          const offerData = offerSnap.data() || {};
+          if (!offerData.isAccepted) {
+            const proposalId = offerData.proposalId;
+            const proposalRef = adminDb.collection('proposals').doc(proposalId);
+            const proposalSnap = await proposalRef.get();
+            const proposalData = proposalSnap.exists ? proposalSnap.data() || {} : {};
+            const guestId = proposalData.recipientId || '';
+
+            const generatedBookingId = `BK_${Math.floor(100000 + Math.random() * 900000)}`;
+
+            await adminDb.runTransaction(async (transaction) => {
+              transaction.set(offerRef, {
+                status: 'accepted',
+                isAccepted: true,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+
+              if (proposalId) {
+                const siblingOffers = await adminDb.collection('offers')
+                  .where('proposalId', '==', proposalId)
+                  .get();
+                siblingOffers.forEach((siblingDoc) => {
+                  if (siblingDoc.id !== offerId) {
+                    transaction.set(siblingDoc.ref, {
+                      status: 'expired',
+                      updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                  }
+                });
+                transaction.set(proposalRef, {
+                  status: 'accepted',
+                  updatedAt: new Date().toISOString()
+                }, { merge: true });
+              }
+
+              const newBookingRef = adminDb.collection('bookings').doc(generatedBookingId);
+              transaction.set(newBookingRef, {
+                id: generatedBookingId,
+                tenantId: offerData.tenantId || 'org-whiskey',
+                acceptedOfferId: offerId,
+                guestId: guestId,
+                status: 'confirmed',
+                paymentStatus: paymentPlan === 'deposit' ? 'deposit_paid' : 'fully_paid',
+                stripePaymentIntentId: paymentIntentId || '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+
+              const legacyRef = adminDb.collection('pages').doc(`booking-${generatedBookingId}`);
+              transaction.set(legacyRef, {
+                id: generatedBookingId,
+                type: 'booking',
+                migrated: true,
+                newBookingRef: generatedBookingId,
+                updatedAt: new Date().toISOString()
+              });
+            });
+            console.log(`✓ Webhook successfully accepted Offer ${offerId} -> created Booking ${generatedBookingId}`);
+          }
+          break;
+        }
+
         const bookingId = session.metadata?.bookingId;
         const paymentPlan = session.metadata?.paymentPlan;
         const isBalancePayment = session.metadata?.isBalancePayment === 'true';
