@@ -165,7 +165,7 @@ architectural-principles:
   depends_on: []
   implemented_by: []
 
-002-knowledge-architecture:
+002-ai-native-knowledge-architecture:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
@@ -190,5 +190,12 @@ engineering:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+platform-constitution:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Semi-Annually
   depends_on: []
   implemented_by: []

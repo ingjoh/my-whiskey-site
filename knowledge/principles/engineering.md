@@ -31,6 +31,7 @@ The approved development guidelines are:
 *   **Registry-First Naming**: Never invent new database entities or variables. All names must be validated against `index.yaml` and individual concepts under `/knowledge/concepts/` (e.g. use `Guest` instead of `Customer` or `User`).
 *   **Code Implementing Knowledge**: Code is a manifestation of the registered knowledge. Design and register the system concepts under `/knowledge/` first, review relationships, and then write the corresponding implementation code.
 *   **Self-Verification**: Every change must compile cleanly and pass automated checks before being merged. Drift check commands (`npm run knowledge-health`) must be run locally before proposing code changes.
+*   **Knowledge Evolution**: The repository's knowledge base grows primarily through refinement rather than fragmentation. Developers and agents should focus on improving and expanding existing concepts instead of continuously creating new documents. A new Knowledge Object must only be created if it represents a distinct domain entity or system layer with its own lifecycle, and must be explicitly justified during impact analysis.
 
 ---
 
