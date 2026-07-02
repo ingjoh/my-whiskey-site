@@ -7,8 +7,7 @@ Booking:
   review_frequency: Quarterly
   depends_on:
     - Person
-    - Adventure
-    - Vessel
+    - Offer
     - Payment
   implemented_by:
     - booking-service
@@ -22,8 +21,6 @@ Proposal:
   review_frequency: Quarterly
   depends_on:
     - Person
-    - Vessel
-    - Adventure
   implemented_by:
     - proposal-service
 
@@ -109,14 +106,44 @@ Capability:
   implemented_by:
     - identity-service
 
-Adventure:
-  owner: Marketing
+Experience:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - commercial-service
+
+ItineraryTemplate:
+  owner: Domain
   status: Authoritative
   review_frequency: Quarterly
   depends_on:
-    - Vessel
+    - Experience
   implemented_by:
-    - adventure-loader
+    - commercial-service
+
+Listing:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Experience
+    - Organization
+  implemented_by:
+    - commercial-service
+
+Offer:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Experience
+    - ItineraryTemplate
+    - Listing
+    - Proposal
+  implemented_by:
+    - commercial-service
 
 Blackout:
   owner: Operations
@@ -236,6 +263,13 @@ architectural-principles:
   implemented_by: []
 
 004-organization-aware-role-based-authorization:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+005-decoupled-multi-party-payment-settlement:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
