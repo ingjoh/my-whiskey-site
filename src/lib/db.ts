@@ -1540,6 +1540,40 @@ export function applyMockFallbacks(item: ContentItem): ContentItem {
 }
 
 export async function getContentItems(contentType?: string): Promise<ContentItem[]> {
+  if (contentType === 'adventure') {
+    try {
+      const expSnap = await getDocs(collection(db, 'experiences'));
+      if (!expSnap.empty) {
+        const items: ContentItem[] = [];
+        for (const docSnap of expSnap.docs) {
+          const exp = docSnap.data();
+          const listingsSnap = await getDocs(query(collection(db, 'listings'), where('experienceId', '==', exp.id)));
+          let baseCost = 0;
+          if (!listingsSnap.empty) {
+            baseCost = listingsSnap.docs[0].data().pricing.baseRate;
+          }
+          items.push({
+            id: exp.id,
+            slug: exp.id,
+            title: exp.title,
+            contentType: 'adventure',
+            shortDescription: exp.shortDescription,
+            heroImage: exp.heroImage || '',
+            description: exp.description,
+            gallery: exp.gallery || [],
+            status: exp.status,
+            createdAt: exp.createdAt,
+            updatedAt: exp.updatedAt,
+            experienceBaseCost: baseCost,
+          } as ContentItem);
+        }
+        return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+    } catch (e) {
+      console.error('Error loading new experiences in getContentItems:', e);
+    }
+  }
+
   if (typeof window === 'undefined') {
     try {
       const projectId = getProjectId();
@@ -2683,23 +2717,76 @@ export async function getCustomerProfile(email: string): Promise<CustomerProfile
   }
 }
 
+async function translateNewToLegacyBooking(newBooking: any): Promise<BookingRecord | null> {
+  try {
+    const offerDoc = await getDoc(doc(db, 'offers', newBooking.acceptedOfferId));
+    if (!offerDoc.exists()) return null;
+    const offer = offerDoc.data() as any;
+
+    const guestDoc = await getDoc(doc(db, 'people', newBooking.guestId));
+    const guest = guestDoc.exists() ? guestDoc.data() as any : { firstName: 'Guest', lastName: '', email: '', phone: '' };
+
+    const experienceDoc = await getDoc(doc(db, 'experiences', offer.experienceId));
+    const experience = experienceDoc.exists() ? experienceDoc.data() as any : { title: 'Yacht Excursion' };
+
+    return {
+      id: newBooking.id,
+      experienceId: offer.experienceId,
+      experienceTitle: experience.title,
+      vesselSlug: offer.resourcePreferences.vesselCategory,
+      vesselTitle: offer.resourcePreferences.vesselCategory === 'yacht' ? 'M/Y Whiskey' : 'Gear Excursion',
+      date: offer.schedulingSnapshot.date,
+      startTime: offer.schedulingSnapshot.startTime,
+      guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+      guestEmail: guest.email,
+      guestPhone: guest.phone,
+      guestCount: offer.resourcePreferences.crewCountRequired || 1,
+      subtotal: offer.pricingSnapshot.subtotal,
+      salesTax: offer.pricingSnapshot.taxes,
+      grandTotal: offer.pricingSnapshot.grandTotal,
+      amountPaidToday: newBooking.paymentStatus === 'deposit_paid' ? offer.pricingSnapshot.depositRequired : offer.pricingSnapshot.grandTotal,
+      amountDueLater: newBooking.paymentStatus === 'deposit_paid' ? (offer.pricingSnapshot.grandTotal - offer.pricingSnapshot.depositRequired) : 0,
+      paymentPlan: newBooking.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
+      createdAt: newBooking.createdAt,
+      status: newBooking.status,
+      waiverSigned: false,
+      stripePaymentIntentId: newBooking.stripePaymentIntentId || '',
+      tenantId: newBooking.tenantId || 'org-whiskey'
+    } as BookingRecord;
+  } catch (err) {
+    console.error('Error translating booking:', err);
+    return null;
+  }
+}
+
 /**
  * Retrieves all bookings.
  */
 export async function getAllBookings(): Promise<BookingRecord[]> {
   try {
     const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
-    const bookings: BookingRecord[] = [];
+    const legacyBookings: BookingRecord[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       if (data.type === 'booking') {
-        bookings.push({
+        legacyBookings.push({
           ...data,
           id: data.id || doc.id.replace('booking-', '')
         } as BookingRecord);
       }
     });
-    return bookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const newBookingsSnap = await getDocs(collection(db, 'bookings'));
+    const newBookingsPromises: Promise<BookingRecord | null>[] = [];
+    newBookingsSnap.forEach((docSnap) => {
+      newBookingsPromises.push(translateNewToLegacyBooking(docSnap.data()));
+    });
+
+    const translatedNewBookings = (await Promise.all(newBookingsPromises))
+      .filter((b): b is BookingRecord => b !== null);
+
+    const allBookings = [...legacyBookings, ...translatedNewBookings];
+    return allBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (error) {
     console.error('Error loading all bookings:', error);
     return [];
@@ -3079,6 +3166,14 @@ export async function getBookingById(bookingId: string): Promise<BookingRecord |
         } as BookingRecord;
       }
     }
+
+    // Try new bookings collection
+    const newBookingRef = doc(db, 'bookings', bookingId);
+    const newBookingSnap = await getDoc(newBookingRef);
+    if (newBookingSnap.exists()) {
+      return await translateNewToLegacyBooking(newBookingSnap.data());
+    }
+
     return null;
   } catch (error) {
     console.error('Error fetching booking by ID:', error);
