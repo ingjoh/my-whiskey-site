@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           let token = await currentUser.getIdToken();
           
           try {
-            const res = await fetch('/api/auth/register-admin', {
+            const res = await fetch('/api/auth/register-session', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             if (res.ok) {
               const data = await res.json();
-              if (data.adminGranted) {
-                console.log('Admin claims successfully registered/updated server-side. Force refreshing token...');
+              if (data.claimsUpdated) {
+                console.log('User custom claims updated server-side. Force refreshing token...');
                 token = await currentUser.getIdToken(true);
               }
             }
