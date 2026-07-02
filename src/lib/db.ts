@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore';
 import { db } from './firebase';
 import { PageNode, ThemeConfig, NavLink } from '@/store/useBuilderStore';
 import { detectProjectId } from './project-env';
@@ -2735,6 +2735,8 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
       experienceTitle: experience.title,
       vesselSlug: offer.resourcePreferences.vesselCategory,
       vesselTitle: offer.resourcePreferences.vesselCategory === 'yacht' ? 'M/Y Whiskey' : 'Gear Excursion',
+      captainId: '',
+      captainTitle: '',
       date: offer.schedulingSnapshot.date,
       startTime: offer.schedulingSnapshot.startTime,
       guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
@@ -2747,12 +2749,14 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
       amountPaidToday: newBooking.paymentStatus === 'deposit_paid' ? offer.pricingSnapshot.depositRequired : offer.pricingSnapshot.grandTotal,
       amountDueLater: newBooking.paymentStatus === 'deposit_paid' ? (offer.pricingSnapshot.grandTotal - offer.pricingSnapshot.depositRequired) : 0,
       paymentPlan: newBooking.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
+      cancellationInsurance: false,
+      marketingOptIn: false,
       createdAt: newBooking.createdAt,
       status: newBooking.status,
       waiverSigned: false,
       stripePaymentIntentId: newBooking.stripePaymentIntentId || '',
       tenantId: newBooking.tenantId || 'org-whiskey'
-    } as BookingRecord;
+    } as unknown as BookingRecord;
   } catch (err) {
     console.error('Error translating booking:', err);
     return null;
