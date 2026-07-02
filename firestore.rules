@@ -2,6 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Legacy/Platform-wide admin claim check
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.admin == true 
@@ -15,34 +16,51 @@ service cloud.firestore {
       );
     }
 
+    // Organization-aware role checks (ADR-004)
+    function hasRole(orgId, role) {
+      return request.auth != null && 
+             request.auth.token.roles != null && 
+             request.auth.token.roles[orgId] == role;
+    }
+
+    function isOrgMember(orgId) {
+      return request.auth != null && 
+             request.auth.token.roles != null && 
+             request.auth.token.roles[orgId] != null;
+    }
+
+    function hasOperatorAccess(orgId) {
+      return isAdmin() || hasRole(orgId, 'owner') || hasRole(orgId, 'admin') || hasRole(orgId, 'staff');
+    }
+
     // Global site settings rules
     match /settings/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Site templates rules
     match /templates/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Media library assets rules
     match /assets/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Custom content type definitions rules
     match /content_types/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Raw content items rules
     match /content_items/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Messaging Engine Rules
@@ -65,6 +83,7 @@ service cloud.firestore {
 
       // Clients can create new booking requests, passenger waivers, checkout locks, or customer profiles
       allow create: if isAdmin()
+                    || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId))
                     || request.resource.data.type == 'booking' 
                     || request.resource.data.type == 'waiver_signature'
                     || request.resource.data.type == 'lock'
@@ -74,6 +93,7 @@ service cloud.firestore {
       // Clients can update their own bookings to sign the digital waiver,
       // update checkout locks they own, or update their own customer profile.
       allow update: if isAdmin() 
+                    || (resource.data.tenantId != null && hasOperatorAccess(resource.data.tenantId))
                     || (resource.data.type == 'booking' 
                         && request.resource.data.waiverSigned == true 
                         && resource.data.waiverSigned == false)
@@ -86,6 +106,7 @@ service cloud.firestore {
       // Destructive deletion is reserved strictly for site administrators,
       // except for temporary checkout locks which clients can release/delete.
       allow delete: if isAdmin()
+                    || (resource.data.tenantId != null && hasOperatorAccess(resource.data.tenantId))
                     || (resource.data.type == 'lock');
     }
 
@@ -97,13 +118,49 @@ service cloud.firestore {
     // Calendar events rules
     match /calendar_events/{document} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
     // Blog posts rules
     match /blog_posts/{document} {
       allow read: if true;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    // Identity schemas rules (new collections added in Epic 1)
+    match /people/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    match /users/{document} {
+      allow read: if request.auth != null && request.auth.uid == document;
+      allow write: if request.auth != null && request.auth.uid == document;
+    }
+
+    match /organizations/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || hasRole(document, 'owner') || hasRole(document, 'admin');
+    }
+
+    match /partnerships/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
+    match /roles/{document} {
+      allow read: if request.auth != null;
       allow write: if isAdmin();
+    }
+
+    match /role_assignments/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || (request.resource.data.scopeType == 'organization' && hasOperatorAccess(request.resource.data.scopeId));
+    }
+
+    match /capabilities/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
   }
 }
