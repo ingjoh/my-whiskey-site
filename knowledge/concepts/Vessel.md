@@ -14,13 +14,13 @@ verified_against: "main@HEAD"
 A **Vessel** is the primary high-value asset in the booking engine. It maps to physical boats managed by the platform.
 
 ## Properties & Naming Rules
-*   Represented in the code as an `Asset` entity where `isVessel` is `true`.
-*   Uniquely identified by a lowercase hyphenated slug (e.g. `vesselSlug: "whiskey"`).
-*   Contains attributes for home location, relocation speed, passenger capacity, and amenity tags.
+*   Represented in the code as a `ResourceDocument` entity where `type` is `'vessel'` and configuration properties exist in `physicalConfig`.
+*   Uniquely identified by a lowercase hyphenated slug (e.g. `resourceId: "res_whiskey"`).
+*   Contains physical attributes for home location, relocation speed, passenger capacity, and amenity tags.
 
 ## Naming Warning
-*   Never use the term "Asset" in frontend guest layouts. Always display as "Vessel" or "Yacht".
-*   "Asset" is only used as a backend base interface class merging Vessel and Gear.
+*   Never use the term "Resource" or "Asset" in frontend guest layouts. Always display as "Vessel" or "Yacht".
+*   "Resource" is the unified backend schema concept merging vessels, gear, and crew.
 
 ## Examples
 

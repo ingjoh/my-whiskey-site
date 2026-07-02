@@ -192,6 +192,27 @@ Usage:
     - usage-api
     - social-ads
 
+Assignment:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on:
+    - Vessel
+    - Gear
+    - OperationalItinerary
+  implemented_by:
+    - operational-service
+
+OperationalItinerary:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Semi-Annually
+  depends_on:
+    - Booking
+    - Vessel
+  implemented_by:
+    - operational-service
+
 overview:
   owner: Domain
   status: Authoritative
@@ -270,6 +291,13 @@ architectural-principles:
   implemented_by: []
 
 005-decoupled-multi-party-payment-settlement:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+006-unified-resource-scheduling-model:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
