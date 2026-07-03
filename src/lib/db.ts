@@ -1541,9 +1541,21 @@ export function applyMockFallbacks(item: ContentItem): ContentItem {
 
 async function translateResourceToLegacyContentItem(resource: any): Promise<ContentItem> {
   if (resource.type === 'vessel' || resource.type === 'gear') {
+    const assetSlug = resource.id.replace('res_', '');
+    let ownerId = '';
+    
+    try {
+      const pageSnap = await getDoc(doc(db, 'pages', `content-item-${assetSlug}`));
+      if (pageSnap.exists()) {
+        ownerId = pageSnap.data().ownerId || '';
+      }
+    } catch (e) {
+      console.warn('Could not read legacy content-item for owner translation:', e);
+    }
+
     return {
       id: resource.id,
-      slug: resource.id,
+      slug: assetSlug,
       title: resource.name,
       contentType: 'asset',
       shortDescription: resource.type === 'vessel' ? 'Unified Vessel Resource' : 'Unified Gear Resource',
@@ -1555,6 +1567,7 @@ async function translateResourceToLegacyContentItem(resource: any): Promise<Cont
       category: resource.category,
       capacity: resource.physicalConfig?.capacity || 0,
       isVessel: resource.type === 'vessel',
+      ownerId,
       specs: resource.type === 'vessel' ? [
         { label: 'Length', value: '55 ft' },
         { label: 'Beam', value: '16.5 ft' },
