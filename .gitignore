@@ -47,4 +47,5 @@ next-env.d.ts
 graph.json
 graph.html
 GRAPH_REPORT.md
+/dist/
 
