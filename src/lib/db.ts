@@ -1539,7 +1539,83 @@ export function applyMockFallbacks(item: ContentItem): ContentItem {
   return item;
 }
 
+async function translateResourceToLegacyContentItem(resource: any): Promise<ContentItem> {
+  if (resource.type === 'vessel' || resource.type === 'gear') {
+    return {
+      id: resource.id,
+      slug: resource.id,
+      title: resource.name,
+      contentType: 'asset',
+      shortDescription: resource.type === 'vessel' ? 'Unified Vessel Resource' : 'Unified Gear Resource',
+      heroImage: resource.type === 'vessel'
+        ? 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c'
+        : '',
+      location: resource.physicalConfig?.homeLocation || 'Destin Harbor, FL',
+      status: resource.status === 'active' ? 'published' : 'draft',
+      category: resource.category,
+      capacity: resource.physicalConfig?.capacity || 0,
+      isVessel: resource.type === 'vessel',
+      specs: resource.type === 'vessel' ? [
+        { label: 'Length', value: '55 ft' },
+        { label: 'Beam', value: '16.5 ft' },
+        { label: 'Cruising Speed', value: `${resource.physicalConfig?.relocationSpeed || 18} knots` }
+      ] : [],
+      createdAt: resource.createdAt,
+      updatedAt: resource.updatedAt
+    } as ContentItem;
+  } else {
+    let personData: any = {};
+    if (resource.humanConfig?.personId) {
+      try {
+        const pSnap = await getDoc(doc(db, 'people', resource.humanConfig.personId));
+        if (pSnap.exists()) {
+          personData = pSnap.data();
+        }
+      } catch (e) {
+        console.warn('Could not load person profile for crew resource:', e);
+      }
+    }
+    const capabilities = resource.humanConfig?.capabilities || [];
+    const isCaptain = capabilities.includes('captain');
+    return {
+      id: resource.id,
+      slug: resource.id,
+      title: resource.name || `${personData.firstName || ''} ${personData.lastName || ''}`.trim(),
+      contentType: 'staff',
+      role: isCaptain ? 'Captain' : 'Crew Member',
+      isCaptain,
+      certifications: capabilities,
+      heroImage: `/images/crew/${resource.id}.png`,
+      shortDescription: `Certified crew member with capabilities: ${capabilities.join(', ')}`,
+      location: 'Destin, FL',
+      status: resource.status === 'active' ? 'published' : 'draft',
+      createdAt: resource.createdAt,
+      updatedAt: resource.updatedAt
+    } as ContentItem;
+  }
+}
+
 export async function getContentItems(contentType?: string): Promise<ContentItem[]> {
+  if (contentType === 'asset' || contentType === 'staff') {
+    try {
+      const resSnap = await getDocs(collection(db, 'resources'));
+      if (!resSnap.empty) {
+        const targetType = contentType === 'asset' ? ['vessel', 'gear'] : ['crew'];
+        const matchedDocs = resSnap.docs
+          .map(d => d.data())
+          .filter(r => targetType.includes(r.type));
+
+        if (matchedDocs.length > 0) {
+          const itemsPromises = matchedDocs.map(r => translateResourceToLegacyContentItem(r));
+          const translatedItems = await Promise.all(itemsPromises);
+          return translatedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+      }
+    } catch (newResErr) {
+      console.warn('Client lacks read permissions for resources. Skipping resources query:', newResErr);
+    }
+  }
+
   if (contentType === 'adventure') {
     try {
       const expSnap = await getDocs(collection(db, 'experiences'));
@@ -2968,7 +3044,38 @@ export async function getAssetBlackouts(vesselSlug?: string): Promise<AssetBlack
         }
       }
     });
-    return blackouts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    let newAllocations: AssetBlackout[] = [];
+    try {
+      const allocSnap = await getDocs(collection(db, 'inventory_allocations'));
+      allocSnap.forEach((docSnap) => {
+        const alloc = docSnap.data();
+        if (alloc.allocationType === 'maintenance' || alloc.allocationType === 'private_use') {
+          const resSlug = alloc.resourceId.replace('res_', '');
+          if (!vesselSlug || resSlug === vesselSlug || alloc.resourceId === vesselSlug) {
+            const startDate = alloc.startAt.substring(0, 10);
+            const endDate = alloc.endAt.substring(0, 10);
+            const startTime = alloc.startAt.length > 16 ? alloc.startAt.substring(11, 16) : undefined;
+            const endTime = alloc.endAt.length > 16 ? alloc.endAt.substring(11, 16) : undefined;
+            newAllocations.push({
+              id: alloc.id,
+              vesselSlug: resSlug,
+              title: `${alloc.allocationType.toUpperCase()}: ${alloc.referenceId || alloc.id}`,
+              startDate,
+              endDate,
+              startTime,
+              endTime,
+              createdAt: alloc.createdAt
+            } as AssetBlackout);
+          }
+        }
+      });
+    } catch (allocErr) {
+      console.warn('Client lacks read permissions for inventory allocations. Skipping query:', allocErr);
+    }
+
+    const allBlackouts = [...blackouts, ...newAllocations];
+    return allBlackouts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
   } catch (error) {
     console.error('Error loading asset blackouts:', error);
     return [];
