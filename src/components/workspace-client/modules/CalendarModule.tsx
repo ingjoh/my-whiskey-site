@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { workspaceStyles as styles } from '../styles';
 
 export function CalendarModule({ state }: { state: 'active' | 'read-only' | 'locked' | 'closed' }) {

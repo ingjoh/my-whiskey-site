@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { workspaceStyles as styles } from '../styles';
 
 export function BudgetModule({ state }: { state: 'active' | 'read-only' | 'locked' | 'closed' }) {

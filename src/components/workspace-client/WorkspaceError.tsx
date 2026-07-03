@@ -3,14 +3,14 @@
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export function WorkspaceError({ error }: { error: string | null }) {
+export function WorkspaceError({ error, backPath = '/admin' }: { error: string | null; backPath?: string }) {
   return (
     <div style={styles.errorContainer}>
       <AlertCircle size={48} color="#FF6B6B" />
       <h3 style={styles.errorTitle}>Resolution Error</h3>
       <p style={styles.errorText}>{error || 'Failed to resolve workspace perspective.'}</p>
-      <Link href="/admin" style={styles.backButton}>
-        <ArrowLeft size={16} /> Return to Dashboard
+      <Link href={backPath} style={styles.backButton}>
+        <ArrowLeft size={16} /> Return
       </Link>
     </div>
   );

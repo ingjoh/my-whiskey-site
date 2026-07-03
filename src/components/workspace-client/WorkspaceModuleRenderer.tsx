@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Calendar, CheckSquare, DollarSign, Lock } from 'lucide-react';
 import type { ResolvedContextPackage } from '@/lib/services/contextResolutionEngine';
-import { ChatModule } from './modules/ChatModule';
-import { CalendarModule } from './modules/CalendarModule';
-import { VotingModule } from './modules/VotingModule';
-import { BudgetModule } from './modules/BudgetModule';
+import { MODULE_REGISTRY } from './ModuleRegistry';
+import { workspaceStyles as styles } from './styles';
 
 interface WorkspaceModuleRendererProps {
   visibleModules: ResolvedContextPackage['perspective']['visibleModules'];
@@ -15,7 +13,6 @@ interface WorkspaceModuleRendererProps {
 export function WorkspaceModuleRenderer({ visibleModules }: WorkspaceModuleRendererProps) {
   const [activeTab, setActiveTab] = useState<string>('');
 
-  // Auto-set the first active module tab when modules resolve
   useEffect(() => {
     if (visibleModules.length > 0 && !activeTab) {
       setActiveTab(visibleModules[0].moduleId);
@@ -33,6 +30,9 @@ export function WorkspaceModuleRenderer({ visibleModules }: WorkspaceModuleRende
 
   const activeModule = visibleModules.find(m => m.moduleId === activeTab);
   const activeState = activeModule ? activeModule.state : 'active';
+  
+  // Resolve component dynamically from registry
+  const RegisteredComponent = activeTab ? MODULE_REGISTRY[activeTab] : null;
 
   return (
     <div style={styles.mainContent}>
@@ -60,61 +60,14 @@ export function WorkspaceModuleRenderer({ visibleModules }: WorkspaceModuleRende
 
       {/* Module display view orchestration */}
       <div style={styles.modulePanel}>
-        {activeTab === 'chat' && <ChatModule state={activeState} />}
-        {activeTab === 'calendar' && <CalendarModule state={activeState} />}
-        {activeTab === 'voting' && <VotingModule state={activeState} />}
-        {activeTab === 'budget' && <BudgetModule state={activeState} />}
+        {RegisteredComponent ? (
+          <RegisteredComponent state={activeState} />
+        ) : (
+          <div style={styles.noModulesCard}>
+            <p>Module "{activeTab}" is not registered in the Workspace Module Registry.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-const styles = {
-  mainContent: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-  },
-  noModulesCard: {
-    backgroundColor: '#15181A',
-    border: '1px solid #202427',
-    borderRadius: '8px',
-    padding: '3rem 2rem',
-    textAlign: 'center' as const,
-    color: '#9CA3AF',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '1rem',
-  },
-  tabsRow: {
-    display: 'flex',
-    gap: '0.5rem',
-    borderBottom: '1px solid #202427',
-    paddingBottom: '0.1rem',
-    marginBottom: '1.5rem',
-  },
-  tabActive: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    borderBottom: '2px solid #D8C7AF',
-    color: '#D8C7AF',
-    padding: '0.6rem 1rem',
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-  },
-  tabInactive: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: '#9CA3AF',
-    padding: '0.6rem 1rem',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    transition: 'all 0.2s',
-  },
-  modulePanel: {},
-};

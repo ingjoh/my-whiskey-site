@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare, Lock, Send } from 'lucide-react';
+import { Lock, Send } from 'lucide-react';
 import { workspaceStyles as styles } from '../styles';
 
 export function ChatModule({ state }: { state: 'active' | 'read-only' | 'locked' | 'closed' }) {

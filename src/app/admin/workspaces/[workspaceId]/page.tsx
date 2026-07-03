@@ -2,33 +2,24 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Archive } from 'lucide-react';
-import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
-// Import modular components
-import { WorkspaceLoading } from '@/components/workspace/WorkspaceLoading';
-import { WorkspaceError } from '@/components/workspace/WorkspaceError';
-import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar';
-import { WorkspaceModuleRenderer } from '@/components/workspace/WorkspaceModuleRenderer';
+// Import modular Workspace Client components
+import { WorkspaceLoading } from '@/components/workspace-client/WorkspaceLoading';
+import { WorkspaceError } from '@/components/workspace-client/WorkspaceError';
+import { WorkspaceShell } from '@/components/workspace-client/WorkspaceShell';
 
-export default function WorkspaceDetailPage() {
+export default function OperatorWorkspacePage() {
   const { workspaceId } = useParams() as { workspaceId: string };
   const { user } = useAuth();
-  const router = useRouter();
 
   // Call context resolution hook
   const { data: pkg, loading, error, refetch } = useWorkspaceContext(workspaceId, user?.uid || '');
 
   if (loading) return <WorkspaceLoading />;
-  if (error || !pkg) return <WorkspaceError error={error} />;
+  if (error || !pkg) return <WorkspaceError error={error} backPath="/admin" />;
 
-  const { workspace, perspective, bindings } = pkg;
-  
-  const isArchived = perspective.allowedActions.length === 0;
-  const workspaceStatus = isArchived ? 'archived' : 'active';
-
-  // Event handlers to pass to modular components
+  // Event handlers for database updates
   const handleInvite = async (inviteEmail: string) => {
     try {
       const res = await fetch(`/api/operational/assignments`, {
@@ -87,142 +78,13 @@ export default function WorkspaceDetailPage() {
   };
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <header style={styles.header}>
-        <div style={styles.headerLeft}>
-          <Link href="/admin" style={styles.backLink}>
-            <ArrowLeft size={18} /> Back to Dashboard
-          </Link>
-          <div style={styles.titleRow}>
-            <h1 style={styles.title}>Workspace {workspace.id}</h1>
-            <span style={workspaceStatus === 'active' ? styles.statusBadgeActive : styles.statusBadgeArchived}>
-              {workspaceStatus.toUpperCase()}
-            </span>
-          </div>
-          <p style={styles.subtitle}>
-            Objective Template: <code style={styles.code}>{workspace.objectiveTemplate || 'Unspecified'}</code> | Privacy: {workspace.governance.privacy}
-          </p>
-        </div>
-        <div style={styles.headerRight}>
-          {perspective.allowedActions.includes('archiveWorkspace') && workspaceStatus === 'active' && (
-            <button onClick={handleArchive} style={styles.archiveBtn}>
-              <Archive size={16} /> Archive Context
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Main Layout Grid */}
-      <div style={styles.grid}>
-        {/* Sidebar: perspective, actions, bound assets */}
-        <WorkspaceSidebar
-          workspaceId={workspaceId}
-          perspective={perspective}
-          bindings={bindings}
-          onInvite={handleInvite}
-          onBind={handleBind}
-          isArchived={workspaceStatus === 'archived'}
-        />
-
-        {/* Main Content Area: dynamically renders tabs & modules */}
-        <WorkspaceModuleRenderer
-          visibleModules={perspective.visibleModules}
-        />
-      </div>
-    </div>
+    <WorkspaceShell
+      resolvedContext={pkg}
+      backPath="/admin"
+      backLabel="Back to Dashboard"
+      onInvite={handleInvite}
+      onBind={handleBind}
+      onArchive={handleArchive}
+    />
   );
 }
-
-// Styling Constants
-const styles = {
-  container: {
-    minHeight: '100vh',
-    backgroundColor: '#0F1112',
-    color: '#E3E4E6',
-    fontFamily: '"Outfit", "Inter", sans-serif',
-    padding: '2rem',
-  },
-  header: {
-    borderBottom: '1px solid #1E2326',
-    paddingBottom: '1.5rem',
-    marginBottom: '2rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  headerLeft: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.5rem',
-  },
-  backLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    fontSize: '0.85rem',
-    color: '#D8C7AF',
-    textDecoration: 'none',
-    opacity: 0.85,
-  },
-  titleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-  },
-  title: {
-    fontSize: '2rem',
-    fontWeight: '700',
-    color: '#FFFFFF',
-    margin: 0,
-  },
-  statusBadgeActive: {
-    backgroundColor: 'rgba(52, 211, 153, 0.1)',
-    color: '#34D399',
-    fontSize: '0.7rem',
-    fontWeight: '700',
-    padding: '0.2rem 0.6rem',
-    borderRadius: '4px',
-    border: '1px solid rgba(52, 211, 153, 0.2)',
-  },
-  statusBadgeArchived: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    color: '#EF4444',
-    fontSize: '0.7rem',
-    fontWeight: '700',
-    padding: '0.2rem 0.6rem',
-    borderRadius: '4px',
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-  },
-  subtitle: {
-    fontSize: '0.85rem',
-    color: '#9CA3AF',
-    margin: 0,
-  },
-  code: {
-    backgroundColor: '#16191B',
-    padding: '0.1rem 0.3rem',
-    borderRadius: '4px',
-    color: '#D8C7AF',
-  },
-  headerRight: {},
-  archiveBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    color: '#EF4444',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-    fontWeight: '500',
-    transition: 'all 0.2s',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '320px 1fr',
-    gap: '2rem',
-  },
-};
