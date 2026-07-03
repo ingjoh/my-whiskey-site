@@ -382,6 +382,13 @@ engineering:
   depends_on: []
   implemented_by: []
 
+engineering-standards:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
 platform-constitution:
   owner: Domain
   status: Authoritative
