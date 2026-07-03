@@ -198,7 +198,7 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
               ))}
             </div>
           </div>
-          <PublicFooter settings={siteSettings} />
+          <PublicFooter theme={theme} />
         </main>
       );
     }
@@ -260,7 +260,7 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
     >
       <PublicNavigation theme={theme} settings={siteSettings} />
       <PublicNodeRenderer node={rootNode} allNodes={nodes} theme={theme} />
-      <PublicFooter settings={siteSettings} theme={theme} />
+      <PublicFooter theme={theme} />
     </main>
   );
 }
