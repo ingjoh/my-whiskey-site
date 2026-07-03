@@ -78,7 +78,7 @@ async function runTests() {
     // Verify document exists
     const ws = await WorkspaceRepository.findById(workspaceId);
     if (!ws) throw new Error('Assertion failed: workspace document not found in DB');
-    if (ws.status !== 'active') throw new Error('Assertion failed: status is not active');
+    if (ws.status !== 'provisioning') throw new Error('Assertion failed: status is not provisioning');
     console.log('✓ Verified core workspace document.');
   } catch (err: any) {
     console.error('✗ Test 1 failed:', err.message);

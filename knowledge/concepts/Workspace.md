@@ -22,6 +22,12 @@ A **Workspace** is the primary operating environment on the Tuamotu Platform. It
 ## Properties & Naming Rules
 *   Represented in the code as a `WorkspaceDocument` in the `workspaces` collection.
 *   Uniquely identified by a workspace prefix and UUID (e.g. `id: "ws_uuid"`).
+*   Tracks administrative lifecycle status:
+    *   `draft`: Under configuration, before operational readiness.
+    *   `provisioning`: Bootstrapping configuration, templates, and binding elements.
+    *   `active`: Open for operational scheduling and participant collaboration.
+    *   `suspended`: Read-only/access blocked due to operational suspension or billing holds.
+    *   `archived`: Terminal administrative state. Workspaces are never physically deleted in alignment with the platform's ledger/archive philosophy.
 *   Tracks configuration configurations (branding details, custom domains, notification bounds).
 
 ## Workspace Module System

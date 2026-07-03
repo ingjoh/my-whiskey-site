@@ -2,6 +2,8 @@ import { WorkspaceRepository, WorkspaceDocument } from '../db/workspaceRepositor
 import { WorkspaceMembershipRepository, WorkspaceMembershipDocument } from '../db/workspaceMembershipRepository';
 import { WorkspaceBindingRepository, WorkspaceBindingDocument } from '../db/workspaceBindingRepository';
 import { WorkspaceAuditEventRepository, WorkspaceAuditEventDocument } from '../db/workspaceAuditEventRepository';
+import { WorkspaceTemplateRepository } from '../db/workspaceTemplateRepository';
+import { WorkspaceConfigurationRepository, WorkspaceConfiguration } from '../db/workspaceConfigurationRepository';
 import * as fs from 'fs';
 import * as path from 'path';
 import { adminDb } from '../firebase-admin';
@@ -64,30 +66,66 @@ export class WorkspaceService {
   }
 
   // Intent: create workspace
-  static async createWorkspace(ownerPersonId: string, templateId?: string, governance?: Partial<WorkspaceDocument['governance']>): Promise<string> {
+  static async createWorkspace(
+    ownerPersonId: string, 
+    templateId?: string, 
+    governance?: Partial<WorkspaceDocument['governance']>,
+    subdomain?: string
+  ): Promise<string> {
     const wsId = generateUUID('ws');
     const now = new Date().toISOString();
 
+    // Resolve template
+    const template = WorkspaceTemplateRepository.findById(templateId || 'wt_business') 
+      || WorkspaceTemplateRepository.findById('wt_business')!;
+
     const gov: WorkspaceDocument['governance'] = {
-      privacy: governance?.privacy || 'private',
-      allowAiAgents: governance?.allowAiAgents ?? false,
-      allowExternalInvites: governance?.allowExternalInvites ?? true
+      privacy: governance?.privacy || template.governanceDefaults.privacy,
+      allowAiAgents: governance?.allowAiAgents ?? template.governanceDefaults.allowAiAgents,
+      allowExternalInvites: governance?.allowExternalInvites ?? template.governanceDefaults.allowExternalInvites
     };
     if (governance?.dataRetentionDays !== undefined) {
       gov.dataRetentionDays = governance.dataRetentionDays;
+    } else if (template.governanceDefaults.dataRetentionDays !== undefined) {
+      gov.dataRetentionDays = template.governanceDefaults.dataRetentionDays;
     }
 
+    // Set initial status to provisioning as per PRD lifecycle
     const workspaceDoc: WorkspaceDocument = {
       id: wsId,
       createdAt: now,
       updatedAt: now,
+      templateId: template.id,
       objectiveTemplate: templateId,
+      modules: template.defaultModules,
       governance: gov,
-      status: 'active'
+      status: 'provisioning'
     };
 
-    // Create workspace
+    // Create workspace document
     await WorkspaceRepository.create(workspaceDoc);
+
+    // Create the WorkspaceConfiguration aggregate
+    const configDoc: WorkspaceConfiguration = {
+      workspaceId: wsId,
+      templateId: template.id,
+      templateVersion: template.templateVersion,
+      identity: {
+        name: `Workspace ${wsId}`,
+        contactEmail: `admin_${wsId}@example.com`
+      },
+      brand: {
+        primaryColor: template.brandDefaults.primaryColor,
+        secondaryColor: template.brandDefaults.secondaryColor,
+        logoUrl: template.brandDefaults.logoUrl
+      },
+      website: {
+        subdomain: subdomain || `sub_${wsId}`,
+        layout: template.websiteDefaults.layout,
+        navigation: template.websiteDefaults.navigation
+      }
+    };
+    await WorkspaceConfigurationRepository.create(configDoc);
 
     // Automatically join the creator as 'owner' / 'active'
     const membershipId = generateUUID('wsm');
@@ -108,7 +146,7 @@ export class WorkspaceService {
       workspaceId: wsId,
       eventType: 'WorkspaceCreated',
       actorId: ownerPersonId,
-      details: { objectiveTemplate: templateId, governance: workspaceDoc.governance },
+      details: { templateId: template.id, governance: workspaceDoc.governance },
       timestamp: now
     });
 
@@ -125,7 +163,7 @@ export class WorkspaceService {
 
     // Verify workspace exists
     const ws = await WorkspaceRepository.findById(workspaceId);
-    if (!ws || ws.status !== 'active') {
+    if (!ws || (ws.status !== 'active' && ws.status !== 'provisioning')) {
       throw new Error('Workspace not found or inactive');
     }
 

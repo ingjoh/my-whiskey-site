@@ -5,13 +5,15 @@ export interface WorkspaceDocument {
   createdAt: string;
   updatedAt: string;
   objectiveTemplate?: string;
+  templateId?: string;
+  modules?: string[];
   governance: {
     privacy: 'private' | 'shared' | 'public';
     allowAiAgents: boolean;
     allowExternalInvites: boolean;
     dataRetentionDays?: number;
   };
-  status: 'active' | 'archived' | 'deleted';
+  status: 'draft' | 'provisioning' | 'active' | 'suspended' | 'archived';
 }
 
 export class WorkspaceRepository {
@@ -24,7 +26,8 @@ export class WorkspaceRepository {
   }
 
   static async create(workspace: WorkspaceDocument): Promise<void> {
-    await this.collection.doc(workspace.id).set(workspace);
+    const cleanData = JSON.parse(JSON.stringify(workspace));
+    await this.collection.doc(workspace.id).set(cleanData);
   }
 
   static async update(id: string, updates: Partial<WorkspaceDocument>): Promise<void> {

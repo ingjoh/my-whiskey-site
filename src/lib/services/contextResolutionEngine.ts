@@ -78,8 +78,14 @@ export class ContextResolutionEngine {
 
     // 1. Retrieve Workspace
     const ws = await WorkspaceRepository.findById(workspaceId);
-    if (!ws || (ws.status !== 'active' && ws.status !== 'archived')) {
-      throw new Error('Workspace not found or inactive');
+    if (!ws) {
+      throw new Error('Workspace not found');
+    }
+    if (ws.status === 'suspended') {
+      throw new Error('Workspace is suspended');
+    }
+    if (ws.status !== 'active' && ws.status !== 'archived' && ws.status !== 'provisioning') {
+      throw new Error('Workspace is inactive');
     }
 
     // 2. Impersonator Authorization Check (must not grant authority by itself)
@@ -99,7 +105,9 @@ export class ContextResolutionEngine {
     const role = membership.role;
 
     // 4. Resolve visible modules
-    const activeWorkspaceModules = ws.status === 'archived' ? ['chat'] : ['chat', 'calendar', 'voting', 'budget'];
+    const activeWorkspaceModules = ws.status === 'archived' 
+      ? ['chat'] 
+      : (ws.modules || ['chat', 'calendar', 'voting', 'budget']);
     const allowedModulesForRole = ROLE_MODULES_MAP[role] || [];
     
     const visibleModules = activeWorkspaceModules

@@ -256,6 +256,23 @@ Workspace:
   implemented_by:
     - workspace-service
 
+WorkspaceTemplate:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by:
+    - workspace-service
+
+WorkspaceConfiguration:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Workspace
+  implemented_by:
+    - workspace-service
+
 overview:
   owner: Domain
   status: Authoritative
