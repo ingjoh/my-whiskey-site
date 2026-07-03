@@ -263,6 +263,13 @@ overview:
   depends_on: []
   implemented_by: []
 
+capability-map:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
 system:
   owner: Operations
   status: Authoritative

@@ -1,7 +1,7 @@
 ---
 type: Architecture
 title: "Technical Roadmap"
-description: "Technology evolutions, transition plans, and architectural migrations."
+description: "Technology evolutions, transition plans, and dynamic capability tracks of the Tuamotu Platform."
 owner: "Operations"
 status: "Authoritative"
 maturity: "stable"
@@ -11,22 +11,24 @@ verified_against: "main@HEAD"
 
 # Technical Roadmap
 
-This document outlines the planned technology evolutions, migration triggers, and transition plans to scale the **MY Whiskey** platform.
+This roadmap structures the technology migrations, triggers, and product capability tracks of the Tuamotu Platform.
 
 ---
 
-## 1. Current State
+## 1. Platform Foundation (Completed)
 
-The current platform prioritizes delivery speed and minimal operations, using:
-*   **Firestore NoSQL** as the single data source.
-*   **CSS variables & modules** for all component layouts.
-*   **Graphify GCS JSON** for uploading static code relationship data.
+The core primitives of the Tuamotu Platform have been established, tested, and validated as stable:
+*   **Platform Kernel**: Authoritative, globally addressable business truth models (Identity, Commercial, Operations, Finance).
+*   **Workspace boundary**: Coordination of governance, participants, and dynamic bindings.
+*   **Context Resolution Engine**: Reusable context resolutions supporting participant perspectives.
+*   **Workspace Shell & Module Registry**: Reusable client shell components and decoupled module mapping registry.
+*   **Clients & Modules**: Thin, presentation-only client wrappers (Operator, Participant views) and decoupled collaboration modules (Chat, Calendar, Voting, Budget).
 
 ---
 
-## 2. Approved Direction
+## 2. Technical Evolutions & Triggers
 
-The following migrations and evolution tracks are approved for design and layout, with designated triggers:
+The following infrastructure migrations are approved for layout and design when designated triggers are met:
 
 ### Storage Migration: Firestore $\rightarrow$ Relational / Hybrid SQL (PostgreSQL)
 *   **Why**: Firestore's schema-less model becomes difficult for complex relational reports, accounting audits, and multi-vessel collision detection schedules.
@@ -36,7 +38,7 @@ The following migrations and evolution tracks are approved for design and layout
 ### UI Library Evolution: Custom Components Library
 *   **Why**: Building every luxury card, drawer, and input from scratch slows down page layout iteration.
 *   **Approved Design**: Establish a strict custom library of atomic UI controls under `@/components/ui/` using CSS variables and React primitives, rather than bringing in rigid external libraries.
-*   **Trigger**: Starting development of the Customer Booking Portal in Phase 3.
+*   **Trigger**: Exceeding 3 distinct client application views in the repository.
 
 ### Code Intelligence Integration: Graphify JSON $\rightarrow$ MCP Query Layer
 *   **Why**: Static JSON graphs on GCS require agents to parse huge files, causing context window blowup.
@@ -45,8 +47,14 @@ The following migrations and evolution tracks are approved for design and layout
 
 ---
 
-## 3. Potential Future
+## 3. Capability Development (Future Product Tracks)
 
-*   **Offline Booking Sync**: Service worker capability storing drafts locally and syncing when cellular networks connect on water.
-*   **Web3 Smart Escrow**: Smart contract booking settlements for cryptopayment charters.
-*   *Warning: Developer agents must NOT execute or implement any item under this section until it is migrated to an Approved Direction.*
+With the Platform Foundation stabilized as v1.0, future tracks will focus on composing new business product capabilities rather than modifying the underlying platform layers:
+
+*   **Marketplace**: Discovery of vessels, listings, and instant commercial offer generations.
+*   **AI Concierge**: AI assistant workspace client parsing dynamic context and aiding trip schedules.
+*   **Itinerary Composer**: Interactive drag-and-drop itinerary visual planners bound to operational vessel schedules.
+*   **Proposal Engine**: Unified customer trip proposal drafts, pricing splits, and charter contracts.
+*   **Financial Collaboration**: Ledger adjustments, connect Stripe accounts, and payouts.
+*   **Partner Marketplace**: Coordination and scheduling of local concierges, ground transport, and provisioners.
+*   **Crew Marketplace**: Crew licensing, assignment logs, and vessel availability schedules.
