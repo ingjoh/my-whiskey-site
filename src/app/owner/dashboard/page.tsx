@@ -38,10 +38,17 @@ export default function OwnerDashboard() {
   const [customStartDate, setCustomStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
   const [customEndDate, setCustomEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
 
   const today = new Date();
@@ -139,12 +146,19 @@ export default function OwnerDashboard() {
   };
 
   // Date and timeframe helper functions
+  const formatLocalDate = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const getDueDateString = (dateStr: string) => {
     if (!dateStr) return 'N/A';
     try {
-      const d = new Date(dateStr);
+      const d = new Date(dateStr + 'T00:00:00');
       d.setDate(d.getDate() - 7);
-      return d.toISOString().split('T')[0];
+      return formatLocalDate(d);
     } catch {
       return dateStr;
     }
@@ -153,7 +167,7 @@ export default function OwnerDashboard() {
   const getNormalizedDate = (createdAtStr: string) => {
     if (!createdAtStr) return 'N/A';
     try {
-      return new Date(createdAtStr).toISOString().split('T')[0];
+      return formatLocalDate(new Date(createdAtStr));
     } catch {
       return 'N/A';
     }
@@ -163,7 +177,7 @@ export default function OwnerDashboard() {
     if (booking.paymentPlan === 'full') return 'Paid';
     if (!booking.date) return 'N/A';
     try {
-      const dateObj = new Date(booking.date);
+      const dateObj = new Date(booking.date + 'T00:00:00');
       dateObj.setDate(dateObj.getDate() - 7);
       return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch (err) {
@@ -176,7 +190,7 @@ export default function OwnerDashboard() {
       const d = new Date(dateStr + 'T00:00:00');
       const day = d.getDay();
       d.setDate(d.getDate() - day);
-      return d.toISOString().split('T')[0];
+      return formatLocalDate(d);
     } catch {
       return dateStr;
     }
@@ -193,61 +207,62 @@ export default function OwnerDashboard() {
   // Calculate timeframe bounds and interval type based on selection
   const getActiveRangeAndGrouping = () => {
     const today = new Date();
-    let start = new Date();
-    let end = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let start = new Date(todayMidnight);
+    let end = new Date(todayMidnight);
     let grouping: 'day' | 'week' | 'month' = 'day';
 
     switch (timeScope) {
       case 'this-month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        start = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth(), 1);
+        end = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0);
         grouping = 'day';
         break;
       case 'last-30-days':
-        start = new Date(today);
-        start.setDate(today.getDate() - 29);
-        end = new Date(today);
+        start = new Date(todayMidnight);
+        start.setDate(todayMidnight.getDate() - 29);
+        end = new Date(todayMidnight);
         grouping = 'day';
         break;
       case 'next-month':
-        start = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        start = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 1);
+        end = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 2, 0);
         grouping = 'day';
         break;
       case 'next-30-days':
-        start = new Date(today);
-        end = new Date(today);
-        end.setDate(today.getDate() + 29);
+        start = new Date(todayMidnight);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 29);
         grouping = 'day';
         break;
       case 'next-90-days':
-        start = new Date(today);
-        end = new Date(today);
-        end.setDate(today.getDate() + 89);
+        start = new Date(todayMidnight);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 89);
         grouping = 'week';
         break;
       case 'current-period':
-        start = new Date(today);
-        start.setDate(today.getDate() - 30);
-        end = new Date(today);
-        end.setDate(today.getDate() + 60);
+        start = new Date(todayMidnight);
+        start.setDate(todayMidnight.getDate() - 30);
+        end = new Date(todayMidnight);
+        end.setDate(todayMidnight.getDate() + 60);
         grouping = 'week';
         break;
       case 'this-quarter': {
-        const quarter = Math.floor(today.getMonth() / 3);
-        start = new Date(today.getFullYear(), quarter * 3, 1);
-        end = new Date(today.getFullYear(), (quarter + 1) * 3, 0);
+        const quarter = Math.floor(todayMidnight.getMonth() / 3);
+        start = new Date(todayMidnight.getFullYear(), quarter * 3, 1);
+        end = new Date(todayMidnight.getFullYear(), (quarter + 1) * 3, 0);
         grouping = 'week';
         break;
       }
       case 'this-year':
-        start = new Date(today.getFullYear(), 0, 1);
-        end = new Date(today.getFullYear(), 11, 31);
+        start = new Date(todayMidnight.getFullYear(), 0, 1);
+        end = new Date(todayMidnight.getFullYear(), 11, 31);
         grouping = 'month';
         break;
       case 'last-12-months':
-        start = new Date(today.getFullYear() - 1, today.getMonth() + 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        start = new Date(todayMidnight.getFullYear() - 1, todayMidnight.getMonth() + 1, 1);
+        end = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0);
         grouping = 'month';
         break;
       case 'all-time': {
@@ -263,8 +278,8 @@ export default function OwnerDashboard() {
             end = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
           }
         } else {
-          start = new Date(today.getFullYear(), today.getMonth(), 1);
-          end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          start = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth(), 1);
+          end = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0);
         }
         
         const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -294,7 +309,7 @@ export default function OwnerDashboard() {
 
     if (grouping === 'day') {
       while (current <= end) {
-        intervals.push(current.toISOString().split('T')[0]);
+        intervals.push(formatLocalDate(current));
         current.setDate(current.getDate() + 1);
       }
     } else if (grouping === 'week') {
@@ -303,7 +318,7 @@ export default function OwnerDashboard() {
       const temp = new Date(startSunday);
       
       while (temp <= end || (temp.getTime() - end.getTime()) < 7 * 24 * 60 * 60 * 1000) {
-        intervals.push(temp.toISOString().split('T')[0]);
+        intervals.push(formatLocalDate(temp));
         temp.setDate(temp.getDate() + 7);
       }
     } else if (grouping === 'month') {
@@ -311,7 +326,7 @@ export default function OwnerDashboard() {
       const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
       
       while (temp <= endMonth) {
-        intervals.push(temp.toISOString().split('T')[0]);
+        intervals.push(formatLocalDate(temp));
         temp.setMonth(temp.getMonth() + 1);
       }
     }
@@ -376,8 +391,8 @@ export default function OwnerDashboard() {
       if (!dateStr || dateStr === 'N/A') return false;
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        const s = new Date(dateScopeStart.toISOString().split('T')[0] + 'T00:00:00');
-        const e = new Date(dateScopeEnd.toISOString().split('T')[0] + 'T23:59:59');
+        const s = new Date(formatLocalDate(dateScopeStart) + 'T00:00:00');
+        const e = new Date(formatLocalDate(dateScopeEnd) + 'T23:59:59');
         return d >= s && d <= e;
       } catch {
         return false;
@@ -413,8 +428,8 @@ export default function OwnerDashboard() {
       if (!dateStr || dateStr === 'N/A') return false;
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        const s = new Date(start.toISOString().split('T')[0] + 'T00:00:00');
-        const e = new Date(end.toISOString().split('T')[0] + 'T23:59:59');
+        const s = new Date(formatLocalDate(start) + 'T00:00:00');
+        const e = new Date(formatLocalDate(end) + 'T23:59:59');
         return d >= s && d <= e;
       } catch {
         return false;
