@@ -4,7 +4,7 @@ export interface WorkspaceMembershipDocument {
   id: string;
   workspaceId: string;
   personId: string;
-  role: 'owner' | 'coordinator' | 'participant' | 'viewer';
+  role: 'owner' | 'coordinator' | 'member' | 'viewer';
   status: 'pending' | 'active' | 'revoked';
   createdAt: string;
   updatedAt: string;
