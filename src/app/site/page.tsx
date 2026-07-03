@@ -143,7 +143,20 @@ function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNode
 }
 
 export default async function WorkspacePublicPresencePage() {
-  const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+  let workspaceId = 'ws_whiskey';
+  try {
+    workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+  } catch (err: any) {
+    if (err.message === 'Workspace is suspended') {
+      return (
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem', backgroundColor: '#0F1112', color: '#E3E4E6', fontFamily: '"Outfit", sans-serif' }}>
+          <h1 style={{ fontSize: '2.5rem', color: '#EF4444', fontWeight: '700' }}>Workspace Suspended</h1>
+          <p style={{ color: '#9CA3AF' }}>This workspace is currently suspended and public presence is unavailable.</p>
+        </div>
+      );
+    }
+    throw err;
+  }
 
   // Load page data matching workspace scope
   const key = workspaceId === 'ws_whiskey' ? 'home' : `${workspaceId}_home`;

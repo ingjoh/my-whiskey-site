@@ -70,33 +70,32 @@ export class WorkspaceResolver {
   }
 
   static async getActiveWorkspaceId(): Promise<string> {
+    let slug: string | null = null;
+    let domain: string | null = null;
     try {
       const { headers } = require('next/headers');
       const headersList = await headers();
-      const slug = headersList.get('x-workspace-slug');
-      const domain = headersList.get('x-custom-domain');
-
-      if (slug) {
-        const res = await this.resolveWorkspace(slug, false);
-        if (res.workspaceId) {
-          if (res.status === 'suspended') {
-            throw new Error('Workspace is suspended');
-          }
-          return res.workspaceId;
-        }
-      }
-      if (domain) {
-        const res = await this.resolveWorkspace(domain, true);
-        if (res.workspaceId) {
-          if (res.status === 'suspended') {
-            throw new Error('Workspace is suspended');
-          }
-          return res.workspaceId;
-        }
-      }
+      slug = headersList.get('x-workspace-slug');
+      domain = headersList.get('x-custom-domain');
     } catch (e) {
-      console.warn('Could not read request headers for workspace resolution, falling back to default:', e);
+      console.warn('Could not read request headers for workspace resolution:', e);
     }
+
+    if (slug) {
+      const res = await this.resolveWorkspace(slug, false);
+      if (res.error === 'Workspace is suspended') {
+        throw new Error('Workspace is suspended');
+      }
+      if (res.workspaceId) return res.workspaceId;
+    }
+    if (domain) {
+      const res = await this.resolveWorkspace(domain, true);
+      if (res.error === 'Workspace is suspended') {
+        throw new Error('Workspace is suspended');
+      }
+      if (res.workspaceId) return res.workspaceId;
+    }
+
     return 'ws_whiskey';
   }
 
