@@ -213,6 +213,39 @@ OperationalItinerary:
   implemented_by:
     - operational-service
 
+Settlement:
+  owner: Finance
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Booking
+    - Person
+    - Organization
+  implemented_by:
+    - financial-service
+
+Invoice:
+  owner: Finance
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Booking
+    - Person
+    - Organization
+  implemented_by:
+    - financial-service
+
+Payout:
+  owner: Finance
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Settlement
+    - Person
+    - Organization
+  implemented_by:
+    - financial-service
+
 overview:
   owner: Domain
   status: Authoritative
@@ -298,6 +331,13 @@ architectural-principles:
   implemented_by: []
 
 006-unified-resource-scheduling-model:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+007-unified-financial-settlement-ledger-architecture:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
