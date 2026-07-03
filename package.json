@@ -9,7 +9,7 @@
     "lint": "eslint",
     "generate-graph": "node scripts/generate-graph.js",
     "knowledge-health": "node scripts/knowledge-health.js",
-    "test-workspace": "npx esbuild src/test/workspace/workspace-foundation.test.ts --bundle --platform=node --target=node20 --external:firebase-admin --outfile=dist/workspace-foundation.test.js && node dist/workspace-foundation.test.js && npx esbuild src/test/workspace/workspace-collaboration.test.ts --bundle --platform=node --target=node20 --external:firebase-admin --outfile=dist/workspace-collaboration.test.js && node dist/workspace-collaboration.test.js"
+    "test-workspace": "npx esbuild src/test/workspace/workspace-foundation.test.ts --bundle --platform=node --target=node20 --external:firebase-admin --outfile=dist/workspace-foundation.test.js && node dist/workspace-foundation.test.js && npx esbuild src/test/workspace/workspace-collaboration.test.ts --bundle --platform=node --target=node20 --external:firebase-admin --outfile=dist/workspace-collaboration.test.js && node dist/workspace-collaboration.test.js && npx esbuild src/test/workspace/workspace-client.test.ts --bundle --platform=node --target=node20 --external:firebase-admin --outfile=dist/workspace-client.test.js && node dist/workspace-client.test.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
