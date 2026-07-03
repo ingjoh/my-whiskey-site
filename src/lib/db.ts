@@ -2805,6 +2805,19 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
     const experienceDoc = await getDoc(doc(db, 'experiences', offer.experienceId));
     const experience = experienceDoc.exists() ? experienceDoc.data() as any : { title: 'Yacht Excursion' };
 
+    let vesselSlug = offer.resourcePreferences?.vesselCategory === 'yacht' ? 'my-whiskey-yacht' : 'my-barrel-tender';
+    try {
+      const opitSnap = await getDocs(query(collection(db, 'operational_itineraries'), where('bookingId', '==', newBooking.id)));
+      if (!opitSnap.empty) {
+        const opit = opitSnap.docs[0].data();
+        if (opit.vesselResourceId) {
+          vesselSlug = opit.vesselResourceId.replace('res_', '');
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read operational itinerary for legacy vessel translation:', e);
+    }
+
     let amountPaidToday = 0;
     let amountDueLater = offer.pricingSnapshot.grandTotal;
 
@@ -2830,8 +2843,8 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
       id: newBooking.id,
       experienceId: offer.experienceId,
       experienceTitle: experience.title,
-      vesselSlug: offer.resourcePreferences.vesselCategory,
-      vesselTitle: offer.resourcePreferences.vesselCategory === 'yacht' ? 'M/Y Whiskey' : 'Gear Excursion',
+      vesselSlug,
+      vesselTitle: vesselSlug === 'my-whiskey-yacht' ? 'M/Y Whiskey' : 'M/Y Barrel',
       captainId: '',
       captainTitle: '',
       date: offer.schedulingSnapshot.date,
