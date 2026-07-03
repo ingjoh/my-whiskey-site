@@ -361,6 +361,13 @@ architectural-principles:
   depends_on: []
   implemented_by: []
 
+009-context-resolution-runtime:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
 ui-architecture:
   owner: Design
   status: Authoritative
@@ -370,6 +377,13 @@ ui-architecture:
 
 component-strategy:
   owner: Design
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+workspace-runtime:
+  owner: Domain
   status: Authoritative
   review_frequency: Quarterly
   depends_on: []
