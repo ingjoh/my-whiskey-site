@@ -40,11 +40,16 @@ To prevent server credentials leaking into client bundles, the code enforces a s
 The approved design focuses on a decoupled, enduring **Logical Persistence Model** that exists independently of the underlying database technology.
 
 ### Logical Persistence Model
-Rather than coupling the system to Firestore collection patterns, the core domain model defines four major logical entities, their relationships, and lifecycle states:
+Rather than coupling the system to Firestore collection patterns, the core domain model defines four major logical entities, their relationships, and lifecycle states, wrapped by Workspace operating contexts:
 
 ```mermaid
 classDiagram
     direction LR
+    class Workspace {
+        +WorkspaceID string
+        +Name string
+        +Config object
+    }
     class Organization {
         +OrgID string
         +Name string
@@ -74,6 +79,8 @@ classDiagram
         +Status PaymentStatus
     }
 
+    Workspace "1" --> "*" Organization : collaborates with
+    Workspace "1" --> "*" Vessel : manages
     Organization "1" --> "*" Vessel : owns
     Vessel "1" --> "*" Booking : is chartered by
     Guest "1" --> "*" Booking : places

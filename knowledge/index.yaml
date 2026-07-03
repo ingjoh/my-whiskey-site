@@ -246,6 +246,16 @@ Payout:
   implemented_by:
     - financial-service
 
+Workspace:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+    - Organization
+  implemented_by:
+    - workspace-service
+
 overview:
   owner: Domain
   status: Authoritative
@@ -338,6 +348,13 @@ architectural-principles:
   implemented_by: []
 
 007-unified-financial-settlement-ledger-architecture:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+008-workspace-context-and-operating-environments:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly
