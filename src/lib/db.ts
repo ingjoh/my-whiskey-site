@@ -2805,6 +2805,27 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
     const experienceDoc = await getDoc(doc(db, 'experiences', offer.experienceId));
     const experience = experienceDoc.exists() ? experienceDoc.data() as any : { title: 'Yacht Excursion' };
 
+    let amountPaidToday = 0;
+    let amountDueLater = offer.pricingSnapshot.grandTotal;
+
+    try {
+      const setSnap = await getDoc(doc(db, 'settlements', `set_${newBooking.id}`));
+      if (setSnap.exists()) {
+        const set = setSnap.data() as any;
+        amountPaidToday = set.totals.collectedAmount || 0;
+        amountDueLater = set.totals.balanceDue || 0;
+      } else {
+        amountPaidToday = newBooking.paymentStatus === 'fully_paid' 
+          ? offer.pricingSnapshot.grandTotal 
+          : (newBooking.paymentStatus === 'deposit_paid' ? offer.pricingSnapshot.depositRequired : 0);
+        amountDueLater = newBooking.paymentStatus === 'fully_paid' 
+          ? 0 
+          : (newBooking.paymentStatus === 'deposit_paid' ? (offer.pricingSnapshot.grandTotal - offer.pricingSnapshot.depositRequired) : offer.pricingSnapshot.grandTotal);
+      }
+    } catch (settleErr) {
+      console.warn('Could not read settlement for legacy translation:', settleErr);
+    }
+
     return {
       id: newBooking.id,
       experienceId: offer.experienceId,
@@ -2822,8 +2843,8 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
       subtotal: offer.pricingSnapshot.subtotal,
       salesTax: offer.pricingSnapshot.taxes,
       grandTotal: offer.pricingSnapshot.grandTotal,
-      amountPaidToday: newBooking.paymentStatus === 'deposit_paid' ? offer.pricingSnapshot.depositRequired : offer.pricingSnapshot.grandTotal,
-      amountDueLater: newBooking.paymentStatus === 'deposit_paid' ? (offer.pricingSnapshot.grandTotal - offer.pricingSnapshot.depositRequired) : 0,
+      amountPaidToday,
+      amountDueLater,
       paymentPlan: newBooking.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
       cancellationInsurance: false,
       marketingOptIn: false,
