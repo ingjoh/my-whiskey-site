@@ -24,6 +24,30 @@ A **Workspace** is the primary operating environment on the Tuamotu Platform. It
 *   Uniquely identified by a workspace prefix and UUID (e.g. `id: "ws_uuid"`).
 *   Tracks configuration configurations (branding details, custom domains, notification bounds).
 
+## Workspace Module System
+
+A **Workspace Module** is a scoped collaboration engine that implements a specific dynamic capability (e.g., chat messaging, calendar scheduling, voting polls, financial budgeting) within a Workspace environment.
+
+### Relationship to Participant Perspectives
+Modules are not hard-coded features of a workspace. Instead, their visibility and state are determined dynamically per participant via the `ContextResolutionEngine`:
+*   **Visible Modules**: The engine returns a list of visible modules (`visibleModules`) tailored to the user's role and the workspace's configuration.
+*   **Module State**: Each visible module is resolved with a specific lifecycle state (`active`, `read-only`, `locked`, `closed`). For example, a chat module is marked `read-only` if a workspace is archived, locking out new input controls in the UI.
+
+### The Module Registry Pattern
+To maintain technology-independence and client extensibility, the presentation of modules is decoupled from client implementations using a **Module Registry** pattern:
+*   The `ResolvedContextPackage` delivers the identifiers and lifecycle states of the modules.
+*   Client applications map these module definitions to local visual components using a registry lookup, ensuring that new modules can be added to the platform without modifications to the page layout shells.
+
+### Permissions & Allowed Actions
+Capabilities within a module are gated by the context's `allowedActions`. For example, while a traveler might see the chat module in the portal, they can only send messages if `sendMessage` is present in their `allowedActions` list. Administrative actions (like adding a poll or archiving) are hidden dynamically based on this authorization mapping.
+
+### Persistence & Boundaries
+*   **Module Configuration**: Module configurations are declared at the workspace level (e.g., enabling AI agent features or setting public/private visibility).
+*   **Operational State**: Message threads, poll records, and calendar events are persisted as decoupled sub-collections or independent documents in Firestore, using the `workspaceId` as a routing key. They do not pollute the core Platform Kernel.
+
+### Dependency on Bound Entities
+Modules often contextualize core platform entities. For instance, a calendar module displays the scheduled itineraries associated with bound `Booking` and `Resource` entities, bridging the collaboration layer and the business truth registry.
+
 ## Examples
 
 ### Good Practice
