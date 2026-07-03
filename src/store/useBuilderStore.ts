@@ -8,7 +8,7 @@ export type ComponentType =
   | 'Hero' | 'VideoHero' | 'Specs' | 'Gallery' | 'DeckPlan' | 'BookingForm'
   | 'Accordion' | 'Amenities' | 'Pricing' | 'Crew' | 'Itinerary' | 'Testimonials'
   | 'EnhancedHero' | 'TextMedia' | 'ExperiencesGrid' | 'YachtFeature' | 'TestimonialsGrid' | 'CTA' | 'ComparisonTable' | 'ContentGrid'
-  | 'DynamicCardBlock' | 'DynamicCarousel' | 'BookingWidget' | 'DynamicDetailBlock' | 'DynamicBlogBlock';
+  | 'DynamicCardBlock' | 'DynamicCarousel' | 'BookingWidget' | 'DynamicDetailBlock' | 'DynamicBlogBlock' | 'DataSource';
 
 export interface PageNode {
   id: string;

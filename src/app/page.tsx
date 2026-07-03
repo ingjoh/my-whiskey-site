@@ -15,10 +15,13 @@ export const dynamic = 'force-dynamic';
 import { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const pageData = await loadPageData('home');
-  if (!pageData) return { title: 'M/Y Whiskey' };
+  const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
+  const { loadPageDataRelational } = require('@/lib/db');
+  const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+  const pageData = await loadPageDataRelational(workspaceId, 'home');
+  if (!pageData) return { title: 'Tuamotu Platform' };
   return {
-    title: pageData.title ? `${pageData.title} | M/Y Whiskey` : 'M/Y Whiskey',
+    title: pageData.title ? `${pageData.title}` : 'Tuamotu Platform',
   };
 }
 
@@ -139,12 +142,26 @@ function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNode
     case 'DynamicBlogBlock':
       Content = <DynamicBlogBlock node={node} />;
       break;
+    case 'DataSource':
+      const ds = node.props.source || 'listings';
+      const renderer = node.props.renderer || 'grid';
+      Content = (
+        <div style={{ padding: '3rem 2rem', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '8px', textAlign: 'center', margin: '2rem 0' }}>
+          <h4 style={{ color: 'var(--color-primary)', fontSize: '1.25rem', marginBottom: '0.5rem', textTransform: 'capitalize' }}>
+            {ds.replace('-', ' ')} Feed ({renderer})
+          </h4>
+          <p style={{ color: '#D8C7AF', opacity: 0.6, fontSize: '0.9rem', margin: 0 }}>
+            Dynamic Platform Connection Placeholder — Composing {ds} feed from Tuamotu Knowledge Graph.
+          </p>
+        </div>
+      );
+      break;
   }
 
   if (node.type === 'Section') {
     return <div style={node.props.style}>{Content}</div>;
   }
-  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock'].includes(node.type);
+  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock','DataSource'].includes(node.type);
   return (
     <div style={{ display: isFullWidth ? 'block' : 'inline-block', width: isFullWidth ? '100%' : 'auto' }}>
       {Content}
@@ -153,8 +170,15 @@ function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNode
 }
 
 export default async function PublicHomePage() {
-  const pageData = await loadPageData('home');
-  const siteSettings = await loadSiteSettings();
+  const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
+  const { loadPageDataRelational, loadSiteSettings } = require('@/lib/db');
+  const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+
+  const pageData = await loadPageDataRelational(workspaceId, 'home');
+  let siteSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  if (!siteSettings) {
+    siteSettings = await loadSiteSettings();
+  }
 
   if (!pageData) {
     return (

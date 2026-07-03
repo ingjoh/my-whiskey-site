@@ -28,28 +28,55 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
   const [availablePages, setAvailablePages] = useState<any[]>([]);
   const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState('ws_whiskey');
+  const [pageSlug, setPageSlug] = useState(actualId);
 
   // Load existing data on mount based on dynamic pageId
   useEffect(() => {
-    setIsHydrating(true);
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryWs = searchParams.get('workspaceId');
+    
+    const resolveWorkspaceAndLoad = async () => {
+      setIsHydrating(true);
+      let wsId = 'ws_whiskey';
+      let cleanPageId = actualId;
 
-    // Hydrate global brand configurations
-    loadSiteSettings().then(settings => {
-      if (settings?.brand?.colors) {
-        setBrandColors(settings.brand.colors);
+      if (actualId.startsWith('ws_')) {
+        const parts = actualId.split('_');
+        if (parts.length >= 3) {
+          wsId = parts.slice(0, parts.length - 1).join('_');
+          cleanPageId = parts[parts.length - 1];
+        }
       }
-    });
+      setPageSlug(cleanPageId);
 
-    getAllPagesWithMetadata().then(setAvailablePages);
-    getAllTemplates().then(setAvailableTemplates);
+      if (queryWs) {
+        wsId = queryWs;
+      } else if (!actualId.startsWith('ws_')) {
+        const { getPlatformWorkspaceId } = require('@/lib/db');
+        wsId = await getPlatformWorkspaceId();
+      }
+      setActiveWorkspaceId(wsId);
 
-    const dataPromise = isTemplate ? loadTemplateData(actualId) : loadPageData(pageId);
-    const homePromise = loadPageData('home');
+      // Hydrate global brand configurations
+      loadSiteSettings().then(settings => {
+        if (settings?.brand?.colors) {
+          setBrandColors(settings.brand.colors);
+        }
+      });
 
-    Promise.all([dataPromise, homePromise]).then(([data, homeData]) => {
+      getAllPagesWithMetadata().then(setAvailablePages);
+      getAllTemplates().then(setAvailableTemplates);
+
+      const { loadPageDataRelational } = require('@/lib/db');
+      const dataPromise = isTemplate ? loadTemplateData(cleanPageId) : loadPageDataRelational(wsId, cleanPageId);
+      const homePromise = loadPageDataRelational(wsId, 'home');
+
+      const [data, homeData] = await Promise.all([dataPromise, homePromise]);
       const homeTheme = homeData?.theme;
+      
       if (data && data.nodes) {
-        setPageTitle(data.title || (isTemplate ? actualId : pageId));
+        setPageTitle(data.title || (isTemplate ? cleanPageId : cleanPageId));
         const defaultTheme = {
           backgroundColor: '#1F2326',
           foregroundColor: '#F4F1EA',
@@ -94,7 +121,7 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
         setStoreData({ nodes: data.nodes, theme: mergedTheme });
       } else {
         // If it's a new page or template, initialize with empty root
-        setPageTitle(isTemplate ? actualId : pageId);
+        setPageTitle(isTemplate ? cleanPageId : cleanPageId);
         setStoreData({
           nodes: {
             root: { id: 'root', type: 'Section', props: { style: { minHeight: '100px', padding: '2rem' } }, children: [] }
@@ -134,7 +161,9 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
         });
       }
       setIsHydrating(false);
-    });
+    };
+
+    resolveWorkspaceAndLoad();
   }, [pageId, isTemplate, actualId, setStoreData]);
 
   if (isHydrating) {
@@ -151,7 +180,8 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
       if (isTemplate) {
         await saveTemplateData(actualId, pageTitle, nodes, theme);
       } else {
-        await savePageData(pageId, nodes, theme, pageTitle, true);
+        const { savePageDataRelational } = require('@/lib/db');
+        await savePageDataRelational(activeWorkspaceId, pageSlug, nodes, pageTitle);
       }
       setPublishStatus('success');
       setTimeout(() => setPublishStatus('idle'), 2500);

@@ -22,6 +22,13 @@ A **Workspace** is the primary operating environment on the Tuamotu Platform. It
 ## Properties & Naming Rules
 *   Represented in the code as a `WorkspaceDocument` in the `workspaces` collection.
 *   Uniquely identified by a workspace prefix and UUID (e.g. `id: "ws_uuid"`).
+*   Categorized by a `type` representing the workspace's operational purpose:
+    *   `platform`: The central marketplace aggregator workspace context.
+    *   `operator`: Service operators / suppliers.
+    *   `broker`: Agencies / broker channels.
+    *   `traveler`: Customer portal workspaces.
+    *   `internal`: Platform operator / internal support desk workspace.
+    *   `agent`: Scoped AI assistant/agent workspace environments.
 *   Tracks administrative lifecycle status:
     *   `draft`: Under configuration, before operational readiness.
     *   `provisioning`: Bootstrapping configuration, templates, and binding elements.

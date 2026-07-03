@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import { PageNode, ThemeConfig, NavLink } from '@/store/useBuilderStore';
 import { detectProjectId } from './project-env';
@@ -1658,8 +1658,12 @@ export async function getContentItems(contentType?: string): Promise<ContentItem
         }
         return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
-    } catch (e) {
-      console.error('Error loading new experiences in getContentItems:', e);
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        console.warn('Client lacks read permissions for experiences. Skipping experiences query:', e.message);
+      } else {
+        console.error('Error loading new experiences in getContentItems:', e);
+      }
     }
   }
 
@@ -4458,6 +4462,352 @@ export async function saveBlogSettings(settings: Omit<BlogSettings, 'updatedAt'>
     return false;
   }
 }
+
+export async function loadWorkspaceTheme(workspaceId: string): Promise<ThemeConfig | null> {
+  if (workspaceId === 'ws_whiskey') {
+    try {
+      const settingsRef = doc(db, 'settings', 'global');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists() && settingsSnap.data().theme) {
+        return settingsSnap.data().theme as ThemeConfig;
+      }
+    } catch (e) {}
+  }
+
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+      if (docSnap.exists) {
+        const brand = docSnap.data().brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e) {}
+
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/workspace_configurations/${workspaceId}`;
+      const response = await fetch(url, { next: { revalidate: 0 } });
+      if (response.ok) {
+        const json = await response.json();
+        const fields = parseFirestoreFields(json.fields);
+        const brand = fields.brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e) {
+      console.error('Error fetching workspace theme via REST:', e);
+    }
+  } else {
+    try {
+      const ref = doc(db, 'workspace_configurations', workspaceId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const brand = data.brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e) {
+      console.error('Error fetching workspace theme via SDK:', e);
+    }
+  }
+  return null;
+}
+
+export async function loadPageDataRelational(
+  workspaceId: string,
+  slug: string
+): Promise<{ nodes: Record<string, PageNode>, theme: ThemeConfig, title?: string } | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const snap = await adminDb.collection(PAGE_COLLECTION)
+        .where('workspaceId', '==', workspaceId)
+        .where('slug', '==', slug)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const wsTheme = await loadWorkspaceTheme(workspaceId);
+        return {
+          nodes: (data.blocks || data.nodes) as Record<string, PageNode>,
+          theme: wsTheme || data.theme as ThemeConfig,
+          title: data.title as string | undefined
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const q = query(
+        collection(db, PAGE_COLLECTION),
+        where('workspaceId', '==', workspaceId),
+        where('slug', '==', slug),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const wsTheme = await loadWorkspaceTheme(workspaceId);
+        return {
+          nodes: (data.blocks || data.nodes) as Record<string, PageNode>,
+          theme: wsTheme || data.theme as ThemeConfig,
+          title: data.title as string | undefined
+        };
+      }
+    } catch (sdkErr) {
+      console.error('Error in loadPageDataRelational SDK:', sdkErr);
+    }
+  } else {
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+      const queryPayload = {
+        structuredQuery: {
+          from: [{ collectionId: PAGE_COLLECTION }],
+          where: {
+            compositeFilter: {
+              op: 'AND',
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'workspaceId' },
+                    op: 'EQUAL',
+                    value: { stringValue: workspaceId }
+                  }
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'slug' },
+                    op: 'EQUAL',
+                    value: { stringValue: slug }
+                  }
+                }
+              ]
+            }
+          },
+          limit: 1
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload),
+        next: { revalidate: 0 }
+      });
+
+      if (response.ok) {
+        const results = await response.json();
+        if (results && results.length > 0 && results[0].document) {
+          const docData = results[0].document;
+          const fields = parseFirestoreFields(docData.fields);
+          const wsTheme = await loadWorkspaceTheme(workspaceId);
+          return {
+            nodes: (fields.blocks || fields.nodes) as Record<string, PageNode>,
+            theme: wsTheme || fields.theme as ThemeConfig,
+            title: fields.title as string | undefined
+          };
+        }
+      }
+    } catch (restErr) {
+      console.error('Error in loadPageDataRelational REST:', restErr);
+    }
+  }
+
+  const legacyId = (workspaceId === 'ws_whiskey' && slug === 'home') ? 'home' : `${workspaceId}_${slug}`;
+  return loadPageData(legacyId);
+}
+
+export async function savePageDataRelational(
+  workspaceId: string,
+  slug: string,
+  blocks: Record<string, PageNode>,
+  title?: string,
+  pageType: string = 'Home'
+): Promise<boolean> {
+  try {
+    let docId = '';
+    
+    if (typeof window !== 'undefined') {
+      const q = query(
+        collection(db, PAGE_COLLECTION),
+        where('workspaceId', '==', workspaceId),
+        where('slug', '==', slug),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        docId = snap.docs[0].id;
+      }
+    } else {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+      const queryPayload = {
+        structuredQuery: {
+          from: [{ collectionId: PAGE_COLLECTION }],
+          where: {
+            compositeFilter: {
+              op: 'AND',
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'workspaceId' },
+                    op: 'EQUAL',
+                    value: { stringValue: workspaceId }
+                  }
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'slug' },
+                    op: 'EQUAL',
+                    value: { stringValue: slug }
+                  }
+                }
+              ]
+            }
+          },
+          limit: 1
+        }
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload)
+      });
+      if (response.ok) {
+        const results = await response.json();
+        if (results && results.length > 0 && results[0].document) {
+          const path = results[0].document.name;
+          docId = path.substring(path.lastIndexOf('/') + 1);
+        }
+      }
+    }
+
+    if (!docId) {
+      docId = `page_${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+
+    const payload = {
+      id: docId,
+      workspaceId,
+      slug,
+      title: title || slug,
+      pageType,
+      blocks,
+      nodes: blocks,
+      status: 'published',
+      updatedAt: new Date().toISOString()
+    };
+
+    if (typeof window !== 'undefined') {
+      const { doc, setDoc } = require('firebase/firestore');
+      await setDoc(doc(db, PAGE_COLLECTION, docId), payload, { merge: true });
+    } else {
+      const { adminDb } = require('./firebase-admin');
+      await adminDb.collection(PAGE_COLLECTION).doc(docId).set(payload, { merge: true });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error saving relational page:', error);
+    return false;
+  }
+}
+
+export async function getPlatformWorkspaceId(): Promise<string> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const snap = await adminDb.collection('workspaces')
+        .where('type', '==', 'platform')
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        return snap.docs[0].id;
+      }
+    } catch (e) {}
+
+    const projectId = getProjectId();
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+    const queryPayload = {
+      structuredQuery: {
+        from: [{ collectionId: 'workspaces' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'type' },
+            op: 'EQUAL',
+            value: { stringValue: 'platform' }
+          }
+        },
+        limit: 1
+      }
+    };
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload)
+      });
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.length > 0 && json[0].document) {
+          const path = json[0].document.name;
+          return path.substring(path.lastIndexOf('/') + 1);
+        }
+      }
+    } catch (e) {
+      console.error('Error resolving platform workspace ID via REST:', e);
+    }
+  } else {
+    try {
+      const q = query(collection(db, 'workspaces'), where('type', '==', 'platform'), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) return snap.docs[0].id;
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.error('Error resolving platform workspace ID via SDK:', e);
+      }
+    }
+  }
+  return 'ws_platform';
+}
+
 
 
 

@@ -56,3 +56,10 @@ This document tracks all manual and automated revisions made to the Knowledge Ca
 *   **System Files Modified**: `knowledge/concepts/Organization.md`, `knowledge/index.yaml` (Registry records), `knowledge/log.md`.
 *   **Author**: Antigravity Agent
 *   **Commit**: `epic/platform-transformation@HEAD`
+
+### 2026-07-03 (DXP Content System & Unified Page Editor Implementation)
+*   **Action**: Implemented dynamic Platform Workspace resolution, relational `PageDocument` support, decentralized visual theme configurations, and seeded platform homepages and operator contexts with backward compatibility fallbacks. Registered the new block structures.
+*   **Concepts Modified**: `Workspace`, `WorkspaceConfiguration`.
+*   **System Files Modified**: `src/lib/db.ts`, `src/app/page.tsx`, `src/app/[pageId]/page.tsx`, `src/app/admin/editor/[pageId]/layout.tsx`, `src/store/useBuilderStore.ts`, `knowledge/concepts/Workspace.md`, `knowledge/concepts/WorkspaceConfiguration.md`, `knowledge/log.md`.
+*   **Author**: Antigravity Agent
+*   **Commit**: `platform-content-system-v1@HEAD`

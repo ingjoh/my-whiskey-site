@@ -96,7 +96,14 @@ export class WorkspaceResolver {
       if (res.workspaceId) return res.workspaceId;
     }
 
-    return 'ws_whiskey';
+    // Default to platform workspace dynamically under DXP routing
+    try {
+      const { getPlatformWorkspaceId } = require('../db');
+      return await getPlatformWorkspaceId();
+    } catch (e) {
+      console.error('Failed to resolve platform workspace ID in resolver, falling back to ws_platform:', e);
+      return 'ws_platform';
+    }
   }
 
   static async getSiteSettings(workspaceId: string): Promise<any> {

@@ -1,0 +1,21 @@
+# Tasks - Multi-Asset Creative Variations & Carousel Mockups
+
+- [x] Type Definitions & State
+  - [x] Add `boundMedias?: string[]` to the `AdBundle` interface in `src/app/admin/social-ads/page.tsx`
+  - [x] Add `activeMediaIndex` state in `src/app/admin/social-ads/page.tsx`
+  - [x] Reset `activeMediaIndex` when `selectedBundleIndex` changes using a `useEffect`
+- [x] UI Component
+  - [x] Implement `MockupMediaCarousel` helper component in `src/app/admin/social-ads/page.tsx`
+- [x] Media Binding Manager UI
+  - [x] Render a grid/list of up to 3 thumbnails for bound assets with deletion buttons
+  - [x] Show "Add Asset" button launcher only if bound assets count is `< 3`
+  - [x] Update `AssetLibraryModal.onSelect` to append the selected URL to `boundMedias` (up to 3) instead of replacing `boundMedia`
+- [x] Mockup Integration
+  - [x] Replace static image in Meta Feed preview with `MockupMediaCarousel`
+  - [x] Replace static image in IG Story preview with `MockupMediaCarousel`
+  - [x] Replace static image in Google Maps preview with `MockupMediaCarousel`
+  - [x] Replace static image in YouTube preview with `MockupMediaCarousel`
+- [x] Verification & Walks
+  - [x] Run dev build to verify compilation and fix transient Gemini API unavailability errors
+  - [x] Verify draft saving/loading, copy sheets exports, charts/attributions ledger, and asset owner QR scans
+  - [x] Update walkthrough details in `walkthrough.md`

@@ -18,9 +18,8 @@ A **WorkspaceConfiguration** is an extensible aggregate document that consolidat
 The configuration aggregate is partitioned into distinct nodes to support modular extensibility:
 
 *   **Identity**: Defines operator legal names, contact emails, support links, and accountable organization bindings.
-*   **Brand**: Contains custom layout assets (logos, icons) and style system overrides (primary/secondary color HSL values, typography styles).
+*   **Brand**: Contains custom layout assets (logos, icons) and style system overrides (primary/secondary color values, typography styles). The branding theme parameters are owned here. Individual page documents do not own their visual brand; instead, pages inherit and apply theme overrides directly from the active WorkspaceConfiguration.
 *   **Website**: Maps domain/subdomain mappings, custom URLs, navigation link items, and initial home page references.
-    *   *Architectural Note*: While represented as configuration settings today, the **Website** concept is expected to evolve into its own independent domain concept (managing content delivery edges and visual pages) in future phases.
 
 ## Extensibility Pattern
 

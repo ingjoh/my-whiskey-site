@@ -18,22 +18,25 @@ import { Metadata } from 'next';
 export async function generateMetadata({ params }: { params: Promise<{ pageId: string }> }): Promise<Metadata> {
   const { pageId } = await params;
   if (pageId.startsWith('template-')) {
-    return { title: 'Page Not Found | M/Y Whiskey' };
+    return { title: 'Page Not Found' };
   }
-  const pageData = await loadPageData(pageId);
+  const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
+  const { loadPageDataRelational, getContentTypeConfigs } = require('@/lib/db');
+  const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+  const pageData = await loadPageDataRelational(workspaceId, pageId);
   if (!pageData) {
     const configs = await getContentTypeConfigs();
-    const matchedConfig = configs.find(c => c.slugPrefix === pageId && c.isEnabled);
+    const matchedConfig = configs.find((c: any) => c.slugPrefix === pageId && c.isEnabled);
     if (matchedConfig) {
       return {
-        title: `${matchedConfig.pluralName} | M/Y Whiskey`,
-        description: `Explore our collection of ${matchedConfig.pluralName.toLowerCase()} on M/Y Whiskey.`
+        title: `${matchedConfig.pluralName}`,
+        description: `Explore our collection of ${matchedConfig.pluralName.toLowerCase()}.`
       };
     }
-    return { title: 'Page Not Found | M/Y Whiskey' };
+    return { title: 'Page Not Found' };
   }
   return {
-    title: pageData.title ? `${pageData.title} | M/Y Whiskey` : `${pageId} | M/Y Whiskey`,
+    title: pageData.title ? `${pageData.title}` : `${pageId}`,
   };
 }
 
@@ -159,9 +162,23 @@ const PublicNodeRenderer = ({ node, allNodes, theme }: { node: PageNode; allNode
     case 'DynamicBlogBlock':
       Content = <DynamicBlogBlock node={node} />;
       break;
+    case 'DataSource':
+      const ds = node.props.source || 'listings';
+      const renderer = node.props.renderer || 'grid';
+      Content = (
+        <div style={{ padding: '3rem 2rem', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '8px', textAlign: 'center', margin: '2rem 0' }}>
+          <h4 style={{ color: 'var(--color-primary)', fontSize: '1.25rem', marginBottom: '0.5rem', textTransform: 'capitalize' }}>
+            {ds.replace('-', ' ')} Feed ({renderer})
+          </h4>
+          <p style={{ color: '#D8C7AF', opacity: 0.6, fontSize: '0.9rem', margin: 0 }}>
+            Dynamic Platform Connection Placeholder — Composing {ds} feed from Tuamotu Knowledge Graph.
+          </p>
+        </div>
+      );
+      break;
   }
 
-  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock'].includes(node.type);
+  const isFullWidth = ['Specs','Hero','Gallery','Image','DeckPlan','BookingForm','Video','Map','Accordion','Amenities','Pricing','Crew','Itinerary','Testimonials','VideoHero','Divider','Html','EnhancedHero','TextMedia','ExperiencesGrid','YachtFeature','TestimonialsGrid','CTA','ComparisonTable','ContentGrid','DynamicCardBlock','DynamicCarousel','BookingWidget','DynamicDetailBlock','DynamicBlogBlock','DataSource'].includes(node.type);
   return (
     <div style={{ display: isFullWidth ? 'block' : 'inline-block', width: isFullWidth ? '100%' : 'auto' }}>
       {Content}
@@ -175,8 +192,15 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
     notFound();
   }
   
-  let pageData = await loadPageData(pageId);
-  const siteSettings = await loadSiteSettings();
+  const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
+  const { loadPageDataRelational, loadSiteSettings } = require('@/lib/db');
+  const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
+
+  let pageData = await loadPageDataRelational(workspaceId, pageId);
+  let siteSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  if (!siteSettings) {
+    siteSettings = await loadSiteSettings();
+  }
 
   if (!pageData) {
     // Check if route matches content type prefix
@@ -187,7 +211,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
       const items = await getContentItems(matchedConfig.id);
       const publishedItems = items.filter(item => item.status === 'published');
       
-      const homeData = await loadPageData('home');
+      const homeData = await loadPageDataRelational(workspaceId, 'home');
       const globalTheme = homeData?.theme || DEFAULT_THEME;
 
       const theme = {
@@ -356,7 +380,7 @@ export default async function DynamicPublicPage({ params }: { params: Promise<{ 
   const { nodes, theme: loadedTheme } = pageData;
   const rootNode = nodes['root'];
 
-  const homeData = await loadPageData('home');
+  const homeData = await loadPageDataRelational(workspaceId, 'home');
   const globalTheme = homeData?.theme || DEFAULT_THEME;
   const theme = {
     ...loadedTheme,
