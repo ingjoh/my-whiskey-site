@@ -41,4 +41,16 @@ export class WorkspaceConfigurationRepository {
   static async update(workspaceId: string, updates: Partial<WorkspaceConfiguration>): Promise<void> {
     await this.collection.doc(workspaceId).update(updates);
   }
+
+  static async findBySubdomain(subdomain: string): Promise<WorkspaceConfiguration | null> {
+    const snap = await this.collection.where('website.subdomain', '==', subdomain).get();
+    if (snap.empty) return null;
+    return snap.docs[0].data() as WorkspaceConfiguration;
+  }
+
+  static async findByCustomDomain(domain: string): Promise<WorkspaceConfiguration | null> {
+    const snap = await this.collection.where('website.customDomain', '==', domain).get();
+    if (snap.empty) return null;
+    return snap.docs[0].data() as WorkspaceConfiguration;
+  }
 }
