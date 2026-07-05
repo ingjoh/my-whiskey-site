@@ -8,6 +8,78 @@ import {
   Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
+import { firebaseConfig } from '@/lib/firebase';
+
+const darkMapStyles = [
+  { elementType: "geometry", stylers: [{ color: "#1a1c1e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a1c1e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#d8c7af" }] },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#b9783b" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#d8c7af" }],
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [{ color: "#121415" }],
+  },
+  {
+    featureType: "poi.park",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#8a7b66" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#2d3135" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#212427" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#8a7b66" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#383d42" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#212427" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#b9783b" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0d0f10" }],
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#4e5357" }],
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#0d0f10" }],
+  },
+];
 
 export default function AdminTripGalleryPage() {
   const params = useParams();
@@ -238,61 +310,177 @@ export default function AdminTripGalleryPage() {
   };
 
   const initMap = () => {
-    // Collect pins with valid coordinates
-    const pins = media
-      .filter(m => m.exif?.latitude && m.exif?.longitude)
-      .map(m => ({
-        lat: m.exif.latitude,
-        lng: m.exif.longitude,
+    // Collect pins with valid coordinates and sort chronologically
+    const pins = [...media]
+      .filter((m: any) => m.exif?.latitude && m.exif?.longitude)
+      .sort((a: any, b: any) => {
+        const timeA = a.exif.capturedAt ? new Date(a.exif.capturedAt).getTime() : (a.createdAt || 0);
+        const timeB = b.exif.capturedAt ? new Date(b.exif.capturedAt).getTime() : (b.createdAt || 0);
+        return timeA - timeB;
+      })
+      .map((m: any) => ({
+        id: m.id,
+        url: m.url,
+        type: m.type,
+        lat: Number(m.exif.latitude),
+        lng: Number(m.exif.longitude),
         title: m.caption || 'Photo location'
       }));
 
     if (pins.length === 0 || !mapContainerRef.current) return;
 
-    // Load Leaflet dynamically to bypass SSR issues
-    const setupLeaflet = () => {
-      const L = (window as any).L;
-      if (!L) return;
+    const setupGoogleMap = () => {
+      const google = (window as any).google;
+      if (!google || !google.maps) return;
 
-      if (mapRef.current) {
-        mapRef.current.remove();
-      }
+      const mapOptions = {
+        center: { lat: pins[0].lat, lng: pins[0].lng },
+        zoom: 13,
+        styles: darkMapStyles,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        gestureHandling: 'cooperative'
+      };
 
-      const map = L.map(mapContainerRef.current).setView([pins[0].lat, pins[0].lng], 13);
+      const map = new google.maps.Map(mapContainerRef.current, mapOptions);
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
-      }).addTo(map);
+      const bounds = new google.maps.LatLngBounds();
+      const pathCoordinates: any[] = [];
 
-      const latlngs: any[] = [];
-      pins.forEach(pin => {
-        L.marker([pin.lat, pin.lng]).addTo(map).bindPopup(pin.title);
-        latlngs.push([pin.lat, pin.lng]);
+      class HTMLOverlay extends google.maps.OverlayView {
+        private latlng: any;
+        private element: HTMLElement;
+
+        constructor(latlng: any, element: HTMLElement) {
+          super();
+          this.latlng = latlng;
+          this.element = element;
+          this.setMap(map);
+        }
+
+        onAdd() {
+          const panes = this.getPanes();
+          panes.overlayMouseTarget.appendChild(this.element);
+        }
+
+        draw() {
+          const projection = this.getProjection();
+          if (!projection) return;
+          const position = projection.fromLatLngToDivPixel(this.latlng);
+          if (position) {
+            this.element.style.left = (position.x - 21) + 'px';
+            this.element.style.top = (position.y - 21) + 'px';
+          }
+        }
+
+        onRemove() {
+          if (this.element.parentNode) {
+            this.element.parentNode.removeChild(this.element);
+          }
+        }
+      }
+
+      pins.forEach((pin) => {
+        bounds.extend({ lat: pin.lat, lng: pin.lng });
+        pathCoordinates.push({ lat: pin.lat, lng: pin.lng });
+
+        // Circular picture thumbnail element
+        const el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.width = '42px';
+        el.style.height = '42px';
+        el.style.borderRadius = '50%';
+        el.style.border = '2.5px solid #B9783B';
+        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.65)';
+        el.style.cursor = 'pointer';
+        el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-radius 0.3s, box-shadow 0.3s, z-index 0s';
+        el.style.transformOrigin = 'center center';
+        el.style.background = '#121416';
+        el.style.zIndex = '100';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.className = 'google-map-marker-thumb';
+
+        const mediaEl = document.createElement(pin.type === 'video' ? 'video' : 'img');
+        mediaEl.src = pin.url;
+        mediaEl.style.width = '100%';
+        mediaEl.style.height = '100%';
+        mediaEl.style.borderRadius = '50%';
+        mediaEl.style.objectFit = 'cover';
+        mediaEl.style.transition = 'border-radius 0.3s';
+        if (pin.type === 'video') {
+          (mediaEl as HTMLVideoElement).muted = true;
+          (mediaEl as HTMLVideoElement).playsInline = true;
+        }
+
+        el.appendChild(mediaEl);
+
+        const activateHover = () => {
+          el.style.transform = 'scale(2.4)';
+          el.style.zIndex = '9999';
+          el.style.borderRadius = '8px';
+          mediaEl.style.borderRadius = '6px';
+          el.style.boxShadow = '0 12px 28px rgba(0,0,0,0.85)';
+        };
+
+        const deactivateHover = () => {
+          el.style.transform = 'scale(1)';
+          el.style.zIndex = '100';
+          el.style.borderRadius = '50%';
+          mediaEl.style.borderRadius = '50%';
+          el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.65)';
+        };
+
+        el.addEventListener('mouseenter', activateHover);
+        el.addEventListener('mouseleave', deactivateHover);
+
+        // Mobile touch highlights
+        el.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.google-map-marker-thumb').forEach((m: any) => {
+            if (m !== el) {
+              m.style.transform = 'scale(1)';
+              m.style.zIndex = '100';
+              m.style.borderRadius = '50%';
+              if (m.firstChild) m.firstChild.style.borderRadius = '50%';
+            }
+          });
+          activateHover();
+        });
+
+        // Spawn Overlay
+        new HTMLOverlay(new google.maps.LatLng(pin.lat, pin.lng), el);
       });
 
       if (pins.length > 1) {
-        L.polyline(latlngs, { color: '#B9783B', weight: 4 }).addTo(map);
-        map.fitBounds(L.polyline(latlngs).getBounds());
+        new google.maps.Polyline({
+          path: pathCoordinates,
+          geodesic: true,
+          strokeColor: '#B9783B',
+          strokeOpacity: 0.8,
+          strokeWeight: 4,
+          map: map
+        });
+
+        map.fitBounds(bounds);
       }
     };
 
-    if (!(window as any).L) {
-      // Inject stylesheet
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
+    if (!(window as any).google || !(window as any).google.maps) {
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey || '';
+      if (!apiKey) return;
 
-      // Inject script
       const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = setupLeaflet;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
+      script.async = true;
+      script.defer = true;
+      script.onload = setupGoogleMap;
       document.head.appendChild(script);
     } else {
-      setupLeaflet();
+      setupGoogleMap();
     }
   };
 
