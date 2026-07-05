@@ -4,9 +4,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { 
-   Sparkles, MapPin, Share2, DollarSign, 
-   Check, ArrowRight, Loader2, Play, Image as ImageIcon,
-   Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, Ship, Users, Compass,
+   Sparkles, MapPin, Navigation, Share2, DollarSign, 
+   Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
+   Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, ShieldCheck, Ship, Users, Compass,
    Sun, Cloud
  } from 'lucide-react';
 import Link from 'next/link';
@@ -281,7 +281,7 @@ export default function GuestTripMemoriesPage() {
   };
 
   const initMap = () => {
-    const pins = [...gallery.media]
+    const pins = [...(gallery?.media || [])]
       .filter((m: any) => m.exif?.latitude && m.exif?.longitude)
       .sort((a: any, b: any) => {
         const timeA = a.exif.capturedAt ? new Date(a.exif.capturedAt).getTime() : (a.createdAt || 0);
@@ -508,8 +508,8 @@ export default function GuestTripMemoriesPage() {
     });
   };
 
-  // Cover image falls back to first gallery image or default luxury background
-  const coverImage = gallery?.media?.[0]?.url || 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?q=80&w=1600&auto=format&fit=crop';
+  // Cover image falls back to chosen hero image, first gallery image, or default luxury background
+  const coverImage = gallery?.coverImageUrl || gallery?.media?.[0]?.url || 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?q=80&w=1600&auto=format&fit=crop';
   const bookingTotal = booking?.grandTotal || 800;
   return (
     <div style={{ minHeight: '100vh', background: '#0F1113', color: '#E4DFD5', fontFamily: "'Outfit', 'Inter', sans-serif", paddingBottom: '6rem' }}>
@@ -629,7 +629,18 @@ export default function GuestTripMemoriesPage() {
 
       {/* Hero Banner Section */}
       <section style={{ height: '55vh', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, background: `url(${coverImage}) no-repeat center center/cover`, opacity: 1 }} />
+        {coverImage.endsWith('.mp4') || coverImage.includes('video') || (gallery?.media?.find((m: any) => m.url === coverImage)?.type === 'video') ? (
+          <video 
+            src={coverImage} 
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} 
+            autoPlay 
+            loop 
+            muted 
+            playsInline 
+          />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: `url(${coverImage}) no-repeat center center/cover`, opacity: 1 }} />
+        )}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15, 17, 19, 0) 0%, rgba(15, 17, 19, 0) 55%, rgba(15, 17, 19, 0.75) 80%, rgba(15, 17, 19, 0.95) 100%)' }} />
         
         {/* Floating navbar brand overlay */}
@@ -912,7 +923,7 @@ export default function GuestTripMemoriesPage() {
             <ImageIcon size={18} color="#B9783B" /> Visual Memories
           </h2>
           
-          {gallery?.media?.length === 0 ? (
+          {!gallery?.media || gallery.media.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#888', padding: '3rem', background: '#17191C', borderRadius: '8px' }}>
               <p>No photos uploaded yet. Check back soon.</p>
             </div>
