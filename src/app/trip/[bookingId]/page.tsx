@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { 
   Sparkles, MapPin, Navigation, Share2, DollarSign, 
   Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
-  Phone, Calendar
+  Phone, Calendar, Copy
 } from 'lucide-react';
 import Link from 'next/link';
 import { firebaseConfig } from '@/lib/firebase';
@@ -754,6 +754,65 @@ export default function GuestTripMemoriesPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* Share Memories Section */}
+        <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center', marginBottom: '3rem' }}>
+          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B9783B', fontWeight: 600 }}>Share the journey</span>
+          <h3 style={{ margin: '0.5rem 0 1rem 0', fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", color: 'white' }}>
+            Share Your Excursion Memories
+          </h3>
+          <p style={{ margin: '0 auto 1.5rem auto', fontSize: '0.85rem', opacity: 0.7, lineHeight: 1.4, maxWidth: '480px' }}>
+            Send this private gallery to your friends, family, or share it on social media to showcase your premium voyage aboard the M/Y Whiskey.
+          </p>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleShare}
+              style={{
+                background: '#B9783B',
+                border: 'none',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'background 0.2s'
+              }}
+            >
+              <Share2 size={15} /> Share Gallery
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  showToast('success', 'Trip memories link copied to clipboard!');
+                } catch {
+                  showToast('error', 'Failed to copy link.');
+                }
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Copy size={15} /> Copy Page Link
+            </button>
+          </div>
         </div>
 
         {/* Call to Action (CTA) block */}
