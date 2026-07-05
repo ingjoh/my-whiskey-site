@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
   Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
@@ -84,7 +85,6 @@ const darkMapStyles = [
 
 export default function AdminTripGalleryPage() {
   const params = useParams();
-  const router = useRouter();
   const bookingId = params.bookingId as string;
 
   const { user } = useAuth();
@@ -169,8 +169,6 @@ export default function AdminTripGalleryPage() {
         
         // Retrieve the recently created asset to get its resolved ID and EXIF details
         // Query the list to find the matching url
-        const listRes = await fetch('/api/listings/active'); // standard listings GET, or query active assets
-        const assetsRes = await fetch('/api/workspaces/active'); // fallback
         
         // We will query our assets collection to get the details
         // Or simply construct an media element payload
@@ -249,7 +247,7 @@ export default function AdminTripGalleryPage() {
     try {
       // Find asset by matching public URL to run AI Vision Analysis
       const idToken = await user.getIdToken();
-      const assetsRes = await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
+      await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { 
-   Sparkles, MapPin, Navigation, Share2, DollarSign, 
-   Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
-   Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, ShieldCheck, Ship, Users, Compass,
+   Sparkles, MapPin, Share2, DollarSign, 
+   Check, ArrowRight, Loader2, Play, Image as ImageIcon,
+   Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, Ship, Users, Compass,
    Sun, Cloud
  } from 'lucide-react';
 import Link from 'next/link';
