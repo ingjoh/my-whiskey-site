@@ -101,6 +101,7 @@ export default function AdminTripGalleryPage() {
   const [description, setDescription] = useState('');
   const [story, setStory] = useState('');
   const [media, setMedia] = useState<any[]>([]);
+  const [coverImageUrl, setCoverImageUrl] = useState('');
   const [isPublished, setIsPublished] = useState(false);
   const [tippingLedger, setTippingLedger] = useState({ totalTipped: 0, stripePaymentIntentIds: [] });
   const [bookingDetails, setBookingDetails] = useState<any>(null);
@@ -144,6 +145,7 @@ export default function AdminTripGalleryPage() {
         setDescription(gData.description || '');
         setStory(gData.story || '');
         setMedia(gData.media || []);
+        setCoverImageUrl(gData.coverImageUrl || '');
         setIsPublished(gData.isPublished || false);
         setTippingLedger(gData.tippingLedger || { totalTipped: 0, stripePaymentIntentIds: [] });
         if (gData.booking) {
@@ -169,6 +171,8 @@ export default function AdminTripGalleryPage() {
         
         // Retrieve the recently created asset to get its resolved ID and EXIF details
         // Query the list to find the matching url
+        const listRes = await fetch('/api/listings/active'); // standard listings GET, or query active assets
+        const assetsRes = await fetch('/api/workspaces/active'); // fallback
         
         // We will query our assets collection to get the details
         // Or simply construct an media element payload
@@ -247,7 +251,7 @@ export default function AdminTripGalleryPage() {
     try {
       // Find asset by matching public URL to run AI Vision Analysis
       const idToken = await user.getIdToken();
-      await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
+      const assetsRes = await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -306,7 +310,8 @@ export default function AdminTripGalleryPage() {
           description,
           story,
           media,
-          isPublished
+          isPublished,
+          coverImageUrl
         })
       });
 
@@ -659,9 +664,34 @@ export default function AdminTripGalleryPage() {
                         )}
                         <button 
                           onClick={() => removeMediaItem(index)}
-                          style={{ position: 'absolute', top: '0.35rem', right: '0.35rem', background: 'rgba(239, 68, 68, 0.9)', border: 'none', color: 'white', padding: '0.25rem', borderRadius: '4px', cursor: 'pointer' }}
+                          style={{ position: 'absolute', top: '0.35rem', right: '0.35rem', background: 'rgba(239, 68, 68, 0.9)', border: 'none', color: 'white', padding: '0.25rem', borderRadius: '4px', cursor: 'pointer', zIndex: 10 }}
                         >
                           <Trash2 size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCoverImageUrl(item.url)}
+                          style={{
+                            position: 'absolute',
+                            top: '0.35rem',
+                            left: '0.35rem',
+                            background: coverImageUrl === item.url ? '#B9783B' : 'rgba(15, 17, 19, 0.7)',
+                            border: 'none',
+                            color: 'white',
+                            padding: '0.25rem 0.45rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                            transition: 'all 0.2s',
+                            zIndex: 10
+                          }}
+                        >
+                          <Sparkles size={8} /> {coverImageUrl === item.url ? '★ Hero' : 'Set Hero'}
                         </button>
                         {item.exif?.latitude && (
                           <div style={{ position: 'absolute', bottom: '0.35rem', left: '0.35rem', background: 'rgba(0,0,0,0.6)', padding: '0.15rem 0.35rem', borderRadius: '4px', fontSize: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.15rem', color: '#D8C7AF' }}>

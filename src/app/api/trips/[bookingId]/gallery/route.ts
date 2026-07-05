@@ -174,7 +174,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { title, description, story, media, isPublished, crewIds, vesselId, stops } = body;
+    const { title, description, story, media, isPublished, crewIds, vesselId, stops, coverImageUrl } = body;
 
     const docRef = adminDb.collection('trip_galleries').doc(bookingId);
     const existingSnap = await docRef.get();
@@ -188,6 +188,7 @@ export async function POST(
       description: description ?? (existingData?.description || ''),
       story: story ?? (existingData?.story || ''),
       media: media ?? (existingData?.media || []),
+      coverImageUrl: coverImageUrl ?? (existingData?.coverImageUrl || ''),
       isPublished: isPublished ?? (existingData?.isPublished || false),
       crewIds: crewIds ?? (existingData?.crewIds || []),
       vesselId: vesselId ?? (existingData?.vesselId || ''),
