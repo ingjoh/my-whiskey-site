@@ -350,7 +350,10 @@ export default function AdminTripGalleryPage() {
 
     const setupGoogleMap = () => {
       const google = (window as any).google;
-      if (!google || !google.maps) return;
+      if (!google || !google.maps || !google.maps.Map) {
+        setTimeout(setupGoogleMap, 100);
+        return;
+      }
 
       const mapOptions = {
         center: { lat: pins[0].lat, lng: pins[0].lng },
@@ -488,7 +491,22 @@ export default function AdminTripGalleryPage() {
       }
     };
 
-    if (!(window as any).google || !(window as any).google.maps) {
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]') as HTMLScriptElement;
+    
+    if (existingScript) {
+      if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+        setupGoogleMap();
+      } else {
+        existingScript.addEventListener('load', setupGoogleMap);
+        // Fallback polling
+        const interval = setInterval(() => {
+          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+            clearInterval(interval);
+            setupGoogleMap();
+          }
+        }, 100);
+      }
+    } else {
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey || '';
       if (!apiKey) return;
 
@@ -498,8 +516,6 @@ export default function AdminTripGalleryPage() {
       script.defer = true;
       script.onload = setupGoogleMap;
       document.head.appendChild(script);
-    } else {
-      setupGoogleMap();
     }
   };
 

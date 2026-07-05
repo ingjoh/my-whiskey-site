@@ -93,6 +93,8 @@ export default function GuestTripMemoriesPage() {
   const [captain, setCaptain] = useState<any>(null);
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   // Tipping states
   const [tipPercentage, setTipPercentage] = useState<number | 'custom' | null>(20);
   const [customTip, setCustomTip] = useState<string>('');
@@ -102,6 +104,11 @@ export default function GuestTripMemoriesPage() {
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Check query parameters for Stripe redirection outcomes
   useEffect(() => {
@@ -164,12 +171,17 @@ export default function GuestTripMemoriesPage() {
           text: gallery?.description || 'Relive our private luxury yacht charter excursion!',
           url: window.location.href,
         });
+        return;
       } catch (err) {
         console.warn('Web Share failed:', err);
       }
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Memory page URL copied to clipboard! Share it with friends and family.');
+    }
+    
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showToast('success', 'Trip link copied! Share it with friends or on social media.');
+    } catch {
+      showToast('error', 'Failed to copy link to clipboard.');
     }
   };
 
@@ -203,11 +215,11 @@ export default function GuestTripMemoriesPage() {
           window.location.href = data.url;
         }
       } else {
-        alert('Tipping service temporarily unavailable. Please try again later.');
+        showToast('error', 'Tipping service temporarily unavailable. Please try again later.');
       }
     } catch (err) {
       console.error('Tipping failed:', err);
-      alert('Tipping request encountered a network issue.');
+      showToast('error', 'Tipping request encountered a network issue.');
     } finally {
       setIsSubmittingTip(false);
     }
@@ -235,7 +247,10 @@ export default function GuestTripMemoriesPage() {
 
     const setupGoogleMap = () => {
       const google = (window as any).google;
-      if (!google || !google.maps) return;
+      if (!google || !google.maps || !google.maps.Map) {
+        setTimeout(setupGoogleMap, 100);
+        return;
+      }
 
       const mapOptions = {
         center: { lat: pins[0].lat, lng: pins[0].lng },
@@ -382,7 +397,22 @@ export default function GuestTripMemoriesPage() {
       }
     };
 
-    if (!(window as any).google || !(window as any).google.maps) {
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]') as HTMLScriptElement;
+    
+    if (existingScript) {
+      if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+        setupGoogleMap();
+      } else {
+        existingScript.addEventListener('load', setupGoogleMap);
+        // Fallback polling
+        const interval = setInterval(() => {
+          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+            clearInterval(interval);
+            setupGoogleMap();
+          }
+        }, 100);
+      }
+    } else {
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey || '';
       if (!apiKey) return;
 
@@ -392,8 +422,6 @@ export default function GuestTripMemoriesPage() {
       script.defer = true;
       script.onload = setupGoogleMap;
       document.head.appendChild(script);
-    } else {
-      setupGoogleMap();
     }
   };
 
@@ -408,9 +436,25 @@ export default function GuestTripMemoriesPage() {
   // Cover image falls back to first gallery image or default luxury background
   const coverImage = gallery?.media?.[0]?.url || 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?q=80&w=1600&auto=format&fit=crop';
   const bookingTotal = booking?.grandTotal || 800;
-
   return (
     <div style={{ minHeight: '100vh', background: '#0F1113', color: '#E4DFD5', fontFamily: "'Outfit', 'Inter', sans-serif", paddingBottom: '6rem' }}>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: toast.type === 'success' ? '#708C84' : '#EF4444',
+          color: 'white',
+          padding: '1rem 1.5rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 9999,
+          fontWeight: 600
+        }}>
+          {toast.message}
+        </div>
+      )}
       <style dangerouslySetInnerHTML={{ __html: `
         .hover-scale:hover { transform: scale(1.02); }
         @media (max-width: 640px) {
@@ -488,18 +532,25 @@ export default function GuestTripMemoriesPage() {
       <section style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 2rem' }}>
 
         {/* Crew Tipping Component */}
-        <div style={{ maxWidth: '600px', margin: '2rem auto 3.5rem auto', background: 'linear-gradient(to right bottom, #1E2124, #141618)', border: '1px solid rgba(185, 120, 59, 0.25)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center' }}>
-          {tipSuccess ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', marginBottom: '0.5rem' }}>
-                <Check size={24} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: '1.35rem', fontFamily: "'Cormorant Garamond', serif", color: 'white' }}>Thank You for Your Generosity!</h3>
-              <p style={{ margin: 0, fontSize: '0.88rem', color: '#D8C7AF', opacity: 0.8 }}>
+        {tipSuccess ? (
+          <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '1.5rem 2rem', marginBottom: '3rem', display: 'flex', alignItems: 'center', gap: '1rem', color: '#10b981' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Check size={18} />
+            </div>
+            <div>
+              <h4 style={{ margin: '0 0 0.15rem 0', color: 'white', fontSize: '1rem', fontFamily: "'Cormorant Garamond', serif" }}>Thank You for Your Generosity!</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.85 }}>
                 Your crew tip of <strong>${tippedAmount}</strong> was successfully charged and routed. The Captain and crew greatly appreciate your kindness.
               </p>
             </div>
-          ) : (
+          </div>
+        ) : (gallery?.tippingLedger?.totalTipped || 0) > 0 ? (
+          <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.12)', borderRadius: '12px', padding: '1.25rem 1.75rem', marginBottom: '3rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#10b981', fontSize: '0.86rem' }}>
+            <Check size={16} style={{ flexShrink: 0 }} />
+            <span>Crew Gratuity has been successfully processed for this voyage. Thank you for your support!</span>
+          </div>
+        ) : (
+          <div style={{ maxWidth: '600px', margin: '2rem auto 3.5rem auto', background: 'linear-gradient(to right bottom, #1E2124, #141618)', border: '1px solid rgba(185, 120, 59, 0.25)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center' }}>
             <form onSubmit={handleTipSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
               <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B9783B', fontWeight: 600 }}>Crew appreciation</span>
               <h3 style={{ margin: 0, fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', letterSpacing: '0.01em' }}>
@@ -603,8 +654,8 @@ export default function GuestTripMemoriesPage() {
                 {isSubmittingTip ? 'Routing to Checkout...' : `Confirm & Charge Tip ($${calculateTipAmount()})`}
               </button>
             </form>
-          )}
-        </div>
+          </div>
+        )}
         
         {/* Story Intro */}
         <div style={{ background: '#17191C', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', padding: '2.5rem', marginBottom: '3rem', position: 'relative', marginTop: '-1rem', zIndex: 10 }}>
@@ -616,7 +667,7 @@ export default function GuestTripMemoriesPage() {
         {/* EXIF GPS Travel Map */}
         {gallery?.media?.some((m: any) => m.exif?.latitude) && (
           <div style={{ marginBottom: '4rem' }}>
-            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <MapPin size={18} color="#B9783B" /> The Voyage Route
             </h2>
             <div ref={mapContainerRef} style={{ height: '350px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden', zIndex: 5 }} />
