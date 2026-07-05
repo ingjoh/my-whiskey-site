@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { 
   Anchor, ArrowLeft, Search, Calendar, Ship, Users, CheckCircle, 
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
-  MessageSquare, ChevronLeft, ChevronRight, Plus
+  MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon
 } from 'lucide-react';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
@@ -3779,6 +3779,29 @@ export default function BookingsDashboard() {
                 <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Administrative Charter Actions</h4>
                   
+                  <Link 
+                    href={`/admin/bookings/${selectedBooking.id}/gallery`}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      gap: '0.5rem', 
+                      background: '#B9783B', 
+                      border: 'none', 
+                      color: 'white', 
+                      padding: '0.65rem', 
+                      borderRadius: '6px', 
+                      fontSize: '0.78rem', 
+                      fontWeight: 600, 
+                      cursor: 'pointer', 
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      transition: 'background 0.2s' 
+                    }}
+                  >
+                    <ImageIcon size={14} /> Manage Trip Memories & Gallery
+                  </Link>
+
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button 
                       type="button" 

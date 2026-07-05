@@ -135,6 +135,38 @@ export async function POST(request: NextRequest) {
         const isBalancePayment = session.metadata?.isBalancePayment === 'true';
         const paymentIntentId = session.payment_intent as string;
 
+        // Check if this checkout session is a crew tipping event
+        if (session.metadata?.type === 'tip') {
+          const amountString = session.metadata?.amount || '0';
+          const tipAmount = Math.round(Number(amountString) * 100); // in cents
+
+          console.log(`Processing crew tipping checkout session for booking ${bookingId}: $${amountString}`);
+
+          if (bookingId && tipAmount > 0) {
+            const galleryRef = adminDb.collection('trip_galleries').doc(bookingId);
+            const gallerySnap = await galleryRef.get();
+            const galleryData = gallerySnap.exists ? gallerySnap.data() : {};
+
+            const currentLedger = galleryData?.tippingLedger || { totalTipped: 0, stripePaymentIntentIds: [] };
+            const updatedLedger = {
+              totalTipped: (currentLedger.totalTipped || 0) + tipAmount,
+              stripePaymentIntentIds: [...(currentLedger.stripePaymentIntentIds || []), paymentIntentId || '']
+            };
+
+            await galleryRef.set({ tippingLedger: updatedLedger }, { merge: true });
+
+            // Also store the customer's stripeCustomerId back to the booking for future one-click checkouts
+            if (session.customer) {
+              await adminDb.collection('pages').doc(`booking-${bookingId}`).set({
+                stripeCustomerId: session.customer
+              }, { merge: true });
+            }
+
+            console.log(`✓ Updated tipping ledger for booking ${bookingId}. Total Tipped: $${updatedLedger.totalTipped / 100}`);
+          }
+          break;
+        }
+
         const referredById = session.metadata?.referredById;
         const referredByType = session.metadata?.referredByType;
         const utmSource = session.metadata?.utmSource;

@@ -194,5 +194,11 @@ service cloud.firestore {
       allow list: if request.auth != null; // Authenticated staff only can list bookings
       allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
+
+    // Trip galleries rules
+    match /trip_galleries/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
