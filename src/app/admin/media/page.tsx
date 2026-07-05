@@ -22,7 +22,14 @@ export default function MediaLibraryPage() {
   const filteredAssets = assets.filter(asset => {
     if (!showHidden && asset.isHidden) return false;
     if (showHidden && !asset.isHidden) return false;
-    if (searchQuery && !asset.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = asset.name?.toLowerCase().includes(q);
+      const titleMatch = asset.title?.toLowerCase().includes(q);
+      const descMatch = asset.description?.toLowerCase().includes(q);
+      const tagsMatch = asset.tags?.some(tag => tag.toLowerCase().includes(q));
+      if (!nameMatch && !titleMatch && !descMatch && !tagsMatch) return false;
+    }
     if (typeFilter === 'image' && !asset.type.startsWith('image/')) return false;
     if (typeFilter === 'document' && asset.type.startsWith('image/')) return false;
     return true;
@@ -298,16 +305,39 @@ export default function MediaLibraryPage() {
                     )}
                   </div>
                 </div>
-                <div style={{ padding: '1rem' }}>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }} title={asset.name}>
-                    {asset.name}
+                <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }} title={asset.title || asset.name}>
+                    {asset.title || asset.name}
                   </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+                  
+                  {asset.description && (
+                    <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.76rem', color: '#D8C7AF', opacity: 0.8, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {asset.description}
+                    </p>
+                  )}
+
+                  {asset.tags && asset.tags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                      {asset.tags.map((t, idx) => (
+                        <span key={idx} style={{ background: 'rgba(185, 120, 59, 0.15)', color: '#D8C7AF', fontSize: '0.62rem', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid rgba(185, 120, 59, 0.25)' }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {asset.exif?.latitude && asset.exif?.longitude && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                      <span style={{ color: '#B9783B' }}>📍</span> Lat: {asset.exif.latitude.toFixed(4)}, Lon: {asset.exif.longitude.toFixed(4)}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>
                       {(asset.size / 1024).toFixed(1)} KB
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
-                      {new Date(asset.createdAt).toLocaleDateString()}
+                    <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>
+                      {asset.exif?.capturedAt ? new Date(asset.exif.capturedAt).toLocaleDateString() : new Date(asset.createdAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>

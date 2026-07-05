@@ -15,3 +15,27 @@ You must strictly adhere to the following rules when working on this repository:
 5.  **Technical Boundaries**: Enforce server/client boundary rules set in [overview.md](file:///c:/Users/ingem/MY%20Whiskey%20-%20Site/knowledge/architecture/overview.md).
 6.  **Self-Verification**: You must run `npm run build` to verify Next.js compiles with zero compiler or typescript errors before ending your turn.
 
+---
+
+## Knowledge Evolution
+
+The Knowledge Catalog is the authoritative representation of the platform. To prevent the Knowledge Catalog from gradually becoming fragmented, duplicated, or inconsistent as the project grows, both human developers and Antigravity agents must follow these rules:
+
+*   **Enrichment Over Creation**: Before creating a new Knowledge Object, determine whether the information represents a genuinely new concept or an extension of an existing concept. Always prefer enriching existing Knowledge Objects over creating new ones.
+*   **Distinct Lifecycles Only**: Only introduce a new Knowledge Object when it represents a distinct business, architectural, design, operational, or engineering concept with its own lifecycle and relationships.
+*   **Default to Extensions**: When uncertain, extend an existing concept rather than creating a new one.
+*   **Mandatory Registration**: Every new Knowledge Object must be justified through the Knowledge Impact Analysis process and registered in the Knowledge Registry (`index.yaml`).
+*   **Pre-Implementation Audits**: Knowledge Impact Analysis is required before significant implementation work.
+
+### Definition of Done (DoD)
+A task is not considered complete until all applicable checklist items below have been satisfied:
+*   [ ] **Code Implementation**: Code has been implemented.
+*   [ ] **Test Verification**: Tests pass.
+*   [ ] **Knowledge Impact Analysis**: Completed and registered in the implementation plan.
+*   [ ] **Knowledge Enrichment**: Existing Knowledge Objects have been updated where required.
+*   [ ] **New Knowledge Registration**: Any new Knowledge Objects have been justified and registered in `index.yaml`.
+*   [ ] **Decision Registry**: Architecture Decision Records (ADRs) have been updated if an architectural decision has changed.
+*   [ ] **Health Verification**: `npm run knowledge-health` passes with 100% health status.
+*   [ ] **Build Verification**: `npm run build` compiles with zero compiler or TypeScript errors.
+
+
