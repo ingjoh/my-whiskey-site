@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
   Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
