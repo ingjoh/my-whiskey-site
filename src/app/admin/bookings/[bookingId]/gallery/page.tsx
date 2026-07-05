@@ -85,7 +85,6 @@ const darkMapStyles = [
 
 export default function AdminTripGalleryPage() {
   const params = useParams();
-  const router = useRouter();
   const bookingId = params.bookingId as string;
 
   const { user } = useAuth();
