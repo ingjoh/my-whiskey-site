@@ -863,6 +863,30 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
   }
 }
 
+export async function loadPageRaw(pageId: string): Promise<any | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection(PAGE_COLLECTION).doc(pageId).get();
+      if (docSnap.exists) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+    } catch (e) {
+      console.error('Error loading raw page via admin SDK:', e);
+    }
+  } else {
+    try {
+      const docSnap = await getDoc(doc(db, PAGE_COLLECTION, pageId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+    } catch (e) {
+      console.error('Error loading raw page via client SDK:', e);
+    }
+  }
+  return null;
+}
+
 /**
  * Deletes the page data from Firestore.
  */
@@ -908,15 +932,17 @@ export interface PageMetadata {
   id: string;
   title: string;
   updatedAt: string;
+  slug?: string;
+  workspaceId?: string;
 }
 
 /**
  * Loads all page metadata from Firestore.
  */
-export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
+export async function getAllPagesWithMetadata(workspaceId?: string): Promise<PageMetadata[]> {
   try {
     const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
-    const pages = querySnapshot.docs
+    let pages: PageMetadata[] = querySnapshot.docs
       .filter(doc => 
         !doc.id.startsWith('template-') && 
         !doc.id.startsWith('content-item-') &&
@@ -928,10 +954,20 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
         const data = doc.data();
         return {
           id: doc.id,
+          slug: data.slug || doc.id,
           title: data.title || (doc.id.charAt(0).toUpperCase() + doc.id.slice(1).replace(/-/g, ' ')),
-          updatedAt: data.updatedAt || new Date().toISOString()
+          updatedAt: data.updatedAt || new Date().toISOString(),
+          workspaceId: data.workspaceId
         };
       });
+
+    if (workspaceId) {
+      pages = pages.filter(p => {
+        if (p.workspaceId === workspaceId) return true;
+        if (!p.workspaceId && workspaceId === 'ws_whiskey') return true;
+        return false;
+      });
+    }
 
     // Seed terms page automatically if it doesn't exist in Firestore
     const hasTerms = pages.some(p => p.id === 'terms');
@@ -1619,15 +1655,19 @@ async function translateResourceToLegacyContentItem(resource: any): Promise<Cont
   }
 }
 
-export async function getContentItems(contentType?: string): Promise<ContentItem[]> {
+export async function getContentItems(contentType?: string, workspaceId?: string): Promise<ContentItem[]> {
   if (contentType === 'asset' || contentType === 'staff') {
     try {
       const resSnap = await getDocs(collection(db, 'resources'));
       if (!resSnap.empty) {
         const targetType = contentType === 'asset' ? ['vessel', 'gear'] : ['crew'];
-        const matchedDocs = resSnap.docs
+        let matchedDocs = resSnap.docs
           .map(d => d.data())
           .filter(r => targetType.includes(r.type));
+
+        if (workspaceId) {
+          matchedDocs = matchedDocs.filter(r => (r.workspaceId || 'ws_whiskey') === workspaceId);
+        }
 
         if (matchedDocs.length > 0) {
           const itemsPromises = matchedDocs.map(r => translateResourceToLegacyContentItem(r));
@@ -1635,8 +1675,12 @@ export async function getContentItems(contentType?: string): Promise<ContentItem
           return translatedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         }
       }
-    } catch (newResErr) {
-      console.warn('Client lacks read permissions for resources. Skipping resources query:', newResErr);
+    } catch (newResErr: any) {
+      if (newResErr && newResErr.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.warn('Client lacks read permissions for resources. Skipping resources query:', newResErr);
+      }
     }
   }
 
@@ -1645,8 +1689,13 @@ export async function getContentItems(contentType?: string): Promise<ContentItem
       const expSnap = await getDocs(collection(db, 'experiences'));
       if (!expSnap.empty) {
         const items: ContentItem[] = [];
-        for (const docSnap of expSnap.docs) {
-          const exp = docSnap.data();
+        let expDocs = expSnap.docs.map(d => d.data());
+
+        if (workspaceId) {
+          expDocs = expDocs.filter(exp => (exp.workspaceId || 'ws_whiskey') === workspaceId);
+        }
+
+        for (const exp of expDocs) {
           const listingsSnap = await getDocs(query(collection(db, 'listings'), where('experienceId', '==', exp.id)));
           let baseCost = 0;
           if (!listingsSnap.empty) {
@@ -1700,6 +1749,11 @@ export async function getContentItems(contentType?: string): Promise<ContentItem
             } as ContentItem;
             return applyMockFallbacks(rawItem);
           });
+
+        if (workspaceId) {
+          docs = docs.filter((item: ContentItem) => (item.workspaceId || 'ws_whiskey') === workspaceId);
+        }
+
         if (contentType) {
           docs = docs.filter((item: ContentItem) => item.contentType === contentType);
           if (docs.length === 0) {
@@ -2585,6 +2639,7 @@ export interface BookingRecord {
   updatedAt?: string;
   endTime?: string;
   guestDurationMinutes?: number;
+  workspaceId?: string;
 }
 
 export interface BookingMessage {
@@ -2904,7 +2959,7 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
 /**
  * Retrieves all bookings.
  */
-export async function getAllBookings(): Promise<BookingRecord[]> {
+export async function getAllBookings(workspaceId?: string): Promise<BookingRecord[]> {
   try {
     const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
     const legacyBookings: BookingRecord[] = [];
@@ -2927,11 +2982,20 @@ export async function getAllBookings(): Promise<BookingRecord[]> {
       });
       translatedNewBookings = (await Promise.all(newBookingsPromises))
         .filter((b): b is BookingRecord => b !== null);
-    } catch (newBookingsErr) {
-      console.warn('Client lacks read permissions for new bookings collection. Skipping guest-level query:', newBookingsErr);
+    } catch (newBookingsErr: any) {
+      if (newBookingsErr && newBookingsErr.code === 'permission-denied') {
+        // Suppress expected client permission warning during auth resolution
+      } else {
+        console.warn('Client lacks read permissions for new bookings collection. Skipping guest-level query:', newBookingsErr);
+      }
     }
 
-    const allBookings = [...legacyBookings, ...translatedNewBookings];
+    let allBookings = [...legacyBookings, ...translatedNewBookings];
+
+    if (workspaceId) {
+      allBookings = allBookings.filter(b => (b.workspaceId || 'ws_whiskey') === workspaceId);
+    }
+
     return allBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (error) {
     console.error('Error loading all bookings:', error);
@@ -4550,8 +4614,12 @@ export async function loadWorkspaceTheme(workspaceId: string): Promise<ThemeConf
           }
         } as any;
       }
-    } catch (e) {
-      console.error('Error fetching workspace theme via SDK:', e);
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.error('Error fetching workspace theme via SDK:', e);
+      }
     }
   }
   return null;
@@ -4745,7 +4813,6 @@ export async function savePageDataRelational(
     };
 
     if (typeof window !== 'undefined') {
-      const { doc, setDoc } = require('firebase/firestore');
       await setDoc(doc(db, PAGE_COLLECTION, docId), payload, { merge: true });
     } else {
       const { adminDb } = require('./firebase-admin');
@@ -4760,9 +4827,13 @@ export async function savePageDataRelational(
 }
 
 export async function getPlatformWorkspaceId(): Promise<string> {
+  const rootId = 'ws_platform_root';
   if (typeof window === 'undefined') {
     try {
       const { adminDb } = require('./firebase-admin');
+      const rootDoc = await adminDb.collection('workspaces').doc(rootId).get();
+      if (rootDoc.exists) return rootId;
+
       const snap = await adminDb.collection('workspaces')
         .where('type', '==', 'platform')
         .limit(1)
@@ -4773,6 +4844,12 @@ export async function getPlatformWorkspaceId(): Promise<string> {
     } catch (e) {}
 
     const projectId = getProjectId();
+    try {
+      const rootUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/workspaces/${rootId}`;
+      const rootRes = await fetch(rootUrl, { next: { revalidate: 0 } });
+      if (rootRes.ok) return rootId;
+    } catch (e) {}
+
     const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
     const queryPayload = {
       structuredQuery: {
@@ -4805,6 +4882,9 @@ export async function getPlatformWorkspaceId(): Promise<string> {
     }
   } else {
     try {
+      const rootSnap = await getDoc(doc(db, 'workspaces', rootId));
+      if (rootSnap.exists()) return rootId;
+
       const q = query(collection(db, 'workspaces'), where('type', '==', 'platform'), limit(1));
       const snap = await getDocs(q);
       if (!snap.empty) return snap.docs[0].id;
@@ -4816,7 +4896,35 @@ export async function getPlatformWorkspaceId(): Promise<string> {
       }
     }
   }
-  return 'ws_platform';
+  return rootId;
+}
+
+export async function loadWorkspaceConfig(workspaceId: string): Promise<any | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+      if (docSnap.exists) {
+        return docSnap.data();
+      }
+    } catch (e) {}
+  } else {
+    try {
+      const docSnap = await getDoc(doc(db, 'workspace_configurations', workspaceId));
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    } catch (e) {}
+
+    // Fall back to server API if local or live rules block client SDK reads
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/config`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {}
+  }
+  return null;
 }
 
 

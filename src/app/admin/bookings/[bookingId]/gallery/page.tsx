@@ -131,14 +131,8 @@ export default function AdminTripGalleryPage() {
     setIsLoading(true);
     try {
       const idToken = await user.getIdToken();
-      // 1. Fetch booking details to get baseline info
-      const bRes = await fetch(`/api/checkout?bookingId=${bookingId}`);
-      if (bRes.ok) {
-        const bData = await bRes.json();
-        setBookingDetails(bData);
-      }
 
-      // 2. Fetch or initialize gallery details
+      // Fetch or initialize gallery details
       const gRes = await fetch(`/api/trips/${bookingId}/gallery`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -152,6 +146,9 @@ export default function AdminTripGalleryPage() {
         setMedia(gData.media || []);
         setIsPublished(gData.isPublished || false);
         setTippingLedger(gData.tippingLedger || { totalTipped: 0, stripePaymentIntentIds: [] });
+        if (gData.booking) {
+          setBookingDetails(gData.booking);
+        }
       }
     } catch (err) {
       console.error('Failed to load gallery data:', err);
@@ -736,12 +733,12 @@ export default function AdminTripGalleryPage() {
                   <div>
                     <strong>This trip page is live!</strong> Share this link with the traveler to let them relive their excursion and add crew tips:
                     <a 
-                      href={`/trip/${bookingId}`} 
+                      href={`/trip/${bookingDetails?.token || bookingId}`} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       style={{ display: 'block', color: 'white', fontWeight: 600, textDecoration: 'underline', marginTop: '0.35rem' }}
                     >
-                      /trip/{bookingId} ↗
+                      /trip/{bookingDetails?.token || bookingId} ↗
                     </a>
                   </div>
                 </div>
@@ -751,7 +748,7 @@ export default function AdminTripGalleryPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const link = `${window.location.origin}/trip/${bookingId}`;
+                    const link = `${window.location.origin}/trip/${bookingDetails?.token || bookingId}`;
                     navigator.clipboard.writeText(link);
                     showToast('success', 'Guest share link copied to clipboard!');
                   }}
@@ -776,7 +773,7 @@ export default function AdminTripGalleryPage() {
                 </button>
 
                 <a 
-                  href={`/trip/${bookingId}`}
+                  href={`/trip/${bookingDetails?.token || bookingId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ 

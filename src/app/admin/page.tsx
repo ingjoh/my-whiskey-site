@@ -13,7 +13,7 @@ import {
 import { 
   getAllPagesWithMetadata, PageMetadata, deletePageData, 
   getAllTemplates, TemplateMetadata, savePageData, loadPageData,
-  loadTemplateData, getAllBookings, getContentItems
+  loadTemplateData, getAllBookings, getContentItems, loadWorkspaceConfig
 } from '@/lib/db';
 import { seedTemplates } from '@/lib/pageTemplates';
 
@@ -29,6 +29,9 @@ export default function AdminDashboard() {
 
   // Workspace selection state
   const [activeWorkspace, setActiveWorkspace] = useState<'cms' | 'operations' | 'system'>('operations');
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>('ws_whiskey');
+  const [workspaceConfig, setWorkspaceConfig] = useState<any>(null);
+  const [workspaceType, setWorkspaceType] = useState<'platform' | 'operator'>('operator');
 
   // KPI count metrics states
   const [bookingsCount, setBookingsCount] = useState(0);
@@ -51,16 +54,16 @@ export default function AdminDashboard() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch all pages and templates on load
-  const fetchData = async () => {
+  // Fetch all pages and templates on load scoped by active workspace
+  const fetchScopedData = async (wsId: string) => {
     setIsLoading(true);
     try {
       const [allPages, allTemplatesRaw, allBookings, allAssets, allStaff] = await Promise.all([
-        getAllPagesWithMetadata(),
+        getAllPagesWithMetadata(wsId),
         getAllTemplates(),
-        getAllBookings(),
-        getContentItems('asset'),
-        getContentItems('staff')
+        getAllBookings(wsId),
+        getContentItems('asset', wsId),
+        getContentItems('staff', wsId)
       ]);
 
       setPages(allPages);
@@ -92,7 +95,45 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryWs = searchParams.get('workspaceId');
+    
+    const resolveWorkspaceAndFetch = async () => {
+      let resolvedWsId = 'ws_whiskey';
+      if (queryWs) {
+        resolvedWsId = queryWs;
+      } else {
+        try {
+          const res = await fetch('/api/workspaces/active');
+          if (res.ok) {
+            const json = await res.json();
+            if (json.workspaceId) resolvedWsId = json.workspaceId;
+          }
+        } catch (err) {
+          console.warn('Failed to resolve active workspace via API:', err);
+        }
+      }
+      
+      setActiveWorkspaceId(resolvedWsId);
+
+      // Load Workspace Config details (brand & type)
+      const config = await loadWorkspaceConfig(resolvedWsId);
+      setWorkspaceConfig(config);
+      
+      // Platform workspace detection
+      const isPlatform = resolvedWsId.includes('platform') || config?.type === 'platform';
+      const wsType = isPlatform ? 'platform' : 'operator';
+      setWorkspaceType(wsType);
+      
+      // If it is platform workspace, default the tab state to 'cms'
+      if (isPlatform) {
+        setActiveWorkspace('cms');
+      }
+
+      await fetchScopedData(resolvedWsId);
+    };
+
+    resolveWorkspaceAndFetch();
   }, []);
 
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -149,6 +190,8 @@ export default function AdminDashboard() {
       let initialNodes = {};
       let initialTheme = {};
 
+      const { loadPageDataRelational, savePageDataRelational } = require('@/lib/db');
+
       if (creationType === 'template') {
         const templateData = await loadTemplateData(selectedTemplate);
         if (templateData) {
@@ -161,7 +204,7 @@ export default function AdminDashboard() {
           };
         }
       } else if (creationType === 'clone') {
-        const cloneData = await loadPageData(selectedCloneSource);
+        const cloneData = await loadPageDataRelational(activeWorkspaceId, selectedCloneSource);
         if (cloneData) {
           initialNodes = cloneData.nodes;
           initialTheme = cloneData.theme;
@@ -170,7 +213,7 @@ export default function AdminDashboard() {
         }
       }
 
-      await savePageData(newPageSlug, initialNodes, initialTheme as any, newPageTitle);
+      await savePageDataRelational(activeWorkspaceId, newPageSlug, initialNodes, newPageTitle);
       
       showToast('success', 'Page created successfully!');
       setShowCreateModal(false);
@@ -179,8 +222,8 @@ export default function AdminDashboard() {
       setNewPageTitle('');
       setNewPageSlug('');
       
-      // Redirect to the newly created page editor
-      router.push(`/admin/editor/${newPageSlug}`);
+      // Redirect to the newly created page editor with active workspaceId
+      router.push(`/admin/editor/${newPageSlug}?workspaceId=${activeWorkspaceId}`);
     } catch (error) {
       console.error('Error creating page:', error);
       setValidationError('An error occurred while creating the page. Please try again.');
@@ -208,6 +251,11 @@ export default function AdminDashboard() {
     }
   };
 
+  const brandColor = workspaceConfig?.brand?.primaryColor || '#B9783B';
+  const activeBg = brandColor + '1e';
+  const isPlatform = workspaceType === 'platform';
+  const HeaderIcon = isPlatform ? Compass : Anchor;
+
   return (
     <div style={{ minHeight: '100vh', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif", display: 'flex' }}>
       
@@ -216,42 +264,48 @@ export default function AdminDashboard() {
         <div>
           {/* Logo Brand Header */}
           <div style={{ padding: '2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Anchor size={24} style={{ color: '#B9783B' }} />
+            <HeaderIcon size={24} style={{ color: brandColor }} />
             <div>
-              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'white', display: 'block', letterSpacing: '0.05em' }}>M/Y WHISKEY</span>
-              <span style={{ fontSize: '0.65rem', color: '#B9783B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Cockpit Console</span>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'white', display: 'block', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                {workspaceConfig?.identity?.name || 'M/Y Whiskey'}
+              </span>
+              <span style={{ fontSize: '0.65rem', color: brandColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                {isPlatform ? 'Platform Console' : 'Cockpit Console'}
+              </span>
             </div>
           </div>
 
           {/* Sidebar Menu Workspaces */}
           <nav style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button
-              onClick={() => setActiveWorkspace('operations')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.85rem 1rem',
-                borderRadius: '6px',
-                border: 'none',
-                background: activeWorkspace === 'operations' ? 'rgba(185,120,59,0.12)' : 'transparent',
-                color: activeWorkspace === 'operations' ? '#F4F1EA' : '#D8C7AF',
-                fontWeight: activeWorkspace === 'operations' ? 600 : 500,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s'
-              }}
-              onMouseOver={e => {
-                if (activeWorkspace !== 'operations') e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-              }}
-              onMouseOut={e => {
-                if (activeWorkspace !== 'operations') e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <Calendar size={18} style={{ color: activeWorkspace === 'operations' ? '#B9783B' : 'inherit' }} /> Charter Operations
-            </button>
+            {!isPlatform && (
+              <button
+                onClick={() => setActiveWorkspace('operations')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: activeWorkspace === 'operations' ? activeBg : 'transparent',
+                  color: activeWorkspace === 'operations' ? '#F4F1EA' : '#D8C7AF',
+                  fontWeight: activeWorkspace === 'operations' ? 600 : 500,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s'
+                }}
+                onMouseOver={e => {
+                  if (activeWorkspace !== 'operations') e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                }}
+                onMouseOut={e => {
+                  if (activeWorkspace !== 'operations') e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <Calendar size={18} style={{ color: activeWorkspace === 'operations' ? brandColor : 'inherit' }} /> Charter Operations
+              </button>
+            )}
 
             <button
               onClick={() => setActiveWorkspace('cms')}
@@ -263,7 +317,7 @@ export default function AdminDashboard() {
                 padding: '0.85rem 1rem',
                 borderRadius: '6px',
                 border: 'none',
-                background: activeWorkspace === 'cms' ? 'rgba(185,120,59,0.12)' : 'transparent',
+                background: activeWorkspace === 'cms' ? activeBg : 'transparent',
                 color: activeWorkspace === 'cms' ? '#F4F1EA' : '#D8C7AF',
                 fontWeight: activeWorkspace === 'cms' ? 600 : 500,
                 fontSize: '0.85rem',
@@ -278,7 +332,7 @@ export default function AdminDashboard() {
                 if (activeWorkspace !== 'cms') e.currentTarget.style.background = 'transparent';
               }}
             >
-              <FileText size={18} style={{ color: activeWorkspace === 'cms' ? '#B9783B' : 'inherit' }} /> Website CMS
+              <FileText size={18} style={{ color: activeWorkspace === 'cms' ? brandColor : 'inherit' }} /> Website CMS
             </button>
 
             <Link
@@ -537,7 +591,7 @@ export default function AdminDashboard() {
                       </div>
                       <h3 style={{ fontSize: '1rem', margin: 0, fontWeight: 600, color: 'white' }}>{page.title}</h3>
                       <div style={{ fontSize: '0.78rem', color: '#D8C7AF', opacity: 0.6, marginTop: '0.15rem', fontFamily: 'monospace' }}>
-                        /{page.id}
+                        /{page.slug || page.id}
                       </div>
                     </div>
 
@@ -546,7 +600,7 @@ export default function AdminDashboard() {
                         Modified {new Date(page.updatedAt).toLocaleDateString()}
                       </span>
                       <Link 
-                        href={`/admin/editor/${page.id}`}
+                        href={`/admin/editor/${page.id}?workspaceId=${activeWorkspaceId}`}
                         style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#B9783B', fontSize: '0.8rem', fontWeight: 600 }}
                       >
                         Edit Page <ArrowRight size={12} />
@@ -589,7 +643,7 @@ export default function AdminDashboard() {
                         Editable Block Set
                       </span>
                       <Link 
-                        href={`/admin/editor/template-${template.id}`}
+                        href={`/admin/editor/template-${template.id}?workspaceId=${activeWorkspaceId}`}
                         style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#708C84', fontSize: '0.8rem', fontWeight: 600 }}
                       >
                         Edit Template <Edit3 size={12} />

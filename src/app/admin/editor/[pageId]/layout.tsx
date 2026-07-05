@@ -6,7 +6,7 @@ import BuilderLeftPanel from '@/components/builder/BuilderLeftPanel';
 import BuilderRightPanel from '@/components/builder/BuilderRightPanel';
 import PublicNavigation from '@/components/public/PublicNavigation';
 import PublicFooter from '@/components/public/PublicFooter';
-import { savePageData, loadPageData, loadSiteSettings, saveTemplateData, loadTemplateData, getAllPagesWithMetadata, getAllTemplates } from '@/lib/db';
+import { savePageData, loadPageData, loadSiteSettings, saveTemplateData, loadTemplateData, getAllPagesWithMetadata, getAllTemplates, loadPageRaw } from '@/lib/db';
 import { useBuilderStore } from '@/store/useBuilderStore';
 import { ArrowLeft, Eye, Edit3, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
@@ -48,15 +48,29 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
           cleanPageId = parts[parts.length - 1];
         }
       }
-      setPageSlug(cleanPageId);
+      let targetWsId = queryWs || wsId;
+      let targetSlug = cleanPageId;
+      let rawDocData = null;
 
-      if (queryWs) {
-        wsId = queryWs;
-      } else if (!actualId.startsWith('ws_')) {
-        const { getPlatformWorkspaceId } = require('@/lib/db');
-        wsId = await getPlatformWorkspaceId();
+      if (!isTemplate) {
+        try {
+          rawDocData = await loadPageRaw(cleanPageId);
+          if (rawDocData) {
+            if (rawDocData.workspaceId) targetWsId = rawDocData.workspaceId;
+            if (rawDocData.slug) targetSlug = rawDocData.slug;
+          }
+        } catch (e) {
+          console.warn('Could not do direct loadPageRaw:', e);
+        }
       }
-      setActiveWorkspaceId(wsId);
+
+      setPageSlug(targetSlug);
+
+      if (!queryWs && !actualId.startsWith('ws_') && !rawDocData) {
+        const { getPlatformWorkspaceId } = require('@/lib/db');
+        targetWsId = await getPlatformWorkspaceId();
+      }
+      setActiveWorkspaceId(targetWsId);
 
       // Hydrate global brand configurations
       loadSiteSettings().then(settings => {
@@ -69,8 +83,12 @@ export default function EditorLayout({ children }: { children: React.ReactNode }
       getAllTemplates().then(setAvailableTemplates);
 
       const { loadPageDataRelational } = require('@/lib/db');
-      const dataPromise = isTemplate ? loadTemplateData(cleanPageId) : loadPageDataRelational(wsId, cleanPageId);
-      const homePromise = loadPageDataRelational(wsId, 'home');
+      const dataPromise = isTemplate 
+        ? loadTemplateData(cleanPageId) 
+        : (rawDocData 
+            ? Promise.resolve({ nodes: rawDocData.blocks || rawDocData.nodes, theme: rawDocData.theme, title: rawDocData.title }) 
+            : loadPageDataRelational(targetWsId, targetSlug));
+      const homePromise = loadPageDataRelational(targetWsId, 'home');
 
       const [data, homeData] = await Promise.all([dataPromise, homePromise]);
       const homeTheme = homeData?.theme;

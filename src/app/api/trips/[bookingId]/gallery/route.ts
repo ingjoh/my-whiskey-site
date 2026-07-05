@@ -33,11 +33,86 @@ export async function GET(
       return NextResponse.json({ error: 'Missing bookingId' }, { status: 400 });
     }
 
-    // Fetch booking details
-    const bookingSnap = await adminDb.collection('bookings').doc(bookingId).get();
-    const bookingDetails = bookingSnap.exists ? bookingSnap.data() : null;
+    let resolvedBookingId = bookingId;
+    let bookingDetails = null;
 
-    const docSnap = await adminDb.collection('trip_galleries').doc(bookingId).get();
+    // Check if the input ID is a token
+    if (bookingId.startsWith('tkn_')) {
+      // Look up by token in pages collection
+      const pagesSnap = await adminDb.collection('pages')
+        .where('type', '==', 'booking')
+        .where('token', '==', bookingId)
+        .limit(1)
+        .get();
+
+      if (!pagesSnap.empty) {
+        bookingDetails = pagesSnap.docs[0].data();
+        resolvedBookingId = bookingDetails.id;
+      } else {
+        // Try bookings collection
+        const bookingsSnap = await adminDb.collection('bookings')
+          .where('token', '==', bookingId)
+          .limit(1)
+          .get();
+        if (!bookingsSnap.empty) {
+          bookingDetails = bookingsSnap.docs[0].data();
+          resolvedBookingId = bookingDetails.id.replace('book_', '');
+        }
+      }
+    } else {
+      // Direct lookup in bookings collection
+      const bookingSnap = await adminDb.collection('bookings').doc(bookingId).get();
+      bookingDetails = bookingSnap.exists ? bookingSnap.data() : null;
+
+      // Fallback to pages collection legacy format
+      if (!bookingDetails) {
+        const legacySnap = await adminDb.collection('pages').doc(`booking-${bookingId}`).get();
+        if (legacySnap.exists) {
+          bookingDetails = legacySnap.data();
+        }
+      }
+    }
+
+    // Fetch associated content pages (vessel, captain, waiver, experiences)
+    let vesselDetails = null;
+    if (bookingDetails?.vesselSlug) {
+      const vesselSnap = await adminDb.collection('pages').doc(`content-item-${bookingDetails.vesselSlug}`).get();
+      if (vesselSnap.exists) {
+        vesselDetails = vesselSnap.data();
+      } else {
+        const resourceSnap = await adminDb.collection('resources').doc(`res_${bookingDetails.vesselSlug}`).get();
+        if (resourceSnap.exists) {
+          vesselDetails = resourceSnap.data();
+        }
+      }
+    }
+
+    let captainDetails = null;
+    if (bookingDetails?.captainId) {
+      const captainSnap = await adminDb.collection('pages').doc(`content-item-${bookingDetails.captainId}`).get();
+      if (captainSnap.exists) {
+        captainDetails = captainSnap.data();
+      } else {
+        const resourceSnap = await adminDb.collection('resources').doc(`res_crew_${bookingDetails.captainId}`).get();
+        if (resourceSnap.exists) {
+          captainDetails = resourceSnap.data();
+        }
+      }
+    }
+
+    const waiverSnap = await adminDb.collection('pages').doc(`waiver-${resolvedBookingId}`).get();
+    const waiverDetails = waiverSnap.exists ? waiverSnap.data() : null;
+
+    const expSnap = await adminDb.collection('experiences').where('status', '==', 'published').get();
+    const otherExperiences: any[] = [];
+    expSnap.forEach(doc => {
+      const data = doc.data();
+      if (data.id !== `exp_${bookingDetails?.experienceId}`) {
+        otherExperiences.push(data);
+      }
+    });
+
+    const docSnap = await adminDb.collection('trip_galleries').doc(resolvedBookingId).get();
     if (docSnap.exists) {
       const data = docSnap.data();
       // If it is not published, check if the client is authenticated
@@ -47,13 +122,20 @@ export async function GET(
           return NextResponse.json({ error: 'Gallery is in draft and is not public.' }, { status: 403 });
         }
       }
-      return NextResponse.json({ ...data, booking: bookingDetails });
+      return NextResponse.json({ 
+        ...data, 
+        booking: bookingDetails, 
+        waiver: waiverDetails, 
+        vessel: vesselDetails, 
+        captain: captainDetails, 
+        otherExperiences 
+      });
     }
 
     // Return empty placeholder structure if not found
     return NextResponse.json({
-      id: bookingId,
-      bookingId,
+      id: resolvedBookingId,
+      bookingId: resolvedBookingId,
       title: '',
       description: '',
       story: '',
@@ -63,7 +145,11 @@ export async function GET(
         totalTipped: 0,
         stripePaymentIntentIds: []
       },
-      booking: bookingDetails
+      booking: bookingDetails,
+      waiver: waiverDetails,
+      vessel: vesselDetails,
+      captain: captainDetails,
+      otherExperiences
     });
   } catch (error: any) {
     console.error('Error getting trip gallery:', error);

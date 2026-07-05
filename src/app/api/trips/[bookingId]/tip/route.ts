@@ -21,12 +21,45 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid tip amount' }, { status: 400 });
     }
 
-    // 1. Fetch Booking from standard bookings collection
-    const bookingDoc = await adminDb.collection('bookings').doc(bookingId).get();
-    if (!bookingDoc.exists) {
+    // 1. Fetch Booking
+    let resolvedBookingId = bookingId;
+    let booking = null;
+
+    if (bookingId.startsWith('tkn_')) {
+      const pagesSnap = await adminDb.collection('pages')
+        .where('type', '==', 'booking')
+        .where('token', '==', bookingId)
+        .limit(1)
+        .get();
+
+      if (!pagesSnap.empty) {
+        booking = pagesSnap.docs[0].data();
+        resolvedBookingId = booking.id;
+      } else {
+        const bookingsSnap = await adminDb.collection('bookings')
+          .where('token', '==', bookingId)
+          .limit(1)
+          .get();
+        if (!bookingsSnap.empty) {
+          booking = bookingsSnap.docs[0].data();
+          resolvedBookingId = booking.id.replace('book_', '');
+        }
+      }
+    } else {
+      const bookingDoc = await adminDb.collection('bookings').doc(bookingId).get();
+      booking = bookingDoc.exists ? bookingDoc.data() : null;
+
+      if (!booking) {
+        const legacyDoc = await adminDb.collection('pages').doc(`booking-${bookingId}`).get();
+        if (legacyDoc.exists) {
+          booking = legacyDoc.data();
+        }
+      }
+    }
+
+    if (!booking) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
     }
-    const booking = bookingDoc.data() || {};
     const email = booking.guestEmail;
 
     const origin = request.headers.get('origin') || 'http://localhost:3000';
@@ -37,7 +70,7 @@ export async function POST(
       console.warn('[Tipping] Stripe is not configured. Simulating successful tip payment in development.');
       
       // Update tipping ledger in Firestore immediately
-      const galleryRef = adminDb.collection('trip_galleries').doc(bookingId);
+      const galleryRef = adminDb.collection('trip_galleries').doc(resolvedBookingId);
       const gallerySnap = await galleryRef.get();
       const galleryData = gallerySnap.exists ? gallerySnap.data() : {};
       
@@ -48,7 +81,7 @@ export async function POST(
       };
 
       await galleryRef.set({ tippingLedger: updatedLedger }, { merge: true });
-      return NextResponse.json({ url: `${origin}/trip/${bookingId}?tipStatus=success&amount=${amount}` });
+      return NextResponse.json({ url: `${origin}/trip/${booking.token || bookingId}?tipStatus=success&amount=${amount}` });
     }
 
     // 2. Lookup existing Stripe customer by email
@@ -72,8 +105,8 @@ export async function POST(
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `Crew Appreciation Gratuity - Voyage ${bookingId}`,
-              description: `Direct crew tip for booking ID: ${bookingId} on ${booking.date || 'your recent excursion'}.`,
+              name: `Crew Appreciation Gratuity - Voyage ${resolvedBookingId}`,
+              description: `Direct crew tip for booking ID: ${resolvedBookingId} on ${booking.date || 'your recent excursion'}.`,
             },
             unit_amount: Math.round(amount * 100), // in cents
           },
@@ -83,11 +116,11 @@ export async function POST(
       mode: 'payment',
       metadata: {
         type: 'tip',
-        bookingId,
+        bookingId: resolvedBookingId,
         amount: String(amount)
       },
-      success_url: `${origin}/trip/${bookingId}?tipStatus=success&amount=${amount}`,
-      cancel_url: `${origin}/trip/${bookingId}?tipStatus=cancelled`,
+      success_url: `${origin}/trip/${booking.token || bookingId}?tipStatus=success&amount=${amount}`,
+      cancel_url: `${origin}/trip/${booking.token || bookingId}?tipStatus=cancelled`,
     };
 
     if (customerId) {
