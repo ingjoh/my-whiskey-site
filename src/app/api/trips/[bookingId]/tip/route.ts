@@ -21,8 +21,8 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid tip amount' }, { status: 400 });
     }
 
-    // 1. Fetch Booking
-    const bookingDoc = await adminDb.collection('pages').doc(`booking-${bookingId}`).get();
+    // 1. Fetch Booking from standard bookings collection
+    const bookingDoc = await adminDb.collection('bookings').doc(bookingId).get();
     if (!bookingDoc.exists) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
     }

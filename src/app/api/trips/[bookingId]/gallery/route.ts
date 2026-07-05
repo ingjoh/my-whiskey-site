@@ -33,6 +33,10 @@ export async function GET(
       return NextResponse.json({ error: 'Missing bookingId' }, { status: 400 });
     }
 
+    // Fetch booking details
+    const bookingSnap = await adminDb.collection('bookings').doc(bookingId).get();
+    const bookingDetails = bookingSnap.exists ? bookingSnap.data() : null;
+
     const docSnap = await adminDb.collection('trip_galleries').doc(bookingId).get();
     if (docSnap.exists) {
       const data = docSnap.data();
@@ -43,7 +47,7 @@ export async function GET(
           return NextResponse.json({ error: 'Gallery is in draft and is not public.' }, { status: 403 });
         }
       }
-      return NextResponse.json(data);
+      return NextResponse.json({ ...data, booking: bookingDetails });
     }
 
     // Return empty placeholder structure if not found
@@ -58,7 +62,8 @@ export async function GET(
       tippingLedger: {
         totalTipped: 0,
         stripePaymentIntentIds: []
-      }
+      },
+      booking: bookingDetails
     });
   } catch (error: any) {
     console.error('Error getting trip gallery:', error);

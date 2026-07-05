@@ -4,10 +4,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { 
   Sparkles, MapPin, Navigation, Share2, DollarSign, 
-  Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon
+  Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
+  Phone, Calendar
 } from 'lucide-react';
 import Link from 'next/link';
 import { firebaseConfig } from '@/lib/firebase';
+import PublicFooter from '@/components/public/PublicFooter';
 
 const darkMapStyles = [
   { elementType: "geometry", stylers: [{ color: "#1a1c1e" }] },
@@ -132,17 +134,13 @@ export default function GuestTripMemoriesPage() {
       const gData = await gRes.json();
       setGallery(gData);
 
-      // 2. Fetch booking details (for pricing & captainId)
-      const bRes = await fetch(`/api/checkout?bookingId=${bookingId}`);
-      if (bRes.ok) {
-        const bData = await bRes.json();
+      // 2. Extract booking details from embedded object (for pricing & captainId)
+      if (gData.booking) {
+        const bData = gData.booking;
         setBooking(bData);
 
         // 3. Fetch Captain profile from content items if captainId exists
         if (bData.captainId && bData.captainId !== 'none') {
-          // Retrieve crew listings
-          const cRes = await fetch('/api/listings/active'); // Or simple public fetch
-          const staffRes = await fetch('/api/workspaces/active'); // fallback
           // Fallback static profile if not found, or load database crew
           setCaptain({
             title: bData.captainTitle || 'Captain Sarah Vance',
@@ -389,7 +387,7 @@ export default function GuestTripMemoriesPage() {
       if (!apiKey) return;
 
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
       script.async = true;
       script.defer = true;
       script.onload = setupGoogleMap;
@@ -458,9 +456,12 @@ export default function GuestTripMemoriesPage() {
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 20%, #0F1113 100%)' }} />
         
         {/* Floating navbar brand overlay */}
-        <div style={{ position: 'absolute', top: '2rem', left: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#B9783B', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '0.8rem', fontWeight: 600 }}>
+        <Link 
+          href="/" 
+          style={{ position: 'absolute', top: '2rem', left: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#B9783B', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}
+        >
           <Navigation size={14} /> M/Y Whiskey Excursions
-        </div>
+        </Link>
 
         <div style={{ position: 'absolute', bottom: '2rem', width: '100%', padding: '0 2rem' }}>
           <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1.5rem' }}>
@@ -485,108 +486,9 @@ export default function GuestTripMemoriesPage() {
 
       {/* Main content body */}
       <section style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 2rem' }}>
-        
-        {/* Story Intro */}
-        <div style={{ background: '#17191C', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', padding: '2.5rem', marginBottom: '3rem', position: 'relative', marginTop: '-1rem', zIndex: 10 }}>
-          <div style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: '#D8C7AF', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-            {gallery?.story || `Relive the premium yacht excursion led by Captain ${booking?.captainTitle || 'Sarah Vance'}. Sparkling coastal views and dolphin viewings await.`}
-          </div>
-        </div>
-
-        {/* EXIF GPS Travel Map */}
-        {gallery?.media?.some((m: any) => m.exif?.latitude) && (
-          <div style={{ marginBottom: '4rem' }}>
-            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MapPin size={18} color="#B9783B" /> The Voyage Route
-            </h2>
-            <div ref={mapContainerRef} style={{ height: '350px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden', zIndex: 5 }} />
-          </div>
-        )}
-
-        {/* Media Lightbox Grid */}
-        <div style={{ marginBottom: '4rem' }}>
-          <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ImageIcon size={18} color="#B9783B" /> Visual Memories
-          </h2>
-          
-          {gallery?.media?.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#888', padding: '3rem', background: '#17191C', borderRadius: '8px' }}>
-              <p>No photos uploaded yet. Check back soon.</p>
-            </div>
-          ) : (
-            <div className="media-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-              {gallery.media.map((item: any, idx: number) => (
-                <div 
-                  key={idx} 
-                  onClick={() => setActiveLightboxIndex(idx)}
-                  style={{ background: '#17191C', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
-                  className="hover-scale"
-                >
-                  <div style={{ height: '180px', background: 'black', overflow: 'hidden', position: 'relative' }}>
-                    {item.type === 'video' ? (
-                      <>
-                        <video src={item.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black' }}><Play size={14} fill="currentColor" /></div>
-                        </div>
-                      </>
-                    ) : (
-                      <img src={item.url} alt="Excursion memory" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                    )}
-                  </div>
-                  {item.caption && (
-                    <div style={{ padding: '1rem', flex: 1, display: 'flex', alignItems: 'center' }}>
-                      <p style={{ margin: 0, fontSize: '0.8rem', fontStyle: 'italic', color: '#D8C7AF', lineHeight: 1.4 }}>
-                        {item.caption}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Yacht & Captain Cards split */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginBottom: '5rem' }}>
-          
-          {/* Captain card */}
-          {captain && (
-            <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '10px', padding: '1.5rem', display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-              <img 
-                src={captain.heroImage || '/images/crew/captain-sarah-vance.png'} 
-                alt="Captain Profile" 
-                style={{ width: '70px', height: '70px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #B9783B', flexShrink: 0 }}
-                onError={(e) => {
-                  (e.target as any).src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop';
-                }}
-              />
-              <div>
-                <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#B9783B', fontWeight: 600, display: 'block', marginBottom: '0.15rem' }}>Your Commander</span>
-                <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', color: 'white' }}>{captain.title}</h4>
-                <p style={{ margin: 0, fontSize: '0.74rem', opacity: 0.7, lineHeight: 1.4 }}>{captain.description}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Vessel card */}
-          <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '10px', padding: '1.5rem', display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-            <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: '#0B0C0E', border: '2px solid #B9783B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Navigation size={28} style={{ color: '#B9783B', transform: 'rotate(45deg)' }} />
-            </div>
-            <div>
-              <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#B9783B', fontWeight: 600, display: 'block', marginBottom: '0.15rem' }}>The Charter Vessel</span>
-              <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', color: 'white' }}>{booking?.vesselTitle || 'M/Y Whiskey'}</h4>
-              <p style={{ margin: 0, fontSize: '0.74rem', opacity: 0.7, lineHeight: 1.4 }}>
-                76ft Lazzara luxury flybridge yacht equipped with premium sound systems and luxury lounges.
-              </p>
-            </div>
-          </div>
-
-        </div>
 
         {/* Crew Tipping Component */}
-        <div style={{ maxWidth: '600px', margin: '0 auto', background: 'linear-gradient(to right bottom, #1E2124, #141618)', border: '1px solid rgba(185, 120, 59, 0.25)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center' }}>
+        <div style={{ maxWidth: '600px', margin: '2rem auto 3.5rem auto', background: 'linear-gradient(to right bottom, #1E2124, #141618)', border: '1px solid rgba(185, 120, 59, 0.25)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center' }}>
           {tipSuccess ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', marginBottom: '0.5rem' }}>
@@ -703,9 +605,132 @@ export default function GuestTripMemoriesPage() {
             </form>
           )}
         </div>
+        
+        {/* Story Intro */}
+        <div style={{ background: '#17191C', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', padding: '2.5rem', marginBottom: '3rem', position: 'relative', marginTop: '-1rem', zIndex: 10 }}>
+          <div style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: '#D8C7AF', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            {gallery?.story || `Relive the premium yacht excursion led by Captain ${booking?.captainTitle || 'Sarah Vance'}. Sparkling coastal views and dolphin viewings await.`}
+          </div>
+        </div>
+
+        {/* EXIF GPS Travel Map */}
+        {gallery?.media?.some((m: any) => m.exif?.latitude) && (
+          <div style={{ marginBottom: '4rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MapPin size={18} color="#B9783B" /> The Voyage Route
+            </h2>
+            <div ref={mapContainerRef} style={{ height: '350px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden', zIndex: 5 }} />
+          </div>
+        )}
+
+        {/* Media Lightbox Grid */}
+        <div style={{ marginBottom: '4rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ImageIcon size={18} color="#B9783B" /> Visual Memories
+          </h2>
+          
+          {gallery?.media?.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#888', padding: '3rem', background: '#17191C', borderRadius: '8px' }}>
+              <p>No photos uploaded yet. Check back soon.</p>
+            </div>
+          ) : (
+            <div className="media-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+              {gallery.media.map((item: any, idx: number) => (
+                <div 
+                  key={idx} 
+                  onClick={() => setActiveLightboxIndex(idx)}
+                  style={{ background: '#17191C', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
+                  className="hover-scale"
+                >
+                  <div style={{ height: '180px', background: 'black', overflow: 'hidden', position: 'relative' }}>
+                    {item.type === 'video' ? (
+                      <>
+                        <video src={item.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black' }}><Play size={14} fill="currentColor" /></div>
+                        </div>
+                      </>
+                    ) : (
+                      <img src={item.url} alt="Excursion memory" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                    )}
+                  </div>
+                  {item.caption && (
+                    <div style={{ padding: '1rem', flex: 1, display: 'flex', alignItems: 'center' }}>
+                      <p style={{ margin: 0, fontSize: '0.8rem', fontStyle: 'italic', color: '#D8C7AF', lineHeight: 1.4 }}>
+                        {item.caption}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Yacht & Captain Cards split */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginBottom: '5rem' }}>
+          
+          {/* Captain card */}
+          {captain && (
+            <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '10px', padding: '1.5rem', display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+              <img 
+                src={captain.heroImage || '/images/crew/captain-sarah-vance.png'} 
+                alt="Captain Profile" 
+                style={{ width: '70px', height: '70px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #B9783B', flexShrink: 0 }}
+                onError={(e) => {
+                  (e.target as any).src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop';
+                }}
+              />
+              <div>
+                <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#B9783B', fontWeight: 600, display: 'block', marginBottom: '0.15rem' }}>Your Commander</span>
+                <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', color: 'white' }}>{captain.title}</h4>
+                <p style={{ margin: 0, fontSize: '0.74rem', opacity: 0.7, lineHeight: 1.4 }}>{captain.description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Vessel card */}
+          <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '10px', padding: '1.5rem', display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+            <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: '#0B0C0E', border: '2px solid #B9783B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Navigation size={28} style={{ color: '#B9783B', transform: 'rotate(45deg)' }} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#B9783B', fontWeight: 600, display: 'block', marginBottom: '0.15rem' }}>The Charter Vessel</span>
+              <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', color: 'white' }}>{booking?.vesselTitle || 'M/Y Whiskey'}</h4>
+              <p style={{ margin: 0, fontSize: '0.74rem', opacity: 0.7, lineHeight: 1.4 }}>
+                76ft Lazzara luxury flybridge yacht equipped with premium sound systems and luxury lounges.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Call to Action (CTA) block */}
+        <div style={{ background: '#17191C', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px', padding: '3rem 2rem', textAlign: 'center', marginBottom: '5rem' }}>
+          <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#B9783B', fontWeight: 600 }}>Plan your next voyage</span>
+          <h2 style={{ fontSize: '2rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', marginTop: '0.5rem', marginBottom: '1rem' }}>Relive the Luxury or Charter Again</h2>
+          <p style={{ maxWidth: '550px', margin: '0 auto 2rem auto', fontSize: '0.9rem', opacity: 0.7, lineHeight: 1.5 }}>
+            Ready for another premium escape in Destin? Secure your future slots, browse curated itineraries, or coordinate directly with our concierge team.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+            <Link 
+              href="/" 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#B9783B', color: 'white', textDecoration: 'none', padding: '0.75rem 1.75rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'background 0.2s' }}
+            >
+              <Calendar size={15} /> Book Next Experience
+            </Link>
+            <a 
+              href="tel:+18505550190"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', textDecoration: 'none', padding: '0.75rem 1.75rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'background 0.2s' }}
+            >
+              <Phone size={15} /> Call & Book Direct
+            </a>
+          </div>
+        </div>
 
       </section>
 
+      <PublicFooter />
     </div>
   );
 }

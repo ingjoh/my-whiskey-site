@@ -157,6 +157,9 @@ export async function POST(request: NextRequest) {
 
             // Also store the customer's stripeCustomerId back to the booking for future one-click checkouts
             if (session.customer) {
+              await adminDb.collection('bookings').doc(bookingId).set({
+                stripeCustomerId: session.customer
+              }, { merge: true });
               await adminDb.collection('pages').doc(`booking-${bookingId}`).set({
                 stripeCustomerId: session.customer
               }, { merge: true });
