@@ -3069,6 +3069,41 @@ export async function updateBookingOperationalFields(
 }
 
 /**
+ * Updates a booking's core operational and administrative settings.
+ */
+export async function updateBookingSettings(
+  bookingId: string,
+  updates: any
+): Promise<boolean> {
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    await setDoc(bookingRef, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    // Also update bookings collection if exists
+    try {
+      const newBookingRef = doc(db, 'bookings', bookingId);
+      const newBookingSnap = await getDoc(newBookingRef);
+      if (newBookingSnap.exists()) {
+        await setDoc(newBookingRef, {
+          ...updates,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (newDbErr) {
+      console.warn('Could not update secondary bookings collection:', newDbErr);
+    }
+    return true;
+  } catch (error) {
+    console.error('Error updating booking settings:', error);
+    return false;
+  }
+}
+
+/**
  * Adds a private internal staff note to a customer profile.
  */
 export async function addCustomerPrivateNote(

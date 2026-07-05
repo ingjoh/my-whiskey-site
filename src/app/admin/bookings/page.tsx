@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { 
   Anchor, ArrowLeft, Search, Calendar, Ship, Users, CheckCircle, 
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon
+  MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon, Save
 } from 'lucide-react';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
@@ -15,7 +15,7 @@ import {
   sendBookingMessage, getBookingById, updateBookingMessageStatus,
   ensureBookingToken, archiveBooking, deleteBooking,
   getAllCustomerProfiles, saveAdminInternalBooking, checkBlackoutConflicts,
-  saveAssetBlackout
+  saveAssetBlackout, updateBookingSettings
 } from '@/lib/db';
 
 // Helper to format local timezone Date objects as YYYY-MM-DD
@@ -116,6 +116,97 @@ export default function BookingsDashboard() {
   const [blackouts, setBlackouts] = useState<any[]>([]);
   const [checkoutLocks, setCheckoutLocks] = useState<any[]>([]);
   const [captains, setCaptains] = useState<any[]>([]);
+  
+  // Manual booking editing states
+  const [isEditingBooking, setIsEditingBooking] = useState(false);
+  const [isSavingBooking, setIsSavingBooking] = useState(false);
+  const [editGuestName, setEditGuestName] = useState('');
+  const [editGuestEmail, setEditGuestEmail] = useState('');
+  const [editGuestPhone, setEditGuestPhone] = useState('');
+  const [editGuestCount, setEditGuestCount] = useState(1);
+  const [editExperienceId, setEditExperienceId] = useState('');
+  const [editExperienceTitle, setEditExperienceTitle] = useState('');
+  const [editVesselSlug, setEditVesselSlug] = useState('');
+  const [editVesselTitle, setEditVesselTitle] = useState('');
+  const [editCaptainId, setEditCaptainId] = useState('');
+  const [editCaptainTitle, setEditCaptainTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editSubtotal, setEditSubtotal] = useState(0);
+  const [editGrandTotal, setEditGrandTotal] = useState(0);
+  const [editAmountPaidToday, setEditAmountPaidToday] = useState(0);
+  const [editAmountDueLater, setEditAmountDueLater] = useState(0);
+  const [editCancellationInsurance, setEditCancellationInsurance] = useState(false);
+  const [editPaymentPlan, setEditPaymentPlan] = useState<'full' | 'deposit'>('full');
+  const [editSpecialConsiderations, setEditSpecialConsiderations] = useState('');
+
+  const startEditingBooking = () => {
+    if (!selectedBooking) return;
+    setEditGuestName(selectedBooking.guestName || '');
+    setEditGuestEmail(selectedBooking.guestEmail || '');
+    setEditGuestPhone(selectedBooking.guestPhone || '');
+    setEditGuestCount(Number(selectedBooking.guestCount) || 1);
+    setEditExperienceId(selectedBooking.experienceId || '');
+    setEditExperienceTitle(selectedBooking.experienceTitle || '');
+    setEditVesselSlug(selectedBooking.vesselSlug || '');
+    setEditVesselTitle(selectedBooking.vesselTitle || '');
+    setEditCaptainId(selectedBooking.captainId || '');
+    setEditCaptainTitle(selectedBooking.captainTitle || 'Independent Operator');
+    setEditDate(selectedBooking.date || '');
+    setEditStartTime(selectedBooking.startTime || '');
+    setEditSubtotal(Number(selectedBooking.subtotal) || 0);
+    setEditGrandTotal(Number(selectedBooking.grandTotal) || 0);
+    setEditAmountPaidToday(Number(getPaidToday(selectedBooking)) || 0);
+    setEditAmountDueLater(Number(selectedBooking.amountDueLater) || 0);
+    setEditCancellationInsurance(!!selectedBooking.cancellationInsurance);
+    setEditPaymentPlan(selectedBooking.paymentPlan || 'full');
+    setEditSpecialConsiderations(selectedBooking.specialConsiderations || '');
+    setIsEditingBooking(true);
+  };
+
+  const handleSaveBookingEdits = async () => {
+    if (!selectedBooking || isSavingBooking) return;
+    setIsSavingBooking(true);
+    try {
+      const updates = {
+        guestName: editGuestName,
+        guestEmail: editGuestEmail,
+        guestPhone: editGuestPhone,
+        guestCount: Number(editGuestCount),
+        experienceId: editExperienceId,
+        experienceTitle: editExperienceTitle,
+        vesselSlug: editVesselSlug,
+        vesselTitle: editVesselTitle,
+        captainId: editCaptainId,
+        captainTitle: editCaptainTitle,
+        date: editDate,
+        startTime: editStartTime,
+        subtotal: Number(editSubtotal),
+        grandTotal: Number(editGrandTotal),
+        amountPaidToday: Number(editAmountPaidToday),
+        amountDueLater: Number(editAmountDueLater),
+        cancellationInsurance: editCancellationInsurance,
+        paymentPlan: editPaymentPlan,
+        specialConsiderations: editSpecialConsiderations
+      };
+
+      const ok = await updateBookingSettings(selectedBooking.id, updates);
+      if (ok) {
+        showToast('success', 'Booking settings updated successfully.');
+        const updatedObj = { ...selectedBooking, ...updates };
+        setSelectedBooking(updatedObj);
+        setBookings(prev => prev.map(b => b.id === selectedBooking.id ? updatedObj : b));
+        setIsEditingBooking(false);
+      } else {
+        showToast('error', 'Failed to update booking settings.');
+      }
+    } catch (err) {
+      console.error('Failed to update booking:', err);
+      showToast('error', 'An error occurred while saving.');
+    } finally {
+      setIsSavingBooking(false);
+    }
+  };
   
   // Date range state for Gantt scheduler view
   const [ganttStartDate, setGanttStartDate] = useState(() => {
@@ -3674,7 +3765,7 @@ export default function BookingsDashboard() {
         </div>
       )}
 
-      {/* DETAIL DRAWER / SLIDE-OUT PANEL */}
+{/* DETAIL DRAWER / SLIDE-OUT PANEL */}
       {selectedBooking && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)' }} onClick={() => setSelectedBooking(null)}>
           <div 
@@ -3684,10 +3775,21 @@ export default function BookingsDashboard() {
             {/* Header */}
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: 0 }}>Manage Booking</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: 0 }}>Manage Booking</h3>
+                  {!isEditingBooking && (
+                    <button
+                      onClick={startEditingBooking}
+                      style={{ background: 'transparent', border: 'none', color: '#B9783B', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600 }}
+                      title="Edit Booking Settings"
+                    >
+                      <Edit3 size={12} /> Edit
+                    </button>
+                  )}
+                </div>
                 <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.6, fontFamily: 'monospace' }}>Booking ID: {formatBookingId(selectedBooking.id)}</span>
               </div>
-              <button onClick={() => setSelectedBooking(null)} style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer' }}>
+              <button onClick={() => { setSelectedBooking(null); setIsEditingBooking(false); }} style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
@@ -3698,413 +3800,592 @@ export default function BookingsDashboard() {
               {/* Customer Contact details */}
               <div style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.04)', padding: '1rem', borderRadius: '8px' }}>
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.65rem 0' }}>Client Information</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Full Name:</span><strong style={{ color: 'white' }}>{selectedBooking.guestName}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Email Address:</span><strong style={{ color: 'white' }}>{selectedBooking.guestEmail}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Phone Number:</span><strong style={{ color: 'white' }}>{selectedBooking.guestPhone}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Group Size:</span><strong style={{ color: 'white' }}>{selectedBooking.guestCount} Passengers</strong></div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
-                    <span style={{ opacity: 0.6 }}>Guest Portal:</span>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <a 
-                        href={`/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: '#B9783B', textDecoration: 'underline', fontWeight: 600 }}
-                      >
-                        Launch Portal ↗
-                      </a>
-                      <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-                      <button
-                        onClick={() => {
-                          const link = `${window.location.origin}/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`;
-                          navigator.clipboard.writeText(link);
-                          setToast({ type: 'success', message: 'Guest Portal link copied to clipboard!' });
-                          setTimeout(() => setToast(null), 3000);
-                        }}
-                        style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: '0.78rem', fontWeight: 600 }}
-                      >
-                        Copy Link
-                      </button>
+                {isEditingBooking ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Full Name:</span>
+                      <input 
+                        type="text" 
+                        value={editGuestName} 
+                        onChange={e => setEditGuestName(e.target.value)} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Email Address:</span>
+                      <input 
+                        type="email" 
+                        value={editGuestEmail} 
+                        onChange={e => setEditGuestEmail(e.target.value)} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Phone Number:</span>
+                      <input 
+                        type="text" 
+                        value={editGuestPhone} 
+                        onChange={e => setEditGuestPhone(e.target.value)} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Group Size (Passengers):</span>
+                      <input 
+                        type="number" 
+                        value={editGuestCount} 
+                        onChange={e => setEditGuestCount(Number(e.target.value))} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Special Considerations / Notes:</span>
+                      <textarea 
+                        value={editSpecialConsiderations} 
+                        onChange={e => setEditSpecialConsiderations(e.target.value)} 
+                        rows={2}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none', resize: 'vertical' }}
+                      />
                     </div>
                   </div>
-                  {selectedBooking.specialConsiderations && (
-                    <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
-                      <span style={{ opacity: 0.6, display: 'block', marginBottom: '0.15rem' }}>Dietary & Medical Notes:</span>
-                      <p style={{ color: 'white', margin: 0, fontStyle: 'italic' }}>{selectedBooking.specialConsiderations}</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Full Name:</span><strong style={{ color: 'white' }}>{selectedBooking.guestName}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Email Address:</span><strong style={{ color: 'white' }}>{selectedBooking.guestEmail}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Phone Number:</span><strong style={{ color: 'white' }}>{selectedBooking.guestPhone}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Group Size:</span><strong style={{ color: 'white' }}>{selectedBooking.guestCount} Passengers</strong></div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
+                      <span style={{ opacity: 0.6 }}>Guest Portal:</span>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <a 
+                          href={`/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#B9783B', textDecoration: 'underline', fontWeight: 600 }}
+                        >
+                          Launch Portal ↗
+                        </a>
+                        <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
+                        <button
+                          onClick={() => {
+                            const link = `${window.location.origin}/guest/portal?id=${formatBookingId(selectedBooking.id)}&token=${selectedBooking.token}`;
+                            navigator.clipboard.writeText(link);
+                            setToast({ type: 'success', message: 'Guest Portal link copied to clipboard!' });
+                            setTimeout(() => setToast(null), 3000);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: '0.78rem', fontWeight: 600 }}
+                        >
+                          Copy Link
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+                    {selectedBooking.specialConsiderations && (
+                      <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
+                        <span style={{ opacity: 0.6, display: 'block', marginBottom: '0.15rem' }}>Dietary & Medical Notes:</span>
+                        <p style={{ color: 'white', margin: 0, fontStyle: 'italic' }}>{selectedBooking.specialConsiderations}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Charter details */}
+              {/* Voyage details */}
               <div style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.04)', padding: '1rem', borderRadius: '8px' }}>
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.65rem 0' }}>Voyage Details</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Experience:</span><strong style={{ color: 'white' }}>{selectedBooking.experienceTitle}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Vessel Selected:</span><strong style={{ color: 'white' }}>{selectedBooking.vesselTitle}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Captain Hired:</span><strong style={{ color: 'white' }}>{selectedBooking.captainTitle}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Voyage Date:</span><strong style={{ color: 'white' }}>{selectedBooking.date}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Boarding Time:</span><strong style={{ color: 'white' }}>{selectedBooking.startTime}</strong></div>
-                </div>
+                {isEditingBooking ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.78rem' }}>
+                    
+                    {/* Experience Select */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Experience:</span>
+                      <select
+                        value={editExperienceId}
+                        onChange={e => {
+                          const expId = e.target.value;
+                          setEditExperienceId(expId);
+                          const matching = adventures.find(a => a.id === expId);
+                          if (matching) setEditExperienceTitle(matching.title);
+                        }}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      >
+                        {adventures.map(a => (
+                          <option key={a.id} value={a.id}>{a.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Vessel Select */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Vessel:</span>
+                      <select
+                        value={editVesselSlug}
+                        onChange={e => {
+                          const slug = e.target.value;
+                          setEditVesselSlug(slug);
+                          const matching = vessels.find(v => v.slug === slug);
+                          if (matching) setEditVesselTitle(matching.title);
+                        }}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      >
+                        {vessels.map(v => (
+                          <option key={v.slug} value={v.slug}>{v.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Captain Select */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Captain:</span>
+                      <select
+                        value={editCaptainId}
+                        onChange={e => {
+                          const capId = e.target.value;
+                          setEditCaptainId(capId);
+                          if (capId === '') {
+                            setEditCaptainTitle('Independent Operator');
+                          } else {
+                            const matching = captains.find(c => c.id === capId);
+                            if (matching) setEditCaptainTitle(matching.title || matching.name || capId);
+                          }
+                        }}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      >
+                        <option value="">No Captain / Independent Operator</option>
+                        {captains.map(c => (
+                          <option key={c.id} value={c.id}>{c.title || c.name || c.id}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Date picker */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Voyage Date:</span>
+                      <input 
+                        type="date"
+                        value={editDate}
+                        onChange={e => setEditDate(e.target.value)}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+
+                    {/* Boarding Time */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Boarding Time:</span>
+                      <input 
+                        type="text"
+                        placeholder="e.g. 19:00"
+                        value={editStartTime}
+                        onChange={e => setEditStartTime(e.target.value)}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Experience:</span><strong style={{ color: 'white' }}>{selectedBooking.experienceTitle}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Vessel Selected:</span><strong style={{ color: 'white' }}>{selectedBooking.vesselTitle}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Captain Hired:</span><strong style={{ color: 'white' }}>{selectedBooking.captainTitle}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Voyage Date:</span><strong style={{ color: 'white' }}>{selectedBooking.date}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Boarding Time:</span><strong style={{ color: 'white' }}>{selectedBooking.startTime}</strong></div>
+                  </div>
+                )}
               </div>
 
               {/* Financial calculations */}
               <div style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.04)', padding: '1rem', borderRadius: '8px' }}>
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.65rem 0' }}>Financial Split Ledger</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Grand Total Invoice:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.grandTotal)}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Paid Today:</span><strong style={{ color: '#708C84' }}>{formatCost(getPaidToday(selectedBooking))}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Due Later:</span><strong style={{ color: '#ef4444' }}>{formatCost(selectedBooking.amountDueLater)}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Cancellation Protection:</span><strong style={{ color: 'white' }}>{selectedBooking.cancellationInsurance ? 'Yes (5% paid)' : 'No'}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Payment Plan:</span><strong style={{ color: 'white', textTransform: 'capitalize' }}>{selectedBooking.paymentPlan}</strong></div>
-                  
-                  {/* Partner Split Estimator */}
-                  <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.55rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ opacity: 0.6, color: '#D8C7AF' }}>Vessel Owner Share (70%):</span>
-                      <strong style={{ color: '#B9783B' }}>{formatCost(selectedBooking.subtotal * 0.7)}</strong>
+                {isEditingBooking ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.78rem' }}>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Invoice Subtotal ($):</span>
+                      <input 
+                        type="number" 
+                        value={editSubtotal} 
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setEditSubtotal(val);
+                          // Auto calculate grand total (with 7.5% tax default fallback if not overriding)
+                          setEditGrandTotal(Math.round(val * 1.075 * 100) / 100);
+                        }} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ opacity: 0.6, color: '#D8C7AF' }}>Platform Commission (30%):</span>
-                      <strong style={{ color: 'white' }}>{formatCost(selectedBooking.subtotal * 0.3)}</strong>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Grand Total Invoice ($):</span>
+                      <input 
+                        type="number" 
+                        value={editGrandTotal} 
+                        onChange={e => setEditGrandTotal(Number(e.target.value))} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Amount Paid Today ($):</span>
+                      <input 
+                        type="number" 
+                        value={editAmountPaidToday} 
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setEditAmountPaidToday(val);
+                          setEditAmountDueLater(Math.max(0, editGrandTotal - val));
+                        }} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Amount Due Later ($):</span>
+                      <input 
+                        type="number" 
+                        value={editAmountDueLater} 
+                        onChange={e => setEditAmountDueLater(Number(e.target.value))} 
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ opacity: 0.6, fontSize: '0.68rem' }}>Payment Plan:</span>
+                      <select
+                        value={editPaymentPlan}
+                        onChange={e => setEditPaymentPlan(e.target.value as 'full' | 'deposit')}
+                        style={{ width: '100%', padding: '0.45rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', outline: 'none' }}
+                      >
+                        <option value="full">Full Payment</option>
+                        <option value="deposit">Deposit Plan</option>
+                      </select>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: 'white', cursor: 'pointer', marginTop: '0.2rem' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={editCancellationInsurance} 
+                        onChange={e => setEditCancellationInsurance(e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#B9783B' }}
+                      />
+                      <span>Cancellation Protection Opt-in</span>
+                    </label>
+
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Grand Total Invoice:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.grandTotal)}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Paid Today:</span><strong style={{ color: '#708C84' }}>{formatCost(getPaidToday(selectedBooking))}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Amount Due Later:</span><strong style={{ color: '#ef4444' }}>{formatCost(selectedBooking.amountDueLater)}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Cancellation Protection:</span><strong style={{ color: 'white' }}>{selectedBooking.cancellationInsurance ? 'Yes (5% paid)' : 'No'}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Payment Plan:</span><strong style={{ color: 'white', textTransform: 'capitalize' }}>{selectedBooking.paymentPlan}</strong></div>
+                    
+                    {/* Partner Split Estimator */}
+                    <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.55rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ opacity: 0.6, color: '#D8C7AF' }}>Vessel Owner Share (70%):</span>
+                        <strong style={{ color: '#B9783B' }}>{formatCost(selectedBooking.subtotal * 0.7)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ opacity: 0.6, color: '#D8C7AF' }}>Platform Commission (30%):</span>
+                        <strong style={{ color: 'white' }}>{formatCost(selectedBooking.subtotal * 0.3)}</strong>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Reschedule & Cancellation Actions */}
-              {selectedBooking.status !== 'cancelled' ? (
-                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Administrative Charter Actions</h4>
-                  
-                  <Link 
-                    href={`/admin/bookings/${selectedBooking.id}/gallery`}
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      gap: '0.5rem', 
-                      background: '#B9783B', 
-                      border: 'none', 
-                      color: 'white', 
-                      padding: '0.65rem', 
-                      borderRadius: '6px', 
-                      fontSize: '0.78rem', 
-                      fontWeight: 600, 
-                      cursor: 'pointer', 
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      transition: 'background 0.2s' 
-                    }}
-                  >
-                    <ImageIcon size={14} /> Manage Trip Memories & Gallery
-                  </Link>
-
+              {/* Edit Mode Actions vs Reschedule & Cancellation Actions */}
+              {isEditingBooking ? (
+                <div style={{ background: 'rgba(185,120,59,0.05)', border: '1px solid rgba(185,120,59,0.2)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Save Manual Changes</h4>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button 
                       type="button" 
-                      onClick={() => { setShowAdminReschedule(!showAdminReschedule); setShowAdminCancel(false); }}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminReschedule ? '#B9783B' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                      onClick={handleSaveBookingEdits}
+                      disabled={isSavingBooking}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: '#B9783B', border: 'none', color: 'white', padding: '0.65rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}
                     >
-                      <Calendar size={14} /> Change Date
+                      {isSavingBooking ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Settings
                     </button>
                     <button 
                       type="button" 
-                      onClick={() => { setShowAdminCancel(!showAdminCancel); setShowAdminReschedule(false); }}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminCancel ? '#EF4444' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                      onClick={() => setIsEditingBooking(false)}
+                      disabled={isSavingBooking}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.65rem 1rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
                     >
-                      <AlertCircle size={14} /> Cancel Charter
+                      Cancel
                     </button>
                   </div>
-
-                  {/* Reschedule Sub-form */}
-                  {showAdminReschedule && (
-                    <form onSubmit={handleAdminRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(185, 120, 59, 0.2)', animation: 'fadeIn 0.2s ease-out' }}>
-                      {/* Bypass availability check toggle */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', paddingBottom: '0.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <input 
-                          type="checkbox"
-                          checked={adminBypassAvailability}
-                          onChange={e => {
-                            setAdminBypassAvailability(e.target.checked);
-                          }}
-                        />
-                        <span>Bypass availability checks (Force Reschedule)</span>
-                      </label>
-
-                      {/* Interactive Month-Grid Calendar */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select New Date</label>
-                        <div style={{ padding: '0.5rem', background: '#1E2124', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const prevMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
-                                setCalendarMonth(prevMonth);
-                              }}
-                              style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
-                            >
-                              <ChevronLeft size={16} />
-                            </button>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white' }}>
-                              {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
-                              }}
-                              style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
-                            >
-                              <ChevronRight size={16} />
-                            </button>
-                          </div>
-
-                          {/* Calendar Weekday Names */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem', textAlign: 'center', marginBottom: '0.3rem' }}>
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayName => (
-                              <span key={dayName} style={{ fontSize: '0.62rem', color: '#D8C7AF', opacity: 0.5, fontWeight: 600 }}>{dayName}</span>
-                            ))}
-                          </div>
-
-                          {/* Calendar Days Grid */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem' }}>
-                            {getDaysInMonth(calendarMonth).map((dayObj, idx) => {
-                              if (dayObj.day === null) {
-                                return <div key={`empty-${idx}`} />;
-                              }
-                              const isSelected = adminNewDate === dayObj.dateStr;
-                              const isAvailable = adminBypassAvailability ? true : dayObj.isAvailable;
-                              return (
-                                <button
-                                  key={`day-${dayObj.dateStr}`}
-                                  type="button"
-                                  disabled={!isAvailable}
-                                  onClick={() => {
-                                    setAdminNewDate(dayObj.dateStr);
-                                  }}
-                                  style={{
-                                    border: 'none',
-                                    background: isSelected 
-                                      ? '#B9783B' 
-                                      : 'transparent',
-                                    color: isSelected 
-                                      ? 'white' 
-                                      : isAvailable 
-                                        ? '#D8C7AF' 
-                                        : 'rgba(255,255,255,0.15)',
-                                    padding: '0.35rem 0',
-                                    borderRadius: '4px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: isSelected ? 700 : 500,
-                                    cursor: isAvailable ? 'pointer' : 'not-allowed',
-                                    textDecoration: isAvailable ? 'none' : 'line-through',
-                                    position: 'relative'
-                                  }}
-                                  title={isAvailable ? undefined : 'Fully Booked / Unavailable'}
-                                >
-                                  {dayObj.day}
-                                  <span style={{
-                                    position: 'absolute',
-                                    bottom: '2px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    width: '3px',
-                                    height: '3px',
-                                    borderRadius: '50%',
-                                    background: isSelected 
-                                      ? 'white' 
-                                      : isAvailable 
-                                        ? '#708C84' 
-                                        : '#ef4444'
-                                  }} />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Interactive Time Slots Grid */}
-                      {adminNewDate && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select Boarding Time</label>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
-                            {START_TIMES.map(time => {
-                              const isSelected = adminNewTime === time;
-                              const isTimeAvailable = adminBypassAvailability ? true : isAdminSlotAvailable(adminNewDate, time);
-                              
-                              return (
-                                <button
-                                  key={time}
-                                  type="button"
-                                  disabled={!isTimeAvailable}
-                                  onClick={() => setAdminNewTime(time)}
-                                  style={{
-                                    padding: '0.4rem 0.2rem',
-                                    borderRadius: '4px',
-                                    border: isSelected 
-                                      ? '1px solid #B9783B' 
-                                      : !isTimeAvailable 
-                                        ? '1px dashed rgba(255,255,255,0.04)' 
-                                        : '1px solid rgba(255, 255, 255, 0.1)',
-                                    background: isSelected 
-                                      ? 'rgba(185, 120, 59, 0.2)' 
-                                      : !isTimeAvailable
-                                        ? 'rgba(255,255,255,0.02)'
-                                        : '#1E2124',
-                                    color: isSelected 
-                                      ? 'white' 
-                                      : isTimeAvailable 
-                                        ? '#D8C7AF' 
-                                        : 'rgba(255,255,255,0.2)',
-                                    fontSize: '0.7rem',
-                                    fontWeight: isSelected ? 600 : 400,
-                                    cursor: isTimeAvailable ? 'pointer' : 'not-allowed',
-                                    textDecoration: isTimeAvailable ? 'none' : 'line-through',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                  title={isTimeAvailable ? undefined : 'Slot is not available'}
-                                >
-                                  {time}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Live availability check info */}
-                      {adminNewDate && adminNewTime && (() => {
-                        const status = getAdminAvailabilityStatus();
-                        return (
-                          <div style={{ fontSize: '0.7rem', color: status.available ? '#708C84' : '#EF4444', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0' }}>
-                            <AlertCircle size={12} />
-                            <span>{status.message || 'Checking...'}</span>
-                          </div>
-                        );
-                      })()}
-
-                      <button 
-                        type="submit"
-                        disabled={isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)}
-                        style={{ background: '#B9783B', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: (isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                      >
-                        {isReschedulingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Date Change'}
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Cancellation Sub-form */}
-                  {showAdminCancel && (
-                    <form onSubmit={handleAdminCancelSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.25)', animation: 'fadeIn 0.2s ease-out' }}>
-                      <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '0.5rem 0.75rem', borderRadius: '4px', fontSize: '0.7rem' }}>
-                        <div style={{ fontWeight: 600, color: '#FCA5A5', marginBottom: '0.15rem' }}>Estimated Policy Refund</div>
-                        <div style={{ color: '#F4F1EA', opacity: 0.9 }}>
-                          Estimated Refund: <strong style={{ color: '#EF4444' }}>{formatCost(calculateRefundEstimate(selectedBooking))}</strong>
-                        </div>
-                        <div style={{ color: '#D8C7AF', opacity: 0.7, fontSize: '0.65rem', marginTop: '0.25rem' }}>
-                          Based on rules: {selectedBooking.cancellationInsurance ? 'Has cancellation insurance.' : 'No insurance.'}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Cancellation Source</label>
-                        <select 
-                          value={adminCancelSource}
-                          onChange={e => setAdminCancelSource(e.target.value)}
-                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
-                        >
-                          <option value="customer_call">Customer Request (Called/Emailed concierge)</option>
-                          <option value="company_operational">Company / Operational (Weather, vessel issue, captain issue)</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Refund Override ($)</label>
-                        <input 
-                          type="number"
-                          value={adminRefundOverride}
-                          onChange={e => setAdminRefundOverride(e.target.value === '' ? '' : Number(e.target.value))}
-                          placeholder={calculateRefundEstimate(selectedBooking).toString()}
-                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
-                        />
-                      </div>
-
-                      {selectedBooking.stripePaymentIntentId && (adminRefundOverride === '' ? calculateRefundEstimate(selectedBooking) : Number(adminRefundOverride)) > 0 && (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', margin: '0.15rem 0' }}>
-                          <input 
-                            type="checkbox"
-                            checked={adminAutoProcessRefund}
-                            onChange={e => setAdminAutoProcessRefund(e.target.checked)}
-                          />
-                          <span>Process refund automatically in Stripe</span>
-                        </label>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Reason for Cancellation</label>
-                        <input 
-                          type="text"
-                          value={adminCancelReason}
-                          onChange={e => setAdminCancelReason(e.target.value)}
-                          placeholder="e.g. Guest requested change of plans"
-                          required
-                          style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
-                        />
-                      </div>
-
-                      <button 
-                        type="submit"
-                        disabled={isCancellingAdmin}
-                        style={{ background: '#EF4444', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: isCancellingAdmin ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                      >
-                        {isCancellingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Cancellation'}
-                      </button>
-                    </form>
-                  )}
                 </div>
               ) : (
-                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <AlertCircle size={14} /> Voyage Cancelled
-                  </h4>
-                  <div style={{ fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ opacity: 0.6 }}>Cancellation Source:</span>
-                      <strong style={{ color: 'white' }}>
-                        {selectedBooking.cancellationSource === 'company_operational' 
-                          ? 'Company / Operational' 
-                          : selectedBooking.cancellationSource === 'customer_call' 
-                            ? 'Customer Request (Call/Email)' 
-                            : 'Guest (via Portal)'}
-                      </strong>
+                selectedBooking.status !== 'cancelled' ? (
+                  <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Administrative Charter Actions</h4>
+                    
+                    <Link 
+                      href={`/admin/bookings/${selectedBooking.id}/gallery`}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '0.5rem', 
+                        background: '#B9783B', 
+                        border: 'none', 
+                        color: 'white', 
+                        padding: '0.65rem', 
+                        borderRadius: '6px', 
+                        fontSize: '0.78rem', 
+                        fontWeight: 600, 
+                        cursor: 'pointer', 
+                        textDecoration: 'none',
+                        textAlign: 'center',
+                        transition: 'background 0.2s' 
+                      }}
+                    >
+                      <ImageIcon size={14} /> Manage Trip Memories & Gallery
+                    </Link>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => { setShowAdminReschedule(!showAdminReschedule); setShowAdminCancel(false); }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminReschedule ? '#B9783B' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <Calendar size={14} /> Change Date
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => { setShowAdminCancel(!showAdminCancel); setShowAdminReschedule(false); }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: showAdminCancel ? '#EF4444' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.5rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <AlertCircle size={14} /> Cancel Charter
+                      </button>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund status:</span><strong style={{ color: 'white', textTransform: 'uppercase' }}>{selectedBooking.refundStatus || 'N/A'}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund estimate:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.refundEstimate)}</strong></div>
-                    {selectedBooking.amountRefunded > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Actual refunded:</span><strong style={{ color: '#708C84' }}>{formatCost(selectedBooking.amountRefunded)}</strong></div>
+
+                    {/* Reschedule Sub-form */}
+                    {showAdminReschedule && (
+                      <form onSubmit={handleAdminRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(185, 120, 59, 0.2)', animation: 'fadeIn 0.2s ease-out' }}>
+                        {/* Bypass availability check toggle */}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', paddingBottom: '0.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <input 
+                            type="checkbox"
+                            checked={adminBypassAvailability}
+                            onChange={e => {
+                              setAdminBypassAvailability(e.target.checked);
+                            }}
+                          />
+                          <span>Bypass availability checks (Force Reschedule)</span>
+                        </label>
+
+                        {/* Interactive Month-Grid Calendar */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select New Date</label>
+                          <div style={{ padding: '0.5rem', background: '#1E2124', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const prevMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+                                  setCalendarMonth(prevMonth);
+                                }}
+                                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                              >
+                                <ChevronLeft size={16} />
+                              </button>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white' }}>
+                                {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+                                }}
+                                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                              >
+                                <ChevronRight size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Interactive Time Slots Grid */}
+                        {adminNewDate && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8, fontWeight: 600 }}>Select Boarding Time</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
+                              {START_TIMES.map(time => {
+                                const isSelected = adminNewTime === time;
+                                const isTimeAvailable = adminBypassAvailability ? true : isAdminSlotAvailable(adminNewDate, time);
+                                
+                                return (
+                                  <button
+                                    key={time}
+                                    type="button"
+                                    disabled={!isTimeAvailable}
+                                    onClick={() => setAdminNewTime(time)}
+                                    style={{
+                                      padding: '0.4rem 0.2rem',
+                                      borderRadius: '4px',
+                                      border: isSelected 
+                                        ? '1px solid #B9783B' 
+                                        : !isTimeAvailable 
+                                          ? '1px dashed rgba(255,255,255,0.04)' 
+                                          : '1px solid rgba(255, 255, 255, 0.1)',
+                                      background: isSelected 
+                                        ? 'rgba(185, 120, 59, 0.2)' 
+                                        : !isTimeAvailable
+                                          ? 'rgba(255,255,255,0.02)'
+                                          : '#1E2124',
+                                      color: isSelected 
+                                        ? 'white' 
+                                        : isTimeAvailable 
+                                          ? '#D8C7AF' 
+                                          : 'rgba(255,255,255,0.2)',
+                                      fontSize: '0.7rem',
+                                      fontWeight: isSelected ? 600 : 400,
+                                      cursor: isTimeAvailable ? 'pointer' : 'not-allowed',
+                                      textDecoration: isTimeAvailable ? 'none' : 'line-through',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    title={isTimeAvailable ? undefined : 'Slot is not available'}
+                                  >
+                                    {time}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Live availability check info */}
+                        {adminNewDate && adminNewTime && (() => {
+                          const status = getAdminAvailabilityStatus();
+                          return (
+                            <div style={{ fontSize: '0.7rem', color: status.available ? '#708C84' : '#EF4444', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0' }}>
+                              <AlertCircle size={12} />
+                              <span>{status.message || 'Checking...'}</span>
+                            </div>
+                          );
+                        })()}
+
+                        <button 
+                          type="submit"
+                          disabled={isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)}
+                          style={{ background: '#B9783B', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: (isReschedulingAdmin || (!getAdminAvailabilityStatus().available && !adminBypassAvailability)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                        >
+                          {isReschedulingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Date Change'}
+                        </button>
+                      </form>
                     )}
-                    {selectedBooking.changeHistory && selectedBooking.changeHistory.length > 0 && (
-                      <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
-                        <span style={{ opacity: 0.6, display: 'block', marginBottom: '0.15rem' }}>Audit Trail Notes:</span>
-                        {selectedBooking.changeHistory.map((history: any, idx: number) => {
-                          if (history.action === 'cancel') {
-                            return (
-                              <div key={idx} style={{ fontSize: '0.7rem', color: '#D8C7AF', fontStyle: 'italic', marginBottom: '0.25rem' }}>
-                                "{history.cancelReason || 'No reason provided'}" — initiated by {history.initiatedBy === 'admin' ? 'Administrator' : 'Guest'} on {new Date(history.timestamp).toLocaleDateString()}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
+
+                    {/* Cancellation Sub-form */}
+                    {showAdminCancel && (
+                      <form onSubmit={handleAdminCancelSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '0.75rem', background: '#121416', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.25)', animation: 'fadeIn 0.2s ease-out' }}>
+                        <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '0.5rem 0.75rem', borderRadius: '4px', fontSize: '0.7rem' }}>
+                          <div style={{ fontWeight: 600, color: '#FCA5A5', marginBottom: '0.15rem' }}>Estimated Policy Refund</div>
+                          <div style={{ color: '#F4F1EA', opacity: 0.9 }}>
+                            Estimated Refund: <strong style={{ color: '#EF4444' }}>{formatCost(calculateRefundEstimate(selectedBooking))}</strong>
+                          </div>
+                          <div style={{ color: '#D8C7AF', opacity: 0.7, fontSize: '0.65rem', marginTop: '0.25rem' }}>
+                            Based on rules: {selectedBooking.cancellationInsurance ? 'Has cancellation insurance.' : 'No insurance.'}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Cancellation Source</label>
+                          <select 
+                            value={adminCancelSource}
+                            onChange={e => setAdminCancelSource(e.target.value)}
+                            style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                          >
+                            <option value="customer_call">Customer Request (Called/Emailed concierge)</option>
+                            <option value="company_operational">Company / Operational (Weather, vessel issue, captain issue)</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Refund Override ($)</label>
+                          <input 
+                            type="number"
+                            value={adminRefundOverride}
+                            onChange={e => setAdminRefundOverride(e.target.value === '' ? '' : Number(e.target.value))}
+                            placeholder={calculateRefundEstimate(selectedBooking).toString()}
+                            style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                          />
+                        </div>
+
+                        {selectedBooking.stripePaymentIntentId && (adminRefundOverride === '' ? calculateRefundEstimate(selectedBooking) : Number(adminRefundOverride)) > 0 && (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', color: '#E2A15E', cursor: 'pointer', margin: '0.15rem 0' }}>
+                            <input 
+                              type="checkbox"
+                              checked={adminAutoProcessRefund}
+                              onChange={e => setAdminAutoProcessRefund(e.target.checked)}
+                            />
+                            <span>Process refund automatically in Stripe</span>
+                          </label>
+                        )}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.8 }}>Reason for Cancellation</label>
+                          <input 
+                            type="text"
+                            value={adminCancelReason}
+                            onChange={e => setAdminCancelReason(e.target.value)}
+                            placeholder="e.g. Guest requested change of plans"
+                            required
+                            style={{ padding: '0.45rem 0.55rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: 'white', fontSize: '0.75rem', outline: 'none' }}
+                          />
+                        </div>
+
+                        <button 
+                          type="submit"
+                          disabled={isCancellingAdmin}
+                          style={{ background: '#EF4444', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', fontSize: '0.74rem', fontWeight: 600, cursor: isCancellingAdmin ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                        >
+                          {isCancellingAdmin ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Cancellation'}
+                        </button>
+                      </form>
                     )}
                   </div>
-                </div>
+                ) : (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <AlertCircle size={14} /> Voyage Cancelled
+                    </h4>
+                    <div style={{ fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ opacity: 0.6 }}>Cancellation Source:</span>
+                        <strong style={{ color: 'white' }}>
+                          {selectedBooking.cancellationSource === 'company_operational' 
+                            ? 'Company / Operational' 
+                            : selectedBooking.cancellationSource === 'customer_call' 
+                              ? 'Customer Request (Call/Email)' 
+                              : 'Guest (via Portal)'}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund status:</span><strong style={{ color: 'white', textTransform: 'uppercase' }}>{selectedBooking.refundStatus || 'N/A'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Refund estimate:</span><strong style={{ color: 'white' }}>{formatCost(selectedBooking.refundEstimate)}</strong></div>
+                      {selectedBooking.amountRefunded > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ opacity: 0.6 }}>Actual refunded:</span><strong style={{ color: '#708C84' }}>{formatCost(selectedBooking.amountRefunded)}</strong></div>
+                      )}
+                      {selectedBooking.changeHistory && selectedBooking.changeHistory.length > 0 && (
+                        <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
+                          <span style={{ opacity: 0.6, display: 'block', marginBottom: '0.15rem' }}>Audit Trail Notes:</span>
+                          {selectedBooking.changeHistory.map((history: any, idx: number) => {
+                            if (history.action === 'cancel') {
+                              return (
+                                <div key={idx} style={{ fontSize: '0.7rem', color: '#D8C7AF', fontStyle: 'italic', marginBottom: '0.25rem' }}>
+                                  "{history.cancelReason || 'No reason provided'}" — initiated by {history.initiatedBy === 'admin' ? 'Administrator' : 'Guest'} on {new Date(history.timestamp).toLocaleDateString()}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
               )}
 
               {/* Operational log modifier form */}

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
-  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
+  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2, AlertCircle
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
 import { firebaseConfig } from '@/lib/firebase';
@@ -754,6 +754,15 @@ export default function AdminTripGalleryPage() {
                   style={{ width: '16px', height: '16px', accentColor: '#B9783B', cursor: 'pointer' }}
                 />
               </div>
+
+              {!isPublished && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.74rem', color: '#ef4444', display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                  <div>
+                    <strong>Gallery is in Draft mode.</strong> Guests will receive a "403 Forbidden" or "Gallery not found" error if they attempt to visit their trip page. Check <strong>Published & Shared</strong> above and click <strong>Save</strong> to make it live.
+                  </div>
+                </div>
+              )}
 
               {isPublished && (
                 <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.74rem', color: '#10b981', display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
