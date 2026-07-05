@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
-  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon
+  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
 import { firebaseConfig } from '@/lib/firebase';
+import { useAuth } from '@/components/AuthProvider';
 
 const darkMapStyles = [
   { elementType: "geometry", stylers: [{ color: "#1a1c1e" }] },
@@ -86,6 +87,9 @@ export default function AdminTripGalleryPage() {
   const router = useRouter();
   const bookingId = params.bookingId as string;
 
+  const { user } = useAuth();
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -105,9 +109,16 @@ export default function AdminTripGalleryPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   useEffect(() => {
-    loadGalleryData();
-  }, [bookingId]);
+    if (user) {
+      loadGalleryData();
+    }
+  }, [bookingId, user]);
 
   useEffect(() => {
     if (media.length > 0 && typeof window !== 'undefined') {
@@ -116,10 +127,11 @@ export default function AdminTripGalleryPage() {
   }, [media]);
 
   const loadGalleryData = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
+      const idToken = await user.getIdToken();
       // 1. Fetch booking details to get baseline info
-      const idToken = sessionStorage.getItem('authToken') || '';
       const bRes = await fetch(`/api/checkout?bookingId=${bookingId}`);
       if (bRes.ok) {
         const bData = await bRes.json();
@@ -129,7 +141,7 @@ export default function AdminTripGalleryPage() {
       // 2. Fetch or initialize gallery details
       const gRes = await fetch(`/api/trips/${bookingId}/gallery`, {
         headers: {
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       if (gRes.ok) {
@@ -197,7 +209,7 @@ export default function AdminTripGalleryPage() {
       setMedia(prev => [...prev, ...uploadedMedia]);
     } catch (error) {
       console.error('Failed to batch upload:', error);
-      alert('Upload failed. Ensure you have network connectivity.');
+      showToast('error', 'Upload failed. Ensure you have network connectivity.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -205,14 +217,15 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleGenerateAIStory = async () => {
+    if (!user) return;
     setIsGeneratingStory(true);
     try {
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/trips/${bookingId}/suggest-story`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       if (res.ok) {
@@ -222,8 +235,9 @@ export default function AdminTripGalleryPage() {
         if (!description) {
           setDescription(`A private charter memory on board the ${bookingDetails?.vesselTitle || 'yacht'}.`);
         }
+        showToast('success', 'Personalized story generated successfully!');
       } else {
-        alert('AI service currently busy. Please try again.');
+        showToast('error', 'AI service currently busy. Please try again.');
       }
     } catch (err) {
       console.error('Failed to generate story:', err);
@@ -233,15 +247,16 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleSuggestCaption = async (mediaItem: any, index: number) => {
+    if (!user) return;
     setCaptioningIds(prev => [...prev, mediaItem.id]);
     try {
       // Find asset by matching public URL to run AI Vision Analysis
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const assetsRes = await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       
@@ -250,7 +265,7 @@ export default function AdminTripGalleryPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({ imageUrl: mediaItem.url })
       });
@@ -278,14 +293,18 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleSave = async () => {
+    if (!user) {
+      showToast('error', 'You must be logged in to save.');
+      return;
+    }
     setIsSaving(true);
     try {
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/trips/${bookingId}/gallery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           title,
@@ -297,13 +316,13 @@ export default function AdminTripGalleryPage() {
       });
 
       if (res.ok) {
-        alert('Trip memories updated and saved successfully.');
+        showToast('success', 'Trip memories updated and saved successfully.');
       } else {
-        alert('Failed to save trip memories.');
+        showToast('error', 'Failed to save trip memories.');
       }
     } catch (err) {
       console.error('Failed to save gallery:', err);
-      alert('Save operation encountered a network error.');
+      showToast('error', 'Save operation encountered a network error.');
     } finally {
       setIsSaving(false);
     }
@@ -494,6 +513,23 @@ export default function AdminTripGalleryPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif" }}>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: toast.type === 'success' ? '#708C84' : '#EF4444',
+          color: 'white',
+          padding: '1rem 1.5rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 9999,
+          fontWeight: 600
+        }}>
+          {toast.message}
+        </div>
+      )}
       {/* Top Header navbar */}
       <nav style={{ background: '#1E2124', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '1.1rem', color: '#B9783B' }}>
@@ -694,6 +730,59 @@ export default function AdminTripGalleryPage() {
                   </div>
                 </div>
               )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${window.location.origin}/trip/${bookingId}`;
+                    navigator.clipboard.writeText(link);
+                    showToast('success', 'Guest share link copied to clipboard!');
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.45rem', 
+                    background: 'rgba(185, 120, 59, 0.12)', 
+                    border: '1px solid rgba(185, 120, 59, 0.25)', 
+                    color: '#D8C7AF', 
+                    padding: '0.65rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.78rem', 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    outline: 'none'
+                  }}
+                >
+                  <Share2 size={14} /> Copy Guest Share Link
+                </button>
+
+                <a 
+                  href={`/trip/${bookingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.45rem', 
+                    background: 'rgba(255,255,255,0.03)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    color: 'white', 
+                    padding: '0.65rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.78rem', 
+                    fontWeight: 600, 
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                >
+                  <Eye size={14} /> Preview Excursion Page ↗
+                </a>
+              </div>
             </div>
 
             {/* Crew Tipping Stats */}

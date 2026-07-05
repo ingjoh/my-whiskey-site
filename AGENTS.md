@@ -38,4 +38,9 @@ A task is not considered complete until all applicable checklist items below hav
 *   [ ] **Health Verification**: `npm run knowledge-health` passes with 100% health status.
 *   [ ] **Build Verification**: `npm run build` compiles with zero compiler or TypeScript errors.
 
+## Frontend UX Rules
 
+*   **Toast Notifications**: Never use browser-default `alert(...)` (except for destructive warnings like delete prompts). Use standard luxury dark toast notifications with local state handlers:
+    - Success messages background color: `#708C84`
+    - Error messages background color: `#EF4444`
+    - Position: `fixed`, `top: 20px`, `right: 20px`, `zIndex: 9999`
