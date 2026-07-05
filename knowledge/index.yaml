@@ -199,3 +199,15 @@ platform-constitution:
   review_frequency: Semi-Annually
   depends_on: []
   implemented_by: []
+
+TripGallery:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Booking
+    - Payment
+  implemented_by:
+    - trip-service
+    - trip-api
+

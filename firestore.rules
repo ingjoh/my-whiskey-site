@@ -105,5 +105,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Trip galleries rules
+    match /trip_galleries/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

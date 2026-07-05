@@ -2,6 +2,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
 import { saveAsset, Asset } from './db';
 import imageCompression from 'browser-image-compression';
+import exifr from 'exifr';
 
 /**
  * Uploads a file to Firebase Storage, compresses it if it's an image, 
@@ -17,6 +18,26 @@ export async function uploadFile(file: File, directory: string = 'uploads'): Pro
 
   let fileToUpload = file;
   let isImage = file.type.startsWith('image/');
+  let exifData: any = null;
+
+  // Extract EXIF data BEFORE compression (compression strips it)
+  if (isImage) {
+    try {
+      const gps = await exifr.gps(file);
+      const meta = await exifr.parse(file, ['DateTimeOriginal', 'Make', 'Model']);
+      if (gps || meta) {
+        exifData = {
+          latitude: gps?.latitude || null,
+          longitude: gps?.longitude || null,
+          capturedAt: meta?.DateTimeOriginal ? new Date(meta.DateTimeOriginal).toISOString() : null,
+          cameraMake: meta?.Make || null,
+          cameraModel: meta?.Model || null,
+        };
+      }
+    } catch (exifErr) {
+      console.warn('Could not parse EXIF metadata:', exifErr);
+    }
+  }
 
   // Client-side compression for images (excluding SVGs/GIFs which might break or not benefit)
   if (isImage && !file.type.includes('svg') && !file.type.includes('gif')) {
@@ -63,10 +84,25 @@ export async function uploadFile(file: File, directory: string = 'uploads'): Pro
       type: fileToUpload.type,
       size: fileToUpload.size,
       createdAt: Date.now(),
-      isHidden: false
+      isHidden: false,
+      exif: exifData
     };
     
     await saveAsset(newAsset);
+
+    // Asynchronously trigger Gemini Vision AI scan in the background
+    try {
+      const idToken = window.sessionStorage.getItem('authToken') || '';
+      fetch(`/api/admin/media/${assetId}/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        }
+      }).catch(err => console.warn('[AI Scan] Failed to analyze upload:', err));
+    } catch (aiErr) {
+      console.warn('[AI Scan] Failed to trigger scan:', aiErr);
+    }
 
     return downloadURL;
   } catch (error) {

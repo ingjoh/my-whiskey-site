@@ -22,6 +22,17 @@ export interface Asset {
   size: number;
   createdAt: number;
   isHidden?: boolean;
+  title?: string;
+  description?: string;
+  tags?: string[];
+  isAnalyzed?: boolean;
+  exif?: {
+    latitude: number | null;
+    longitude: number | null;
+    capturedAt: string | null;
+    cameraMake: string | null;
+    cameraModel: string | null;
+  } | null;
 }
 
 // Recursive parser to convert Firestore REST API formats (stringValue, mapValue, arrayValue, etc.)
