@@ -5,14 +5,90 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
-  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon
+  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
+import { firebaseConfig } from '@/lib/firebase';
+import { useAuth } from '@/components/AuthProvider';
+
+const darkMapStyles = [
+  { elementType: "geometry", stylers: [{ color: "#1a1c1e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a1c1e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#d8c7af" }] },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#b9783b" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#d8c7af" }],
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [{ color: "#121415" }],
+  },
+  {
+    featureType: "poi.park",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#8a7b66" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#2d3135" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#212427" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#8a7b66" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#383d42" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#212427" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#b9783b" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0d0f10" }],
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#4e5357" }],
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#0d0f10" }],
+  },
+];
 
 export default function AdminTripGalleryPage() {
   const params = useParams();
   const router = useRouter();
   const bookingId = params.bookingId as string;
+
+  const { user } = useAuth();
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,9 +109,16 @@ export default function AdminTripGalleryPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   useEffect(() => {
-    loadGalleryData();
-  }, [bookingId]);
+    if (user) {
+      loadGalleryData();
+    }
+  }, [bookingId, user]);
 
   useEffect(() => {
     if (media.length > 0 && typeof window !== 'undefined') {
@@ -44,20 +127,15 @@ export default function AdminTripGalleryPage() {
   }, [media]);
 
   const loadGalleryData = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
-      // 1. Fetch booking details to get baseline info
-      const idToken = sessionStorage.getItem('authToken') || '';
-      const bRes = await fetch(`/api/checkout?bookingId=${bookingId}`);
-      if (bRes.ok) {
-        const bData = await bRes.json();
-        setBookingDetails(bData);
-      }
+      const idToken = await user.getIdToken();
 
-      // 2. Fetch or initialize gallery details
+      // Fetch or initialize gallery details
       const gRes = await fetch(`/api/trips/${bookingId}/gallery`, {
         headers: {
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       if (gRes.ok) {
@@ -68,6 +146,9 @@ export default function AdminTripGalleryPage() {
         setMedia(gData.media || []);
         setIsPublished(gData.isPublished || false);
         setTippingLedger(gData.tippingLedger || { totalTipped: 0, stripePaymentIntentIds: [] });
+        if (gData.booking) {
+          setBookingDetails(gData.booking);
+        }
       }
     } catch (err) {
       console.error('Failed to load gallery data:', err);
@@ -125,7 +206,7 @@ export default function AdminTripGalleryPage() {
       setMedia(prev => [...prev, ...uploadedMedia]);
     } catch (error) {
       console.error('Failed to batch upload:', error);
-      alert('Upload failed. Ensure you have network connectivity.');
+      showToast('error', 'Upload failed. Ensure you have network connectivity.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -133,14 +214,15 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleGenerateAIStory = async () => {
+    if (!user) return;
     setIsGeneratingStory(true);
     try {
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/trips/${bookingId}/suggest-story`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       if (res.ok) {
@@ -150,8 +232,9 @@ export default function AdminTripGalleryPage() {
         if (!description) {
           setDescription(`A private charter memory on board the ${bookingDetails?.vesselTitle || 'yacht'}.`);
         }
+        showToast('success', 'Personalized story generated successfully!');
       } else {
-        alert('AI service currently busy. Please try again.');
+        showToast('error', 'AI service currently busy. Please try again.');
       }
     } catch (err) {
       console.error('Failed to generate story:', err);
@@ -161,15 +244,16 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleSuggestCaption = async (mediaItem: any, index: number) => {
+    if (!user) return;
     setCaptioningIds(prev => [...prev, mediaItem.id]);
     try {
       // Find asset by matching public URL to run AI Vision Analysis
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const assetsRes = await fetch(`/api/admin/media/${mediaItem.id}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         }
       });
       
@@ -178,7 +262,7 @@ export default function AdminTripGalleryPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({ imageUrl: mediaItem.url })
       });
@@ -206,14 +290,18 @@ export default function AdminTripGalleryPage() {
   };
 
   const handleSave = async () => {
+    if (!user) {
+      showToast('error', 'You must be logged in to save.');
+      return;
+    }
     setIsSaving(true);
     try {
-      const idToken = sessionStorage.getItem('authToken') || '';
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/trips/${bookingId}/gallery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           title,
@@ -225,74 +313,206 @@ export default function AdminTripGalleryPage() {
       });
 
       if (res.ok) {
-        alert('Trip memories updated and saved successfully.');
+        showToast('success', 'Trip memories updated and saved successfully.');
       } else {
-        alert('Failed to save trip memories.');
+        showToast('error', 'Failed to save trip memories.');
       }
     } catch (err) {
       console.error('Failed to save gallery:', err);
-      alert('Save operation encountered a network error.');
+      showToast('error', 'Save operation encountered a network error.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const initMap = () => {
-    // Collect pins with valid coordinates
-    const pins = media
-      .filter(m => m.exif?.latitude && m.exif?.longitude)
-      .map(m => ({
-        lat: m.exif.latitude,
-        lng: m.exif.longitude,
+    // Collect pins with valid coordinates and sort chronologically
+    const pins = [...media]
+      .filter((m: any) => m.exif?.latitude && m.exif?.longitude)
+      .sort((a: any, b: any) => {
+        const timeA = a.exif.capturedAt ? new Date(a.exif.capturedAt).getTime() : (a.createdAt || 0);
+        const timeB = b.exif.capturedAt ? new Date(b.exif.capturedAt).getTime() : (b.createdAt || 0);
+        return timeA - timeB;
+      })
+      .map((m: any) => ({
+        id: m.id,
+        url: m.url,
+        type: m.type,
+        lat: Number(m.exif.latitude),
+        lng: Number(m.exif.longitude),
         title: m.caption || 'Photo location'
       }));
 
     if (pins.length === 0 || !mapContainerRef.current) return;
 
-    // Load Leaflet dynamically to bypass SSR issues
-    const setupLeaflet = () => {
-      const L = (window as any).L;
-      if (!L) return;
-
-      if (mapRef.current) {
-        mapRef.current.remove();
+    const setupGoogleMap = () => {
+      const google = (window as any).google;
+      if (!google || !google.maps || !google.maps.Map) {
+        setTimeout(setupGoogleMap, 100);
+        return;
       }
 
-      const map = L.map(mapContainerRef.current).setView([pins[0].lat, pins[0].lng], 13);
+      const mapOptions = {
+        center: { lat: pins[0].lat, lng: pins[0].lng },
+        zoom: 13,
+        styles: darkMapStyles,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        gestureHandling: 'cooperative'
+      };
+
+      const map = new google.maps.Map(mapContainerRef.current, mapOptions);
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
-      }).addTo(map);
+      const bounds = new google.maps.LatLngBounds();
+      const pathCoordinates: any[] = [];
 
-      const latlngs: any[] = [];
-      pins.forEach(pin => {
-        L.marker([pin.lat, pin.lng]).addTo(map).bindPopup(pin.title);
-        latlngs.push([pin.lat, pin.lng]);
+      class HTMLOverlay extends google.maps.OverlayView {
+        private latlng: any;
+        private element: HTMLElement;
+
+        constructor(latlng: any, element: HTMLElement) {
+          super();
+          this.latlng = latlng;
+          this.element = element;
+          this.setMap(map);
+        }
+
+        onAdd() {
+          const panes = this.getPanes();
+          panes.overlayMouseTarget.appendChild(this.element);
+        }
+
+        draw() {
+          const projection = this.getProjection();
+          if (!projection) return;
+          const position = projection.fromLatLngToDivPixel(this.latlng);
+          if (position) {
+            this.element.style.left = (position.x - 21) + 'px';
+            this.element.style.top = (position.y - 21) + 'px';
+          }
+        }
+
+        onRemove() {
+          if (this.element.parentNode) {
+            this.element.parentNode.removeChild(this.element);
+          }
+        }
+      }
+
+      pins.forEach((pin) => {
+        bounds.extend({ lat: pin.lat, lng: pin.lng });
+        pathCoordinates.push({ lat: pin.lat, lng: pin.lng });
+
+        // Circular picture thumbnail element
+        const el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.width = '42px';
+        el.style.height = '42px';
+        el.style.borderRadius = '50%';
+        el.style.border = '2.5px solid #B9783B';
+        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.65)';
+        el.style.cursor = 'pointer';
+        el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-radius 0.3s, box-shadow 0.3s, z-index 0s';
+        el.style.transformOrigin = 'center center';
+        el.style.background = '#121416';
+        el.style.zIndex = '100';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.className = 'google-map-marker-thumb';
+
+        const mediaEl = document.createElement(pin.type === 'video' ? 'video' : 'img');
+        mediaEl.src = pin.url;
+        mediaEl.style.width = '100%';
+        mediaEl.style.height = '100%';
+        mediaEl.style.borderRadius = '50%';
+        mediaEl.style.objectFit = 'cover';
+        mediaEl.style.transition = 'border-radius 0.3s';
+        if (pin.type === 'video') {
+          (mediaEl as HTMLVideoElement).muted = true;
+          (mediaEl as HTMLVideoElement).playsInline = true;
+        }
+
+        el.appendChild(mediaEl);
+
+        const activateHover = () => {
+          el.style.transform = 'scale(2.4)';
+          el.style.zIndex = '9999';
+          el.style.borderRadius = '8px';
+          mediaEl.style.borderRadius = '6px';
+          el.style.boxShadow = '0 12px 28px rgba(0,0,0,0.85)';
+        };
+
+        const deactivateHover = () => {
+          el.style.transform = 'scale(1)';
+          el.style.zIndex = '100';
+          el.style.borderRadius = '50%';
+          mediaEl.style.borderRadius = '50%';
+          el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.65)';
+        };
+
+        el.addEventListener('mouseenter', activateHover);
+        el.addEventListener('mouseleave', deactivateHover);
+
+        // Mobile touch highlights
+        el.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.google-map-marker-thumb').forEach((m: any) => {
+            if (m !== el) {
+              m.style.transform = 'scale(1)';
+              m.style.zIndex = '100';
+              m.style.borderRadius = '50%';
+              if (m.firstChild) m.firstChild.style.borderRadius = '50%';
+            }
+          });
+          activateHover();
+        });
+
+        // Spawn Overlay
+        new HTMLOverlay(new google.maps.LatLng(pin.lat, pin.lng), el);
       });
 
       if (pins.length > 1) {
-        L.polyline(latlngs, { color: '#B9783B', weight: 4 }).addTo(map);
-        map.fitBounds(L.polyline(latlngs).getBounds());
+        new google.maps.Polyline({
+          path: pathCoordinates,
+          geodesic: true,
+          strokeColor: '#B9783B',
+          strokeOpacity: 0.8,
+          strokeWeight: 4,
+          map: map
+        });
+
+        map.fitBounds(bounds);
       }
     };
 
-    if (!(window as any).L) {
-      // Inject stylesheet
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      // Inject script
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = setupLeaflet;
-      document.head.appendChild(script);
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]') as HTMLScriptElement;
+    
+    if (existingScript) {
+      if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+        setupGoogleMap();
+      } else {
+        existingScript.addEventListener('load', setupGoogleMap);
+        // Fallback polling
+        const interval = setInterval(() => {
+          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+            clearInterval(interval);
+            setupGoogleMap();
+          }
+        }, 100);
+      }
     } else {
-      setupLeaflet();
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || firebaseConfig.apiKey || '';
+      if (!apiKey) return;
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+      script.async = true;
+      script.defer = true;
+      script.onload = setupGoogleMap;
+      document.head.appendChild(script);
     }
   };
 
@@ -306,6 +526,23 @@ export default function AdminTripGalleryPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#121416', color: '#F4F1EA', fontFamily: "'Inter', sans-serif" }}>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: toast.type === 'success' ? '#708C84' : '#EF4444',
+          color: 'white',
+          padding: '1rem 1.5rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 9999,
+          fontWeight: 600
+        }}>
+          {toast.message}
+        </div>
+      )}
       {/* Top Header navbar */}
       <nav style={{ background: '#1E2124', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '1.1rem', color: '#B9783B' }}>
@@ -496,16 +733,69 @@ export default function AdminTripGalleryPage() {
                   <div>
                     <strong>This trip page is live!</strong> Share this link with the traveler to let them relive their excursion and add crew tips:
                     <a 
-                      href={`/trip/${bookingId}`} 
+                      href={`/trip/${bookingDetails?.token || bookingId}`} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       style={{ display: 'block', color: 'white', fontWeight: 600, textDecoration: 'underline', marginTop: '0.35rem' }}
                     >
-                      /trip/{bookingId} ↗
+                      /trip/{bookingDetails?.token || bookingId} ↗
                     </a>
                   </div>
                 </div>
               )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${window.location.origin}/trip/${bookingDetails?.token || bookingId}`;
+                    navigator.clipboard.writeText(link);
+                    showToast('success', 'Guest share link copied to clipboard!');
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.45rem', 
+                    background: 'rgba(185, 120, 59, 0.12)', 
+                    border: '1px solid rgba(185, 120, 59, 0.25)', 
+                    color: '#D8C7AF', 
+                    padding: '0.65rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.78rem', 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    outline: 'none'
+                  }}
+                >
+                  <Share2 size={14} /> Copy Guest Share Link
+                </button>
+
+                <a 
+                  href={`/trip/${bookingDetails?.token || bookingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.45rem', 
+                    background: 'rgba(255,255,255,0.03)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    color: 'white', 
+                    padding: '0.65rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.78rem', 
+                    fontWeight: 600, 
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                >
+                  <Eye size={14} /> Preview Excursion Page ↗
+                </a>
+              </div>
             </div>
 
             {/* Crew Tipping Stats */}
