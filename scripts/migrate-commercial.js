@@ -43,6 +43,7 @@ admin.initializeApp({
 });
 
 const adminDb = admin.firestore();
+adminDb.settings({ ignoreUndefinedProperties: true });
 console.log(`Firebase Admin SDK initialized. Project: ${serviceAccount.project_id}`);
 
 function generateUUID(prefix) {

@@ -36,6 +36,7 @@ if (admin.apps.length === 0) {
 }
 
 const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
 
 async function runMigration() {
   console.log('=== STARTING EPIC 3: OPERATIONAL LAYER MIGRATION ===');
