@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import { PageNode, ThemeConfig, NavLink } from '@/store/useBuilderStore';
 import { detectProjectId } from './project-env';
@@ -863,6 +863,30 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
   }
 }
 
+export async function loadPageRaw(pageId: string): Promise<any | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection(PAGE_COLLECTION).doc(pageId).get();
+      if (docSnap.exists) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+    } catch (e) {
+      console.error('Error loading raw page via admin SDK:', e);
+    }
+  } else {
+    try {
+      const docSnap = await getDoc(doc(db, PAGE_COLLECTION, pageId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+    } catch (e) {
+      console.error('Error loading raw page via client SDK:', e);
+    }
+  }
+  return null;
+}
+
 /**
  * Deletes the page data from Firestore.
  */
@@ -908,15 +932,17 @@ export interface PageMetadata {
   id: string;
   title: string;
   updatedAt: string;
+  slug?: string;
+  workspaceId?: string;
 }
 
 /**
  * Loads all page metadata from Firestore.
  */
-export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
+export async function getAllPagesWithMetadata(workspaceId?: string): Promise<PageMetadata[]> {
   try {
     const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
-    const pages = querySnapshot.docs
+    let pages: PageMetadata[] = querySnapshot.docs
       .filter(doc => 
         !doc.id.startsWith('template-') && 
         !doc.id.startsWith('content-item-') &&
@@ -928,10 +954,20 @@ export async function getAllPagesWithMetadata(): Promise<PageMetadata[]> {
         const data = doc.data();
         return {
           id: doc.id,
+          slug: data.slug || doc.id,
           title: data.title || (doc.id.charAt(0).toUpperCase() + doc.id.slice(1).replace(/-/g, ' ')),
-          updatedAt: data.updatedAt || new Date().toISOString()
+          updatedAt: data.updatedAt || new Date().toISOString(),
+          workspaceId: data.workspaceId
         };
       });
+
+    if (workspaceId) {
+      pages = pages.filter(p => {
+        if (p.workspaceId === workspaceId) return true;
+        if (!p.workspaceId && workspaceId === 'ws_whiskey') return true;
+        return false;
+      });
+    }
 
     // Seed terms page automatically if it doesn't exist in Firestore
     const hasTerms = pages.some(p => p.id === 'terms');
@@ -1550,7 +1586,147 @@ export function applyMockFallbacks(item: ContentItem): ContentItem {
   return item;
 }
 
-export async function getContentItems(contentType?: string): Promise<ContentItem[]> {
+async function translateResourceToLegacyContentItem(resource: any): Promise<ContentItem> {
+  if (resource.type === 'vessel' || resource.type === 'gear') {
+    const assetSlug = resource.id.replace('res_', '');
+    let ownerId = '';
+    
+    try {
+      const pageSnap = await getDoc(doc(db, 'pages', `content-item-${assetSlug}`));
+      if (pageSnap.exists()) {
+        ownerId = pageSnap.data().ownerId || '';
+      }
+    } catch (e) {
+      console.warn('Could not read legacy content-item for owner translation:', e);
+    }
+
+    return {
+      id: resource.id,
+      slug: assetSlug,
+      title: resource.name,
+      contentType: 'asset',
+      shortDescription: resource.type === 'vessel' ? 'Unified Vessel Resource' : 'Unified Gear Resource',
+      heroImage: resource.type === 'vessel'
+        ? 'https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/library%2F1779993263829_Gemini_Generated_Image_lqcww3lqcww3lqcw.webp?alt=media&token=eb4c577a-989f-4539-9a53-1907623f648c'
+        : '',
+      location: resource.physicalConfig?.homeLocation || 'Destin Harbor, FL',
+      status: resource.status === 'active' ? 'published' : 'draft',
+      category: resource.category,
+      capacity: resource.physicalConfig?.capacity || 0,
+      isVessel: resource.type === 'vessel',
+      ownerId,
+      specs: resource.type === 'vessel' ? [
+        { label: 'Length', value: '55 ft' },
+        { label: 'Beam', value: '16.5 ft' },
+        { label: 'Cruising Speed', value: `${resource.physicalConfig?.relocationSpeed || 18} knots` }
+      ] : [],
+      createdAt: resource.createdAt,
+      updatedAt: resource.updatedAt
+    } as ContentItem;
+  } else {
+    let personData: any = {};
+    if (resource.humanConfig?.personId) {
+      try {
+        const pSnap = await getDoc(doc(db, 'people', resource.humanConfig.personId));
+        if (pSnap.exists()) {
+          personData = pSnap.data();
+        }
+      } catch (e) {
+        console.warn('Could not load person profile for crew resource:', e);
+      }
+    }
+    const capabilities = resource.humanConfig?.capabilities || [];
+    const isCaptain = capabilities.includes('captain');
+    return {
+      id: resource.id,
+      slug: resource.id,
+      title: resource.name || `${personData.firstName || ''} ${personData.lastName || ''}`.trim(),
+      contentType: 'staff',
+      role: isCaptain ? 'Captain' : 'Crew Member',
+      isCaptain,
+      certifications: capabilities,
+      heroImage: `/images/crew/${resource.id}.png`,
+      shortDescription: `Certified crew member with capabilities: ${capabilities.join(', ')}`,
+      location: 'Destin, FL',
+      status: resource.status === 'active' ? 'published' : 'draft',
+      createdAt: resource.createdAt,
+      updatedAt: resource.updatedAt
+    } as ContentItem;
+  }
+}
+
+export async function getContentItems(contentType?: string, workspaceId?: string): Promise<ContentItem[]> {
+  if (contentType === 'asset' || contentType === 'staff') {
+    try {
+      const resSnap = await getDocs(collection(db, 'resources'));
+      if (!resSnap.empty) {
+        const targetType = contentType === 'asset' ? ['vessel', 'gear'] : ['crew'];
+        let matchedDocs = resSnap.docs
+          .map(d => d.data())
+          .filter(r => targetType.includes(r.type));
+
+        if (workspaceId) {
+          matchedDocs = matchedDocs.filter(r => (r.workspaceId || 'ws_whiskey') === workspaceId);
+        }
+
+        if (matchedDocs.length > 0) {
+          const itemsPromises = matchedDocs.map(r => translateResourceToLegacyContentItem(r));
+          const translatedItems = await Promise.all(itemsPromises);
+          return translatedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+      }
+    } catch (newResErr: any) {
+      if (newResErr && newResErr.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.warn('Client lacks read permissions for resources. Skipping resources query:', newResErr);
+      }
+    }
+  }
+
+  if (contentType === 'adventure') {
+    try {
+      const expSnap = await getDocs(collection(db, 'experiences'));
+      if (!expSnap.empty) {
+        const items: ContentItem[] = [];
+        let expDocs = expSnap.docs.map(d => d.data());
+
+        if (workspaceId) {
+          expDocs = expDocs.filter(exp => (exp.workspaceId || 'ws_whiskey') === workspaceId);
+        }
+
+        for (const exp of expDocs) {
+          const listingsSnap = await getDocs(query(collection(db, 'listings'), where('experienceId', '==', exp.id)));
+          let baseCost = 0;
+          if (!listingsSnap.empty) {
+            baseCost = listingsSnap.docs[0].data().pricing.baseRate;
+          }
+          items.push({
+            id: exp.id,
+            slug: exp.id,
+            title: exp.title,
+            contentType: 'adventure',
+            shortDescription: exp.shortDescription,
+            heroImage: exp.heroImage || '',
+            description: exp.description,
+            gallery: exp.gallery || [],
+            status: exp.status,
+            createdAt: exp.createdAt,
+            updatedAt: exp.updatedAt,
+            experienceBaseCost: baseCost,
+          } as ContentItem);
+        }
+        return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        console.warn('Client lacks read permissions for experiences. Skipping experiences query:', e.message);
+      } else {
+        console.error('Error loading new experiences in getContentItems:', e);
+      }
+    }
+  }
+
   if (typeof window === 'undefined') {
     try {
       const projectId = getProjectId();
@@ -1573,6 +1749,11 @@ export async function getContentItems(contentType?: string): Promise<ContentItem
             } as ContentItem;
             return applyMockFallbacks(rawItem);
           });
+
+        if (workspaceId) {
+          docs = docs.filter((item: ContentItem) => (item.workspaceId || 'ws_whiskey') === workspaceId);
+        }
+
         if (contentType) {
           docs = docs.filter((item: ContentItem) => item.contentType === contentType);
           if (docs.length === 0) {
@@ -2458,6 +2639,7 @@ export interface BookingRecord {
   updatedAt?: string;
   endTime?: string;
   guestDurationMinutes?: number;
+  workspaceId?: string;
 }
 
 export interface BookingMessage {
@@ -2694,23 +2876,127 @@ export async function getCustomerProfile(email: string): Promise<CustomerProfile
   }
 }
 
+async function translateNewToLegacyBooking(newBooking: any): Promise<BookingRecord | null> {
+  try {
+    const offerDoc = await getDoc(doc(db, 'offers', newBooking.acceptedOfferId));
+    if (!offerDoc.exists()) return null;
+    const offer = offerDoc.data() as any;
+
+    const guestDoc = await getDoc(doc(db, 'people', newBooking.guestId));
+    const guest = guestDoc.exists() ? guestDoc.data() as any : { firstName: 'Guest', lastName: '', email: '', phone: '' };
+
+    const experienceDoc = await getDoc(doc(db, 'experiences', offer.experienceId));
+    const experience = experienceDoc.exists() ? experienceDoc.data() as any : { title: 'Yacht Excursion' };
+
+    let vesselSlug = offer.resourcePreferences?.vesselCategory === 'yacht' ? 'my-whiskey-yacht' : 'my-barrel-tender';
+    try {
+      const opitSnap = await getDocs(query(collection(db, 'operational_itineraries'), where('bookingId', '==', newBooking.id)));
+      if (!opitSnap.empty) {
+        const opit = opitSnap.docs[0].data();
+        if (opit.vesselResourceId) {
+          vesselSlug = opit.vesselResourceId.replace('res_', '');
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read operational itinerary for legacy vessel translation:', e);
+    }
+
+    let amountPaidToday = 0;
+    let amountDueLater = offer.pricingSnapshot.grandTotal;
+
+    try {
+      const setSnap = await getDoc(doc(db, 'settlements', `set_${newBooking.id}`));
+      if (setSnap.exists()) {
+        const set = setSnap.data() as any;
+        amountPaidToday = set.totals.collectedAmount || 0;
+        amountDueLater = set.totals.balanceDue || 0;
+      } else {
+        amountPaidToday = newBooking.paymentStatus === 'fully_paid' 
+          ? offer.pricingSnapshot.grandTotal 
+          : (newBooking.paymentStatus === 'deposit_paid' ? offer.pricingSnapshot.depositRequired : 0);
+        amountDueLater = newBooking.paymentStatus === 'fully_paid' 
+          ? 0 
+          : (newBooking.paymentStatus === 'deposit_paid' ? (offer.pricingSnapshot.grandTotal - offer.pricingSnapshot.depositRequired) : offer.pricingSnapshot.grandTotal);
+      }
+    } catch (settleErr) {
+      console.warn('Could not read settlement for legacy translation:', settleErr);
+    }
+
+    return {
+      id: newBooking.id,
+      experienceId: offer.experienceId,
+      experienceTitle: experience.title,
+      vesselSlug,
+      vesselTitle: vesselSlug === 'my-whiskey-yacht' ? 'M/Y Whiskey' : 'M/Y Barrel',
+      captainId: '',
+      captainTitle: '',
+      date: offer.schedulingSnapshot.date,
+      startTime: offer.schedulingSnapshot.startTime,
+      guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+      guestEmail: guest.email,
+      guestPhone: guest.phone,
+      guestCount: offer.resourcePreferences.crewCountRequired || 1,
+      subtotal: offer.pricingSnapshot.subtotal,
+      salesTax: offer.pricingSnapshot.taxes,
+      grandTotal: offer.pricingSnapshot.grandTotal,
+      amountPaidToday,
+      amountDueLater,
+      paymentPlan: newBooking.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
+      cancellationInsurance: false,
+      marketingOptIn: false,
+      createdAt: newBooking.createdAt,
+      status: newBooking.status,
+      waiverSigned: false,
+      stripePaymentIntentId: newBooking.stripePaymentIntentId || '',
+      tenantId: newBooking.tenantId || 'org-whiskey'
+    } as unknown as BookingRecord;
+  } catch (err) {
+    console.error('Error translating booking:', err);
+    return null;
+  }
+}
+
 /**
  * Retrieves all bookings.
  */
-export async function getAllBookings(): Promise<BookingRecord[]> {
+export async function getAllBookings(workspaceId?: string): Promise<BookingRecord[]> {
   try {
     const querySnapshot = await getDocs(collection(db, PAGE_COLLECTION));
-    const bookings: BookingRecord[] = [];
+    const legacyBookings: BookingRecord[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       if (data.type === 'booking') {
-        bookings.push({
+        legacyBookings.push({
           ...data,
           id: data.id || doc.id.replace('booking-', '')
         } as BookingRecord);
       }
     });
-    return bookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    let translatedNewBookings: BookingRecord[] = [];
+    try {
+      const newBookingsSnap = await getDocs(collection(db, 'bookings'));
+      const newBookingsPromises: Promise<BookingRecord | null>[] = [];
+      newBookingsSnap.forEach((docSnap) => {
+        newBookingsPromises.push(translateNewToLegacyBooking(docSnap.data()));
+      });
+      translatedNewBookings = (await Promise.all(newBookingsPromises))
+        .filter((b): b is BookingRecord => b !== null);
+    } catch (newBookingsErr: any) {
+      if (newBookingsErr && newBookingsErr.code === 'permission-denied') {
+        // Suppress expected client permission warning during auth resolution
+      } else {
+        console.warn('Client lacks read permissions for new bookings collection. Skipping guest-level query:', newBookingsErr);
+      }
+    }
+
+    let allBookings = [...legacyBookings, ...translatedNewBookings];
+
+    if (workspaceId) {
+      allBookings = allBookings.filter(b => (b.workspaceId || 'ws_whiskey') === workspaceId);
+    }
+
+    return allBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (error) {
     console.error('Error loading all bookings:', error);
     return [];
@@ -2778,6 +3064,41 @@ export async function updateBookingOperationalFields(
     return true;
   } catch (error) {
     console.error('Error updating booking fields:', error);
+    return false;
+  }
+}
+
+/**
+ * Updates a booking's core operational and administrative settings.
+ */
+export async function updateBookingSettings(
+  bookingId: string,
+  updates: any
+): Promise<boolean> {
+  try {
+    const docId = `booking-${bookingId}`;
+    const bookingRef = doc(db, PAGE_COLLECTION, docId);
+    await setDoc(bookingRef, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    // Also update bookings collection if exists
+    try {
+      const newBookingRef = doc(db, 'bookings', bookingId);
+      const newBookingSnap = await getDoc(newBookingRef);
+      if (newBookingSnap.exists()) {
+        await setDoc(newBookingRef, {
+          ...updates,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (newDbErr) {
+      console.warn('Could not update secondary bookings collection:', newDbErr);
+    }
+    return true;
+  } catch (error) {
+    console.error('Error updating booking settings:', error);
     return false;
   }
 }
@@ -2884,7 +3205,38 @@ export async function getAssetBlackouts(vesselSlug?: string): Promise<AssetBlack
         }
       }
     });
-    return blackouts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    let newAllocations: AssetBlackout[] = [];
+    try {
+      const allocSnap = await getDocs(collection(db, 'inventory_allocations'));
+      allocSnap.forEach((docSnap) => {
+        const alloc = docSnap.data();
+        if (alloc.allocationType === 'maintenance' || alloc.allocationType === 'private_use') {
+          const resSlug = alloc.resourceId.replace('res_', '');
+          if (!vesselSlug || resSlug === vesselSlug || alloc.resourceId === vesselSlug) {
+            const startDate = alloc.startAt.substring(0, 10);
+            const endDate = alloc.endAt.substring(0, 10);
+            const startTime = alloc.startAt.length > 16 ? alloc.startAt.substring(11, 16) : undefined;
+            const endTime = alloc.endAt.length > 16 ? alloc.endAt.substring(11, 16) : undefined;
+            newAllocations.push({
+              id: alloc.id,
+              vesselSlug: resSlug,
+              title: `${alloc.allocationType.toUpperCase()}: ${alloc.referenceId || alloc.id}`,
+              startDate,
+              endDate,
+              startTime,
+              endTime,
+              createdAt: alloc.createdAt
+            } as AssetBlackout);
+          }
+        }
+      });
+    } catch (allocErr) {
+      console.warn('Client lacks read permissions for inventory allocations. Skipping query:', allocErr);
+    }
+
+    const allBlackouts = [...blackouts, ...newAllocations];
+    return allBlackouts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
   } catch (error) {
     console.error('Error loading asset blackouts:', error);
     return [];
@@ -3090,6 +3442,14 @@ export async function getBookingById(bookingId: string): Promise<BookingRecord |
         } as BookingRecord;
       }
     }
+
+    // Try new bookings collection
+    const newBookingRef = doc(db, 'bookings', bookingId);
+    const newBookingSnap = await getDoc(newBookingRef);
+    if (newBookingSnap.exists()) {
+      return await translateNewToLegacyBooking(newBookingSnap.data());
+    }
+
     return null;
   } catch (error) {
     console.error('Error fetching booking by ID:', error);
@@ -4212,6 +4572,396 @@ export async function saveBlogSettings(settings: Omit<BlogSettings, 'updatedAt'>
     return false;
   }
 }
+
+export async function loadWorkspaceTheme(workspaceId: string): Promise<ThemeConfig | null> {
+  if (workspaceId === 'ws_whiskey') {
+    try {
+      const settingsRef = doc(db, 'settings', 'global');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists() && settingsSnap.data().theme) {
+        return settingsSnap.data().theme as ThemeConfig;
+      }
+    } catch (e) {}
+  }
+
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+      if (docSnap.exists) {
+        const brand = docSnap.data().brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e) {}
+
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/workspace_configurations/${workspaceId}`;
+      const response = await fetch(url, { next: { revalidate: 0 } });
+      if (response.ok) {
+        const json = await response.json();
+        const fields = parseFirestoreFields(json.fields);
+        const brand = fields.brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e) {
+      console.error('Error fetching workspace theme via REST:', e);
+    }
+  } else {
+    try {
+      const ref = doc(db, 'workspace_configurations', workspaceId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const brand = data.brand || {};
+        return {
+          primaryColor: brand.primaryColor || '#B9783B',
+          backgroundColor: '#1F2326',
+          foregroundColor: '#F4F1EA',
+          surfaceColor: '#1E3A4C',
+          mutedColor: '#D8C7AF',
+          accentColor: '#708C84',
+          typography: {
+            headingFontFamily: "'Cormorant Garamond', serif",
+            bodyFontFamily: "'Inter', sans-serif"
+          }
+        } as any;
+      }
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.error('Error fetching workspace theme via SDK:', e);
+      }
+    }
+  }
+  return null;
+}
+
+export async function loadPageDataRelational(
+  workspaceId: string,
+  slug: string
+): Promise<{ nodes: Record<string, PageNode>, theme: ThemeConfig, title?: string } | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const snap = await adminDb.collection(PAGE_COLLECTION)
+        .where('workspaceId', '==', workspaceId)
+        .where('slug', '==', slug)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const wsTheme = await loadWorkspaceTheme(workspaceId);
+        return {
+          nodes: (data.blocks || data.nodes) as Record<string, PageNode>,
+          theme: wsTheme || data.theme as ThemeConfig,
+          title: data.title as string | undefined
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const q = query(
+        collection(db, PAGE_COLLECTION),
+        where('workspaceId', '==', workspaceId),
+        where('slug', '==', slug),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const wsTheme = await loadWorkspaceTheme(workspaceId);
+        return {
+          nodes: (data.blocks || data.nodes) as Record<string, PageNode>,
+          theme: wsTheme || data.theme as ThemeConfig,
+          title: data.title as string | undefined
+        };
+      }
+    } catch (sdkErr) {
+      console.error('Error in loadPageDataRelational SDK:', sdkErr);
+    }
+  } else {
+    try {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+      const queryPayload = {
+        structuredQuery: {
+          from: [{ collectionId: PAGE_COLLECTION }],
+          where: {
+            compositeFilter: {
+              op: 'AND',
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'workspaceId' },
+                    op: 'EQUAL',
+                    value: { stringValue: workspaceId }
+                  }
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'slug' },
+                    op: 'EQUAL',
+                    value: { stringValue: slug }
+                  }
+                }
+              ]
+            }
+          },
+          limit: 1
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload),
+        next: { revalidate: 0 }
+      });
+
+      if (response.ok) {
+        const results = await response.json();
+        if (results && results.length > 0 && results[0].document) {
+          const docData = results[0].document;
+          const fields = parseFirestoreFields(docData.fields);
+          const wsTheme = await loadWorkspaceTheme(workspaceId);
+          return {
+            nodes: (fields.blocks || fields.nodes) as Record<string, PageNode>,
+            theme: wsTheme || fields.theme as ThemeConfig,
+            title: fields.title as string | undefined
+          };
+        }
+      }
+    } catch (restErr) {
+      console.error('Error in loadPageDataRelational REST:', restErr);
+    }
+  }
+
+  const legacyId = (workspaceId === 'ws_whiskey' && slug === 'home') ? 'home' : `${workspaceId}_${slug}`;
+  return loadPageData(legacyId);
+}
+
+export async function savePageDataRelational(
+  workspaceId: string,
+  slug: string,
+  blocks: Record<string, PageNode>,
+  title?: string,
+  pageType: string = 'Home'
+): Promise<boolean> {
+  try {
+    let docId = '';
+    
+    if (typeof window !== 'undefined') {
+      const q = query(
+        collection(db, PAGE_COLLECTION),
+        where('workspaceId', '==', workspaceId),
+        where('slug', '==', slug),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        docId = snap.docs[0].id;
+      }
+    } else {
+      const projectId = getProjectId();
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+      const queryPayload = {
+        structuredQuery: {
+          from: [{ collectionId: PAGE_COLLECTION }],
+          where: {
+            compositeFilter: {
+              op: 'AND',
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'workspaceId' },
+                    op: 'EQUAL',
+                    value: { stringValue: workspaceId }
+                  }
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: 'slug' },
+                    op: 'EQUAL',
+                    value: { stringValue: slug }
+                  }
+                }
+              ]
+            }
+          },
+          limit: 1
+        }
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload)
+      });
+      if (response.ok) {
+        const results = await response.json();
+        if (results && results.length > 0 && results[0].document) {
+          const path = results[0].document.name;
+          docId = path.substring(path.lastIndexOf('/') + 1);
+        }
+      }
+    }
+
+    if (!docId) {
+      docId = `page_${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+
+    const payload = {
+      id: docId,
+      workspaceId,
+      slug,
+      title: title || slug,
+      pageType,
+      blocks,
+      nodes: blocks,
+      status: 'published',
+      updatedAt: new Date().toISOString()
+    };
+
+    if (typeof window !== 'undefined') {
+      await setDoc(doc(db, PAGE_COLLECTION, docId), payload, { merge: true });
+    } else {
+      const { adminDb } = require('./firebase-admin');
+      await adminDb.collection(PAGE_COLLECTION).doc(docId).set(payload, { merge: true });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error saving relational page:', error);
+    return false;
+  }
+}
+
+export async function getPlatformWorkspaceId(): Promise<string> {
+  const rootId = 'ws_platform_root';
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const rootDoc = await adminDb.collection('workspaces').doc(rootId).get();
+      if (rootDoc.exists) return rootId;
+
+      const snap = await adminDb.collection('workspaces')
+        .where('type', '==', 'platform')
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        return snap.docs[0].id;
+      }
+    } catch (e) {}
+
+    const projectId = getProjectId();
+    try {
+      const rootUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/workspaces/${rootId}`;
+      const rootRes = await fetch(rootUrl, { next: { revalidate: 0 } });
+      if (rootRes.ok) return rootId;
+    } catch (e) {}
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+    const queryPayload = {
+      structuredQuery: {
+        from: [{ collectionId: 'workspaces' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'type' },
+            op: 'EQUAL',
+            value: { stringValue: 'platform' }
+          }
+        },
+        limit: 1
+      }
+    };
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload)
+      });
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.length > 0 && json[0].document) {
+          const path = json[0].document.name;
+          return path.substring(path.lastIndexOf('/') + 1);
+        }
+      }
+    } catch (e) {
+      console.error('Error resolving platform workspace ID via REST:', e);
+    }
+  } else {
+    try {
+      const rootSnap = await getDoc(doc(db, 'workspaces', rootId));
+      if (rootSnap.exists()) return rootId;
+
+      const q = query(collection(db, 'workspaces'), where('type', '==', 'platform'), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) return snap.docs[0].id;
+    } catch (e: any) {
+      if (e && e.code === 'permission-denied') {
+        // Suppress expected client permission warning
+      } else {
+        console.error('Error resolving platform workspace ID via SDK:', e);
+      }
+    }
+  }
+  return rootId;
+}
+
+export async function loadWorkspaceConfig(workspaceId: string): Promise<any | null> {
+  if (typeof window === 'undefined') {
+    try {
+      const { adminDb } = require('./firebase-admin');
+      const docSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+      if (docSnap.exists) {
+        return docSnap.data();
+      }
+    } catch (e) {}
+  } else {
+    try {
+      const docSnap = await getDoc(doc(db, 'workspace_configurations', workspaceId));
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+    } catch (e) {}
+
+    // Fall back to server API if local or live rules block client SDK reads
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/config`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
 
 
 

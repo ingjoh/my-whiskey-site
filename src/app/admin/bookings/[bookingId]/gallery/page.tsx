@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
-  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2
+  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2, AlertCircle
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
 import { firebaseConfig } from '@/lib/firebase';
@@ -105,6 +105,17 @@ export default function AdminTripGalleryPage() {
   const [isPublished, setIsPublished] = useState(false);
   const [tippingLedger, setTippingLedger] = useState({ totalTipped: 0, stripePaymentIntentIds: [] });
   const [bookingDetails, setBookingDetails] = useState<any>(null);
+  const [initialDataHash, setInitialDataHash] = useState('');
+
+  const currentHash = JSON.stringify({ 
+    title, 
+    description, 
+    story, 
+    media, 
+    isPublished, 
+    coverImageUrl 
+  });
+  const isDirty = initialDataHash !== '' && initialDataHash !== currentHash;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -141,16 +152,23 @@ export default function AdminTripGalleryPage() {
       });
       if (gRes.ok) {
         const gData = await gRes.json();
-        setTitle(gData.title || '');
-        setDescription(gData.description || '');
-        setStory(gData.story || '');
-        setMedia(gData.media || []);
-        setCoverImageUrl(gData.coverImageUrl || '');
-        setIsPublished(gData.isPublished || false);
+        const t = gData.title || '';
+        const d = gData.description || '';
+        const s = gData.story || '';
+        const m = gData.media || [];
+        const c = gData.coverImageUrl || '';
+        const p = gData.isPublished || false;
+        setTitle(t);
+        setDescription(d);
+        setStory(s);
+        setMedia(m);
+        setCoverImageUrl(c);
+        setIsPublished(p);
         setTippingLedger(gData.tippingLedger || { totalTipped: 0, stripePaymentIntentIds: [] });
         if (gData.booking) {
           setBookingDetails(gData.booking);
         }
+        setInitialDataHash(JSON.stringify({ title: t, description: d, story: s, media: m, isPublished: p, coverImageUrl: c }));
       }
     } catch (err) {
       console.error('Failed to load gallery data:', err);
@@ -291,10 +309,10 @@ export default function AdminTripGalleryPage() {
     setMedia(prev => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!user) {
       showToast('error', 'You must be logged in to save.');
-      return;
+      return false;
     }
     setIsSaving(true);
     try {
@@ -317,15 +335,32 @@ export default function AdminTripGalleryPage() {
 
       if (res.ok) {
         showToast('success', 'Trip memories updated and saved successfully.');
+        setInitialDataHash(JSON.stringify({ title, description, story, media, isPublished, coverImageUrl }));
+        return true;
       } else {
         showToast('error', 'Failed to save trip memories.');
+        return false;
       }
     } catch (err) {
       console.error('Failed to save gallery:', err);
       showToast('error', 'Save operation encountered a network error.');
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePreviewClick = async () => {
+    if (isDirty) {
+      const saved = await handleSave();
+      if (!saved) {
+        // If save failed, do not open preview
+        return;
+      }
+    }
+    // Open preview in new tab
+    const token = bookingDetails?.token || bookingId;
+    window.open(`/trip/${token}`, '_blank', 'noopener,noreferrer');
   };
 
   const initMap = () => {
@@ -755,6 +790,15 @@ export default function AdminTripGalleryPage() {
                 />
               </div>
 
+              {!isPublished && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.74rem', color: '#ef4444', display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                  <div>
+                    <strong>Gallery is in Draft mode.</strong> Guests will receive a "403 Forbidden" or "Gallery not found" error if they attempt to visit their trip page. Check <strong>Published & Shared</strong> above and click <strong>Save</strong> to make it live.
+                  </div>
+                </div>
+              )}
+
               {isPublished && (
                 <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.74rem', color: '#10b981', display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
                   <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
@@ -800,29 +844,30 @@ export default function AdminTripGalleryPage() {
                   <Share2 size={14} /> Copy Guest Share Link
                 </button>
 
-                <a 
-                  href={`/trip/${bookingDetails?.token || bookingId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button 
+                  type="button"
+                  onClick={handlePreviewClick}
+                  disabled={isSaving}
                   style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
                     gap: '0.45rem', 
-                    background: 'rgba(255,255,255,0.03)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: 'white', 
+                    background: isDirty ? 'rgba(185, 120, 59, 0.15)' : 'rgba(255,255,255,0.03)', 
+                    border: isDirty ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)', 
+                    color: isDirty ? '#E2A15E' : 'white', 
                     padding: '0.65rem', 
                     borderRadius: '6px', 
                     fontSize: '0.78rem', 
                     fontWeight: 600, 
-                    textDecoration: 'none',
-                    textAlign: 'center',
-                    transition: 'background 0.2s'
+                    cursor: 'pointer',
+                    width: '100%',
+                    transition: 'all 0.2s',
+                    outline: 'none'
                   }}
                 >
-                  <Eye size={14} /> Preview Excursion Page ↗
-                </a>
+                  <Eye size={14} /> {isDirty ? 'Save & Preview Excursion ↗' : 'Preview Excursion Page ↗'}
+                </button>
               </div>
             </div>
 

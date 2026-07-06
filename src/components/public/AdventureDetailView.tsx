@@ -1157,7 +1157,8 @@ export default function AdventureDetailView({
     return acc;
   }, 0);
 
-  const subtotal = baseExperienceCost + vesselCost + gearTotal + addonsTotal;
+  const budgetTotal = (item.budgetLineItems || []).reduce((sum: number, li: any) => sum + (Number(li.cost) || 0), 0);
+  const subtotal = baseExperienceCost + vesselCost + gearTotal + addonsTotal + budgetTotal;
   
   // Calculate Promo Code Discount
   const discountAmount = appliedPromo 
