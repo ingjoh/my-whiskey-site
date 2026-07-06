@@ -44,3 +44,17 @@ A task is not considered complete until all applicable checklist items below hav
     - Success messages background color: `#708C84`
     - Error messages background color: `#EF4444`
     - Position: `fixed`, `top: 20px`, `right: 20px`, `zIndex: 9999`
+
+## Firebase Deployment Policy
+
+*   **Multi-Environment Syncing**: When changing `firestore.rules` or storage rules:
+    1. Update the rules locally in the repository (e.g. `firestore.rules`).
+    2. Switch the active environment using the Firebase CLI:
+       ```bash
+       firebase use <staging-or-production-project-alias>
+       ```
+    3. Deploy the rules to the active environment:
+       ```bash
+       firebase deploy --only firestore:rules
+       ```
+    Ensure that rules are successfully deployed before pushing code to Production.

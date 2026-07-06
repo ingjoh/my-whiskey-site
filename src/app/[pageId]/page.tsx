@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ pageId: s
     return { title: 'Page Not Found' };
   }
   const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
-  const { loadPageDataRelational, getContentTypeConfigs } = require('@/lib/db');
+  const { loadPageDataRelational, getContentTypeConfigs, getSeoMetadata } = require('@/lib/db');
   const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
   const pageData = await loadPageDataRelational(workspaceId, pageId);
   if (!pageData) {
@@ -35,9 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ pageId: s
     }
     return { title: 'Page Not Found' };
   }
-  return {
-    title: pageData.title ? `${pageData.title}` : `${pageId}`,
-  };
+  return getSeoMetadata(pageData, `/${pageId}`);
 }
 
 // Reuse the same NodeRenderer for consistency

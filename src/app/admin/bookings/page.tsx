@@ -9,6 +9,7 @@ import {
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
   MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon, Save
 } from 'lucide-react';
+import NotificationBell from '@/components/admin/NotificationBell';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
   getAssetBlackouts, getAllCheckoutLocks, deleteAssetBlackout,
@@ -207,6 +208,37 @@ export default function BookingsDashboard() {
       setIsSavingBooking(false);
     }
   };
+
+  const [bookingPayouts, setBookingPayouts] = useState<any[]>([]);
+  const [isLoadingPayouts, setIsLoadingPayouts] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!selectedBooking) {
+      setBookingPayouts([]);
+      return;
+    }
+    
+    const fetchPayouts = async () => {
+      setIsLoadingPayouts(true);
+      try {
+        const { collection, query, where, getDocs } = require('firebase/firestore');
+        const { db } = require('@/lib/firebase');
+        const q = query(collection(db, 'payouts'), where('bookingId', '==', selectedBooking.id));
+        const snap = await getDocs(q);
+        const list: any[] = [];
+        snap.forEach((docSnap: any) => {
+          list.push(docSnap.data());
+        });
+        setBookingPayouts(list);
+      } catch (err) {
+        console.error('Error loading payouts for booking details:', err);
+      } finally {
+        setIsLoadingPayouts(false);
+      }
+    };
+    
+    fetchPayouts();
+  }, [selectedBooking]);
   
   // Date range state for Gantt scheduler view
   const [ganttStartDate, setGanttStartDate] = useState(() => {
@@ -2003,12 +2035,15 @@ export default function BookingsDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '1.25rem', color: '#B9783B' }}>
           <Anchor size={24} /> Bookings Command Center
         </div>
-        <Link 
-          href="/admin" 
-          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#D8C7AF', fontSize: '0.85rem' }}
-        >
-          <ArrowLeft size={16} /> Back to Main Admin
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <NotificationBell />
+          <Link 
+            href="/admin" 
+            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#D8C7AF', fontSize: '0.85rem' }}
+          >
+            <ArrowLeft size={16} /> Back to Main Admin
+          </Link>
+        </div>
       </nav>
 
       {/* Toast Notification */}
@@ -4089,6 +4124,47 @@ export default function BookingsDashboard() {
                         <span style={{ opacity: 0.6, color: '#D8C7AF' }}>Platform Commission (30%):</span>
                         <strong style={{ color: 'white' }}>{formatCost(selectedBooking.subtotal * 0.3)}</strong>
                       </div>
+                    </div>
+
+                    {/* Crew Gratuity Ledger */}
+                    <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.55rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Crew Gratuity splits
+                      </span>
+                      {isLoadingPayouts ? (
+                        <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.6 }}>Loading splits...</div>
+                      ) : bookingPayouts.length === 0 ? (
+                        <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.6, fontStyle: 'italic' }}>
+                          No gratuities processed for this charter.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                            <span style={{ color: '#D8C7AF' }}>Total Tipped:</span>
+                            <span style={{ color: '#708C84' }}>
+                              {formatCost(bookingPayouts.reduce((sum, p) => sum + (p.amount || 0), 0) / 100)}
+                            </span>
+                          </div>
+                          {bookingPayouts.map((payout: any) => (
+                            <div key={payout.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', paddingLeft: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ color: 'white', fontWeight: 500 }}>{payout.recipientName}</span>
+                                <span style={{ opacity: 0.5, fontSize: '0.65rem' }}>{payout.recipientRole} (Weight: {payout.splitWeight || 10})</span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <strong style={{ color: 'white' }}>{formatCost(payout.amount / 100)}</strong>
+                                <span style={{ 
+                                  fontSize: '0.6rem', 
+                                  textTransform: 'uppercase', 
+                                  color: payout.status === 'draft' ? '#D8C7AF' : '#708C84' 
+                                }}>
+                                  {payout.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

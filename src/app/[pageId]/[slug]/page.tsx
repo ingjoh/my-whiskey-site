@@ -33,9 +33,28 @@ export async function generateMetadata({ params }: { params: Promise<{ pageId: s
     return { title: 'Page Not Found | M/Y Whiskey' };
   }
 
+  const ogImage = item.imageUrl || item.coverImage || item.bgImage || '';
+  const desc = item.shortDescription || `Discover details about ${item.title} on M/Y Whiskey.`;
+  const title = `${item.title} | M/Y Whiskey`;
+
   return {
-    title: `${item.title} | M/Y Whiskey`,
-    description: item.shortDescription,
+    title,
+    description: desc,
+    openGraph: {
+      title,
+      description: desc,
+      url: `https://www.motoryachtwhiskey.com/${pageId}/${slug}`,
+      siteName: 'M/Y Whiskey',
+      locale: 'en_US',
+      type: 'website',
+      images: ogImage ? [{ url: ogImage, width: 1200, height: 630, alt: title }] : []
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: desc,
+      images: ogImage ? [ogImage] : []
+    }
   };
 }
 

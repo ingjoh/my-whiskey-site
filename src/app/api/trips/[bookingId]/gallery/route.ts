@@ -104,6 +104,9 @@ export async function GET(
     const waiverSnap = await adminDb.collection('pages').doc(`waiver-${resolvedBookingId}`).get();
     const waiverDetails = waiverSnap.exists ? waiverSnap.data() : null;
 
+    const testimonialSnap = await adminDb.collection('testimonials').doc(`tst_${resolvedBookingId}`).get();
+    const testimonialDetails = testimonialSnap.exists ? testimonialSnap.data() : null;
+
     const expSnap = await adminDb.collection('experiences').where('status', '==', 'published').get();
     const otherExperiences: any[] = [];
     expSnap.forEach(doc => {
@@ -129,6 +132,7 @@ export async function GET(
         waiver: waiverDetails, 
         vessel: vesselDetails, 
         captain: captainDetails, 
+        testimonial: testimonialDetails,
         otherExperiences 
       });
     }
@@ -150,6 +154,7 @@ export async function GET(
       waiver: waiverDetails,
       vessel: vesselDetails,
       captain: captainDetails,
+      testimonial: testimonialDetails,
       otherExperiences
     });
   } catch (error: any) {

@@ -1637,6 +1637,7 @@ async function translateResourceToLegacyContentItem(resource: any): Promise<Cont
     }
     const capabilities = resource.humanConfig?.capabilities || [];
     const isCaptain = capabilities.includes('captain');
+    const weight = Number(resource.splitWeight || resource.humanConfig?.splitWeight || (isCaptain ? 10 : (capabilities.some((c: string) => c.includes('host') || c.includes('deckhand')) ? 20 : 10)));
     return {
       id: resource.id,
       slug: resource.id,
@@ -1645,6 +1646,8 @@ async function translateResourceToLegacyContentItem(resource: any): Promise<Cont
       role: isCaptain ? 'Captain' : 'Crew Member',
       isCaptain,
       certifications: capabilities,
+      roles: capabilities,
+      weight,
       heroImage: `/images/crew/${resource.id}.png`,
       shortDescription: `Certified crew member with capabilities: ${capabilities.join(', ')}`,
       location: 'Destin, FL',
@@ -4960,6 +4963,69 @@ export async function loadWorkspaceConfig(workspaceId: string): Promise<any | nu
     } catch (e) {}
   }
   return null;
+}
+
+export function getSeoMetadata(pageData: any, pathname: string): any {
+  if (!pageData) {
+    return {
+      title: 'M/Y Whiskey',
+      description: 'Luxury Bareboat Yacht Charter Excursions on M/Y Whiskey.',
+    };
+  }
+
+  const title = pageData.title ? `${pageData.title}` : 'M/Y Whiskey';
+  
+  // 1. Resolve Description
+  let description = pageData.description || '';
+  if (!description && pageData.nodes) {
+    const textNode = Object.values(pageData.nodes).find((node: any) => 
+      node && (node.type === 'Text' || node.type === 'EnhancedHero') && node.props?.text
+    ) as any;
+    if (textNode) {
+      description = textNode.props.text;
+    }
+  }
+  description = description.replace(/<[^>]*>/g, '').substring(0, 160).trim();
+  if (!description) {
+    description = 'Experience the ultimate luxury bareboat private yacht charter excursion aboard M/Y Whiskey.';
+  }
+
+  // 2. Resolve Hero Image URL
+  let heroUrl = pageData.coverImageUrl || '';
+  if (!heroUrl && pageData.nodes) {
+    const heroNode = Object.values(pageData.nodes).find((node: any) => 
+      node && (node.type === 'Hero' || node.type === 'EnhancedHero' || node.type === 'VideoHero') && node.props?.bgImage
+    ) as any;
+    if (heroNode) {
+      heroUrl = heroNode.props.bgImage;
+    }
+  }
+
+  const origin = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN 
+    ? `https://${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN}` 
+    : 'https://www.motoryachtwhiskey.com';
+
+  const fullUrl = `${origin}${pathname}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: fullUrl,
+      siteName: 'M/Y Whiskey',
+      locale: 'en_US',
+      type: 'website',
+      images: heroUrl ? [{ url: heroUrl, width: 1200, height: 630, alt: title }] : []
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: heroUrl ? [heroUrl] : []
+    }
+  };
 }
 
 

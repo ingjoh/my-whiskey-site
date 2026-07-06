@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { sendEmail } from '@/lib/email';
 import * as React from 'react';
 import { cancelPendingReminders } from '@/lib/notifications';
+import { triggerAdminNotification } from '@/lib/admin-notifications';
 import {
   Html,
   Body,
@@ -88,6 +89,18 @@ export async function POST(request: NextRequest) {
         portalUrl
       })
     });
+
+    // Trigger Admin Notification & SMS
+    try {
+      await triggerAdminNotification({
+        title: 'Liability Waiver Signed',
+        message: `Guest ${booking.guestName || 'Passenger'} signed the liability waiver for booking BK-${bookingId}.`,
+        type: 'waiver',
+        link: `/admin/bookings`
+      });
+    } catch (notifErr) {
+      console.error('Failed to trigger admin waiver notification:', notifErr);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

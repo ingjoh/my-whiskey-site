@@ -7,10 +7,11 @@ import {
    Sparkles, MapPin, Navigation, Share2, DollarSign, 
    Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
    Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, ShieldCheck, Ship, Users, Compass,
-   Sun, Cloud
+   Sun, Cloud, Star, Gift, Upload
  } from 'lucide-react';
 import Link from 'next/link';
 import { firebaseConfig } from '@/lib/firebase';
+import { uploadFile } from '@/lib/storage';
 import PublicFooter from '@/components/public/PublicFooter';
 
 const darkMapStyles = [
@@ -104,6 +105,68 @@ export default function GuestTripMemoriesPage() {
   const [tipSuccess, setTipSuccess] = useState<boolean>(false);
   const [tippedAmount, setTippedAmount] = useState<number>(0);
 
+  const [rating, setRating] = useState<number>(5);
+  const [reviewText, setReviewText] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewSuccess, setReviewSuccess] = useState<boolean>(false);
+  const [existingReview, setExistingReview] = useState<any>(null);
+  const [activeActionTab, setActiveActionTab] = useState<'gratuity' | 'testimonial'>('gratuity');
+
+  const customTipRef = useRef<HTMLInputElement>(null);
+  const testimonialTextRef = useRef<HTMLTextAreaElement>(null);
+  const [uploadedMedia, setUploadedMedia] = useState<string[]>([]);
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
+
+  const hasTipped = tipSuccess || tippedAmount > 0 || (gallery?.tippingLedger?.totalTipped || 0) > 0;
+  const hasReviewed = reviewSuccess || existingReview !== null;
+
+  const [gratuityTransitionSeconds, setGratuityTransitionSeconds] = useState<number | null>(null);
+
+  // Auto-advance only if the tip was completed in a past session/already loaded
+  useEffect(() => {
+    if (hasTipped && !hasReviewed && !tipSuccess && gratuityTransitionSeconds === null) {
+      setActiveActionTab('testimonial');
+    }
+  }, [hasTipped, hasReviewed, tipSuccess, gratuityTransitionSeconds]);
+
+  // When tipSuccess is triggered, hold on Gratuity tab and start countdown
+  useEffect(() => {
+    if (tipSuccess) {
+      setActiveActionTab('gratuity');
+      setGratuityTransitionSeconds(5);
+    }
+  }, [tipSuccess]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (gratuityTransitionSeconds === null) return;
+    if (gratuityTransitionSeconds <= 0) {
+      setGratuityTransitionSeconds(null);
+      setActiveActionTab('testimonial');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setGratuityTransitionSeconds(prev => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [gratuityTransitionSeconds]);
+
+  useEffect(() => {
+    if (tipPercentage === 'custom') {
+      setTimeout(() => {
+        customTipRef.current?.focus();
+      }, 50);
+    }
+  }, [tipPercentage]);
+
+  useEffect(() => {
+    if (activeActionTab === 'testimonial') {
+      setTimeout(() => {
+        testimonialTextRef.current?.focus();
+      }, 50);
+    }
+  }, [activeActionTab]);
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
 
@@ -182,6 +245,9 @@ export default function GuestTripMemoriesPage() {
       }
       const gData = await gRes.json();
       setGallery(gData);
+      if (gData.testimonial) {
+        setExistingReview(gData.testimonial);
+      }
 
       // 2. Extract booking details from embedded object (for pricing & captainId)
       if (gData.booking) {
@@ -277,6 +343,58 @@ export default function GuestTripMemoriesPage() {
       showToast('error', 'Tipping request encountered a network issue.');
     } finally {
       setIsSubmittingTip(false);
+    }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    setIsUploadingMedia(true);
+    showToast('success', `Uploading ${files.length} media item(s)...`);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        const url = await uploadFile(file, `testimonials/${bookingId}`);
+        urls.push(url);
+      }
+      setUploadedMedia(prev => [...prev, ...urls]);
+      showToast('success', 'Media uploaded successfully!');
+    } catch (err) {
+      console.error('Upload failed:', err);
+      showToast('error', 'Failed to upload media. Please try again.');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewText.trim()) return;
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(`/api/trips/${bookingId}/testimonial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating,
+          text: reviewText,
+          guestName: booking?.guestName || 'A Guest',
+          experienceTitle: booking?.experienceTitle || 'Yacht Charter',
+          media: uploadedMedia
+        })
+      });
+      if (res.ok) {
+        setReviewSuccess(true);
+        setExistingReview({ rating, text: reviewText, media: uploadedMedia, status: 'pending_moderation' });
+        showToast('success', 'Thank you! Your feedback has been submitted for moderation.');
+      } else {
+        showToast('error', 'Failed to submit review.');
+      }
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      showToast('error', 'Error occurred while saving review.');
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -722,47 +840,257 @@ export default function GuestTripMemoriesPage() {
       {/* Main content body */}
       <section style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 2rem' }}>
 
-        {/* Crew Tipping Component */}
-        {tipSuccess ? (
-          <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '1.5rem 2rem', marginBottom: '3rem', display: 'flex', alignItems: 'center', gap: '1rem', color: '#10b981' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Check size={18} />
+        {/* Tipping & Testimonial Row */}
+        {hasTipped && hasReviewed ? (
+          /* Both Completed: Hide main container and show smaller summary cards */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '1.5rem',
+            margin: '2rem auto 3.5rem auto',
+            width: '100%'
+          }}>
+            {/* Gratuity Summary Card */}
+            <div style={{
+              background: 'rgba(112, 140, 132, 0.08)',
+              border: '1px solid rgba(112, 140, 132, 0.25)',
+              borderRadius: '12px',
+              padding: '1.5rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              color: '#708C84',
+              textAlign: 'left'
+            }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(112, 140, 132, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Check size={20} />
+              </div>
+              <div>
+                <h4 style={{ margin: '0 0 0.15rem 0', color: 'white', fontSize: '0.95rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700 }}>Thank You for Your Tip!</h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#D8C7AF', opacity: 0.85 }}>
+                  Your crew gratuity has been successfully processed. The crew greatly appreciates your kindness!
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 style={{ margin: '0 0 0.15rem 0', color: 'white', fontSize: '1rem', fontFamily: "'Cormorant Garamond', serif" }}>Thank You for Your Generosity!</h4>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.85 }}>
-                Your crew tip of <strong>${tippedAmount}</strong> was successfully charged and routed. The Captain and crew greatly appreciate your kindness.
-              </p>
-            </div>
-          </div>
-        ) : (gallery?.tippingLedger?.totalTipped || 0) > 0 ? (
-          <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.12)', borderRadius: '12px', padding: '1.25rem 1.75rem', marginBottom: '3rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#10b981', fontSize: '0.86rem' }}>
-            <Check size={16} style={{ flexShrink: 0 }} />
-            <span>Crew Gratuity has been successfully processed for this voyage. Thank you for your support!</span>
-          </div>
-        ) : (
-          <div style={{ maxWidth: '600px', margin: '2rem auto 3.5rem auto', background: 'linear-gradient(to right bottom, #1E2124, #141618)', border: '1px solid rgba(185, 120, 59, 0.25)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center' }}>
-            <form onSubmit={handleTipSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B9783B', fontWeight: 600 }}>Crew appreciation</span>
-              <h3 style={{ margin: 0, fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', letterSpacing: '0.01em' }}>
-                Appreciate Captain & Crew?
-              </h3>
-              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8rem', opacity: 0.7, lineHeight: 1.4, maxWidth: '440px' }}>
-                If you enjoyed your voyage, it is custom to show appreciation. 100% of tips are split directly among the captain and crew members.
+
+            {/* Testimonial Summary Card */}
+            <div style={{
+              background: '#1E2124',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '12px',
+              padding: '1.5rem 2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your Testimonial</span>
+                <div style={{ display: 'flex', gap: '0.1rem', color: '#E9C46A' }}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} size={12} fill={i < existingReview?.rating ? '#E9C46A' : 'none'} stroke={i < existingReview?.rating ? 'none' : '#E9C46A'} />
+                  ))}
+                </div>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.85, fontStyle: 'italic', lineHeight: 1.4 }}>
+                "{existingReview?.text}"
               </p>
 
-              {/* Percentage Buttons */}
-              <div className="tipping-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', width: '100%' }}>
-                {[10, 20, 30].map(pct => {
-                  const calculatedAmt = Math.round(bookingTotal * (pct / 100));
-                  return (
+              {/* Media Attachments Preview */}
+              {existingReview?.media && existingReview.media.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  {existingReview.media.map((url: string, idx: number) => {
+                    const isVideo = url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.mov') || url.toLowerCase().includes('.webm');
+                    return (
+                      <div key={idx} style={{ width: '50px', height: '50px', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        {isVideo ? (
+                          <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <img src={url} alt="Testimonial attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <span style={{ fontSize: '0.65rem', color: '#708C84', fontWeight: 600, marginTop: '0.25rem' }}>
+                {existingReview?.status === 'pending_moderation' ? '✓ Submitted for moderation' : '✓ Live on website'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Not Both Completed: Show Single Container with 2 Tabs */
+          <div style={{
+            maxWidth: '600px',
+            margin: '2rem auto 3.5rem auto',
+            background: 'linear-gradient(to right bottom, #1E2124, #141618)',
+            border: '1px solid rgba(185, 120, 59, 0.25)',
+            borderRadius: '12px',
+            padding: '2rem 2.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.5rem'
+          }}>
+            {/* Tabs Selector */}
+            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setActiveActionTab('gratuity')}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: activeActionTab === 'gratuity' ? '2px solid #B9783B' : '2px solid transparent',
+                  color: activeActionTab === 'gratuity' ? 'white' : '#D8C7AF',
+                  opacity: activeActionTab === 'gratuity' ? 1 : 0.6,
+                  padding: '0.75rem 0',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  outline: 'none'
+                }}
+              >
+                <Gift size={15} /> Crew Gratuity
+                {hasTipped && <span style={{ color: '#708C84', fontSize: '0.75rem' }}>✓</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveActionTab('testimonial')}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: activeActionTab === 'testimonial' ? '2px solid #B9783B' : '2px solid transparent',
+                  color: activeActionTab === 'testimonial' ? 'white' : '#D8C7AF',
+                  opacity: activeActionTab === 'testimonial' ? 1 : 0.6,
+                  padding: '0.75rem 0',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  outline: 'none'
+                }}
+              >
+                <Star size={15} /> Testimonial
+                {hasReviewed && <span style={{ color: '#708C84', fontSize: '0.75rem' }}>✓</span>}
+              </button>
+            </div>
+
+            {/* Tab Contents */}
+            {activeActionTab === 'gratuity' ? (
+              /* Gratuity Tab */
+              hasTipped ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', color: '#10b981', textAlign: 'center', padding: '1rem 0', width: '100%' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                    <Check size={24} />
+                  </div>
+                  <h4 style={{ margin: '0 0 0.15rem 0', color: 'white', fontSize: '1.15rem', fontFamily: "'Cormorant Garamond', serif" }}>Thank You for Your Generosity!</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.85, maxWidth: '400px' }}>
+                    Your crew tip of <strong>${tippedAmount || gallery?.tippingLedger?.totalTipped || 0}</strong> was successfully charged. The crew greatly appreciates your support!
+                  </p>
+
+                  {/* Visual transition countdown pill button */}
+                  {gratuityTransitionSeconds !== null && !hasReviewed && (
                     <button
-                      key={pct}
                       type="button"
-                      onClick={() => setTipPercentage(pct)}
+                      onClick={() => {
+                        setGratuityTransitionSeconds(null);
+                        setActiveActionTab('testimonial');
+                      }}
                       style={{
-                        background: tipPercentage === pct ? '#B9783B' : 'rgba(255,255,255,0.02)',
-                        border: tipPercentage === pct ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)',
+                        position: 'relative',
+                        width: '100%',
+                        maxWidth: '320px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(185, 120, 59, 0.35)',
+                        color: 'white',
+                        padding: '0.65rem 1rem',
+                        borderRadius: '24px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        overflow: 'hidden',
+                        outline: 'none',
+                        marginTop: '1.25rem',
+                        transition: 'border-color 0.2s'
+                      }}
+                    >
+                      {/* Filling background animation */}
+                      <div style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${(5 - gratuityTransitionSeconds) * 20}%`,
+                        background: '#B9783B',
+                        transition: 'width 1s linear',
+                        zIndex: 0
+                      }} />
+                      <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        Next: Leave a Testimonial ({gratuityTransitionSeconds}s) <ArrowRight size={12} />
+                      </span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={handleTipSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B9783B', fontWeight: 600 }}>Crew appreciation</span>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', letterSpacing: '0.01em', textAlign: 'center' }}>
+                    Appreciate Captain & Crew?
+                  </h3>
+                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8rem', opacity: 0.7, lineHeight: 1.4, maxWidth: '440px', textAlign: 'center' }}>
+                    If you enjoyed your voyage, it is custom to show appreciation. 100% of tips are split directly among the captain and crew members.
+                  </p>
+
+                  {/* Percentage Buttons */}
+                  <div className="tipping-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', width: '100%' }}>
+                    {[10, 20, 30].map(pct => {
+                      const calculatedAmt = Math.round(bookingTotal * (pct / 100));
+                      return (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setTipPercentage(pct)}
+                          style={{
+                            background: tipPercentage === pct ? '#B9783B' : 'rgba(255,255,255,0.02)',
+                            border: tipPercentage === pct ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)',
+                            color: 'white',
+                            padding: '0.65rem 0.25rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                            outline: 'none'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{pct}%</span>
+                          <span style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '0.1rem' }}>${calculatedAmt}</span>
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setTipPercentage('custom')}
+                      style={{
+                        background: tipPercentage === 'custom' ? '#B9783B' : 'rgba(255,255,255,0.02)',
+                        border: tipPercentage === 'custom' ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)',
                         color: 'white',
                         padding: '0.65rem 0.25rem',
                         borderRadius: '6px',
@@ -771,80 +1099,208 @@ export default function GuestTripMemoriesPage() {
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
                         transition: 'all 0.2s',
                         outline: 'none'
                       }}
                     >
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{pct}%</span>
-                      <span style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '0.1rem' }}>${calculatedAmt}</span>
+                      Custom
                     </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => setTipPercentage('custom')}
-                  style={{
-                    background: tipPercentage === 'custom' ? '#B9783B' : 'rgba(255,255,255,0.02)',
-                    border: tipPercentage === 'custom' ? '1px solid #B9783B' : '1px solid rgba(255,255,255,0.1)',
-                    color: 'white',
-                    padding: '0.65rem 0.25rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    transition: 'all 0.2s',
-                    outline: 'none'
-                  }}
-                >
-                  Custom
-                </button>
-              </div>
+                  </div>
 
-              {/* Custom Input */}
-              {tipPercentage === 'custom' && (
-                <div style={{ position: 'relative', width: '100%' }}>
-                  <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}><DollarSign size={16} /></div>
-                  <input
-                    type="number"
-                    value={customTip}
-                    onChange={e => setCustomTip(e.target.value)}
-                    placeholder="Enter tip amount..."
-                    style={{ width: '100%', padding: '0.65rem 1rem 0.65rem 2.25rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', outline: 'none', fontSize: '0.9rem' }}
-                  />
+                  {/* Custom Input */}
+                  {tipPercentage === 'custom' && (
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}><DollarSign size={16} /></div>
+                      <input
+                        ref={customTipRef}
+                        type="number"
+                        value={customTip}
+                        onChange={e => setCustomTip(e.target.value)}
+                        placeholder="Enter tip amount..."
+                        style={{ width: '100%', padding: '0.65rem 1rem 0.65rem 2.25rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', outline: 'none', fontSize: '0.9rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Submit tipping payment */}
+                  <button
+                    type="submit"
+                    disabled={isSubmittingTip || calculateTipAmount() <= 0}
+                    style={{
+                      width: '100%',
+                      background: '#B9783B',
+                      border: 'none',
+                      color: 'white',
+                      padding: '0.8rem',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.88rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      transition: 'background 0.2s',
+                      opacity: calculateTipAmount() <= 0 ? 0.5 : 1,
+                      pointerEvents: calculateTipAmount() <= 0 ? 'none' : 'auto'
+                    }}
+                  >
+                    {isSubmittingTip ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {isSubmittingTip ? 'Routing to Checkout...' : `Confirm & Charge Tip ($${calculateTipAmount()})`}
+                  </button>
+                </form>
+              )
+            ) : (
+              /* Testimonial Tab */
+              hasReviewed ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', textAlign: 'center', padding: '1rem 0' }}>
+                  <div style={{ display: 'flex', gap: '0.2rem', color: '#E9C46A', justifyContent: 'center' }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={24} fill={i < existingReview?.rating ? '#E9C46A' : 'none'} stroke={i < existingReview?.rating ? 'none' : '#E9C46A'} />
+                    ))}
+                  </div>
+                  <h4 style={{ margin: '0 0 0.15rem 0', color: 'white', fontSize: '1.15rem', fontFamily: "'Cormorant Garamond', serif" }}>Thank You for Your Testimonial!</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.8, fontStyle: 'italic', maxWidth: '400px', lineHeight: 1.4 }}>
+                    "{existingReview?.text}"
+                  </p>
+
+                  {/* Media Attachments Preview */}
+                  {existingReview?.media && existingReview.media.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '0.5rem' }}>
+                      {existingReview.media.map((url: string, idx: number) => {
+                        const isVideo = url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.mov') || url.toLowerCase().includes('.webm');
+                        return (
+                          <div key={idx} style={{ width: '50px', height: '50px', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            {isVideo ? (
+                              <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <img src={url} alt="Testimonial attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <span style={{ fontSize: '0.72rem', color: '#708C84', fontWeight: 600, marginTop: '0.5rem' }}>
+                    {existingReview?.status === 'pending_moderation' ? '✓ Submitted for moderation' : '✓ Live on website'}
+                  </span>
                 </div>
-              )}
+              ) : (
+                <form onSubmit={handleReviewSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B9783B', fontWeight: 600 }}>Share Your Experience</span>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", color: 'white', letterSpacing: '0.01em', textAlign: 'center' }}>
+                    Leave a Testimonial
+                  </h3>
+                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8rem', opacity: 0.7, lineHeight: 1.4, maxWidth: '440px', textAlign: 'center' }}>
+                    We love to hear from our guests! Share your favorite memories of your voyage aboard M/Y Whiskey.
+                  </p>
 
-              {/* Submit tipping payment */}
-              <button
-                type="submit"
-                disabled={isSubmittingTip || calculateTipAmount() <= 0}
-                style={{
-                  width: '100%',
-                  background: '#B9783B',
-                  border: 'none',
-                  color: 'white',
-                  padding: '0.8rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  transition: 'background 0.2s',
-                  opacity: calculateTipAmount() <= 0 ? 0.5 : 1,
-                  pointerEvents: calculateTipAmount() <= 0 ? 'none' : 'auto'
-                }}
-              >
-                {isSubmittingTip ? <Loader2 size={16} className="animate-spin" /> : null}
-                {isSubmittingTip ? 'Routing to Checkout...' : `Confirm & Charge Tip ($${calculateTipAmount()})`}
-              </button>
-            </form>
+                  {/* Star Selector */}
+                  <div style={{ display: 'flex', gap: '0.35rem', cursor: 'pointer', justifyContent: 'center' }}>
+                    {[1, 2, 3, 4, 5].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setRating(val)}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, outline: 'none' }}
+                      >
+                        <Star 
+                          size={28} 
+                          fill={val <= rating ? '#E9C46A' : 'none'} 
+                          stroke={val <= rating ? 'none' : '#E9C46A'} 
+                          style={{ transition: 'all 0.15s' }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Text Input */}
+                  <textarea
+                    ref={testimonialTextRef}
+                    rows={3}
+                    value={reviewText}
+                    onChange={e => setReviewText(e.target.value)}
+                    placeholder="Tell us about your charter excursion..."
+                    style={{ width: '100%', padding: '0.65rem 1rem', background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'white', outline: 'none', fontSize: '0.9rem', resize: 'none' }}
+                    required
+                  />
+
+                  {/* Media Upload Area */}
+                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#D8C7AF', opacity: 0.7 }}>Attach photos or videos:</span>
+                      <label htmlFor="testimonial-media-input" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(185, 120, 59, 0.15)', border: '1px solid rgba(185, 120, 59, 0.3)', color: '#D8C7AF', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.2s' }}>
+                        {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                        {isUploadingMedia ? 'Uploading...' : 'Upload Media'}
+                      </label>
+                      <input
+                        id="testimonial-media-input"
+                        type="file"
+                        multiple
+                        accept="image/*,video/*"
+                        onChange={handleMediaUpload}
+                        disabled={isUploadingMedia}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+
+                    {/* Uploaded Media Previews */}
+                    {uploadedMedia.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                        {uploadedMedia.map((url, i) => {
+                          const isVideo = url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.mov') || url.toLowerCase().includes('.webm');
+                          return (
+                            <div key={i} style={{ width: '50px', height: '50px', borderRadius: '4px', overflow: 'hidden', position: 'relative', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              {isVideo ? (
+                                <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <img src={url} alt="Uploaded thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setUploadedMedia(prev => prev.filter((_, idx) => idx !== i))}
+                                style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#EF4444', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', padding: 0 }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isSubmittingReview || !reviewText.trim()}
+                    style={{
+                      width: '100%',
+                      background: '#B9783B',
+                      border: 'none',
+                      color: 'white',
+                      padding: '0.8rem',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.88rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      transition: 'background 0.2s',
+                      opacity: !reviewText.trim() ? 0.5 : 1
+                    }}
+                  >
+                    {isSubmittingReview ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {isSubmittingReview ? 'Submitting...' : 'Submit Testimonial'}
+                  </button>
+                </form>
+              )
+            )}
           </div>
         )}
         

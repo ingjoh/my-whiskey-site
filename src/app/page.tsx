@@ -16,13 +16,10 @@ import { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
   const { WorkspaceResolver } = require('@/lib/services/workspaceResolver');
-  const { loadPageDataRelational } = require('@/lib/db');
+  const { loadPageDataRelational, getSeoMetadata } = require('@/lib/db');
   const workspaceId = await WorkspaceResolver.getActiveWorkspaceId();
   const pageData = await loadPageDataRelational(workspaceId, 'home');
-  if (!pageData) return { title: 'Tuamotu Platform' };
-  return {
-    title: pageData.title ? `${pageData.title}` : 'Tuamotu Platform',
-  };
+  return getSeoMetadata(pageData, '/');
 }
 
 function PublicNodeRenderer({ node, allNodes, theme }: { node: PageNode; allNodes: Record<string, PageNode>; theme?: any }) {

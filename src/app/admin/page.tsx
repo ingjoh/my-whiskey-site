@@ -10,6 +10,7 @@ import {
   Compass, Sliders, Ship, MapPin, Calendar, MessageSquare, Printer, DollarSign,
   Tag, Share2, BookOpen
 } from 'lucide-react';
+import NotificationBell from '@/components/admin/NotificationBell';
 import { 
   getAllPagesWithMetadata, PageMetadata, deletePageData, 
   getAllTemplates, TemplateMetadata, savePageData, loadPageData,
@@ -397,9 +398,12 @@ export default function AdminDashboard() {
 
         {/* Sidebar Footer User Details */}
         <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
-            <span style={{ display: 'block', fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.5 }}>Dispatcher Profile</span>
-            <span style={{ fontWeight: 600, fontSize: '0.78rem', color: 'white', fontFamily: 'monospace' }} title={user?.email || 'Admin'}>{user?.email || 'admin@mywhiskey.com'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <NotificationBell />
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+              <span style={{ display: 'block', fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.5 }}>Dispatcher Profile</span>
+              <span style={{ fontWeight: 600, fontSize: '0.78rem', color: 'white', fontFamily: 'monospace' }} title={user?.email || 'Admin'}>{user?.email || 'admin@mywhiskey.com'}</span>
+            </div>
           </div>
           <button 
             style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', opacity: 0.6, padding: '0.25rem', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }} 
@@ -843,6 +847,13 @@ export default function AdminDashboard() {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Commissions & Payouts Ledger</div>
                   <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Track referral fees, UTM attribution & partner payouts</div>
+                </div>
+              </Link>
+              <Link href="/admin/content/testimonials" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem', background: '#1E2124', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', color: '#F4F1EA', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(185,120,59,0.3)'} onMouseOut={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'}>
+                <MessageSquare size={22} color="#B9783B" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Guest Testimonial Moderation</div>
+                  <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.7 }}>Approve, archive & feature guest reviews</div>
                 </div>
               </Link>
             </div>
