@@ -17,6 +17,7 @@ import {
   loadTemplateData, getAllBookings, getContentItems, loadWorkspaceConfig
 } from '@/lib/db';
 import { seedTemplates } from '@/lib/pageTemplates';
+import NotificationBell from '@/components/admin/NotificationBell';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -418,7 +419,12 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Panel Content Area */}
-      <main style={{ flex: 1, padding: '2.5rem 3rem', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
+      <main style={{ flex: 1, padding: '2.5rem 3rem', boxSizing: 'border-box', overflowY: 'auto', height: '100vh', position: 'relative' }}>
+        
+        {/* Real-time Admin Notification Bell */}
+        <div style={{ position: 'absolute', top: '2.5rem', right: '3rem', zIndex: 100 }}>
+          <NotificationBell />
+        </div>
         
         {/* Toast Notification */}
         {toast && (
