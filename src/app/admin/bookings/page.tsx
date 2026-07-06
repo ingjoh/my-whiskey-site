@@ -17,6 +17,7 @@ import {
   getAllCustomerProfiles, saveAdminInternalBooking, checkBlackoutConflicts,
   saveAssetBlackout, updateBookingSettings
 } from '@/lib/db';
+import NotificationBell from '@/components/admin/NotificationBell';
 
 // Helper to format local timezone Date objects as YYYY-MM-DD
 const formatLocalYYYYMMDD = (d: Date) => {
@@ -2065,6 +2066,7 @@ export default function BookingsDashboard() {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <NotificationBell />
             <button 
               onClick={() => setShowInternalBookingModal(true)}
               style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', border: 'none', background: '#B9783B', padding: '0.5rem 0.85rem', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}

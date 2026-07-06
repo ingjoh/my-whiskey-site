@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSiteSettings } from '@/components/SiteSettingsProvider';
 import WeatherWidget from './WeatherWidget';
 import { getContentItems, getContentTypeConfigs } from '@/lib/db';
+import NotificationBell from '@/components/admin/NotificationBell';
 
 export default function PublicNavigation({ theme, settings: propSettings, isEditorMode = false }: { theme?: ThemeConfig; settings?: any; isEditorMode?: boolean }) {
   const { settings: contextSettings } = useSiteSettings();
@@ -446,6 +447,7 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
               <WeatherWidget location={theme.header.weatherLocation || 'Destin, FL, USA'} />
             </div>
           )}
+          <NotificationBell />
         </div>
       </nav>
       </header>

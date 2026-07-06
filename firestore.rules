@@ -111,5 +111,22 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Notifications rules
+    match /notifications/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    // Payouts rules
+    match /payouts/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    // Testimonials rules
+    match /testimonials/{document} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
   }
 }

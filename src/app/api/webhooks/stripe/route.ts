@@ -7,6 +7,7 @@ import { sendSms } from '@/lib/sms';
 import { enrollBookingInFlow, parseMarkdownToHtml } from '@/lib/notifications';
 import MasterEmailWrapper from '@/components/emails/MasterEmailWrapper';
 import { sendMetaServerEvent } from '@/lib/meta-capi';
+import { triggerAdminNotification } from '@/lib/admin-notifications';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
   apiVersion: '2023-10-16' as any,
@@ -79,9 +80,127 @@ export async function POST(request: NextRequest) {
 
             // Also store the customer's stripeCustomerId back to the booking for future one-click checkouts
             if (session.customer) {
+              await adminDb.collection('bookings').doc(bookingId).set({
+                stripeCustomerId: session.customer
+              }, { merge: true });
               await adminDb.collection('pages').doc(`booking-${bookingId}`).set({
                 stripeCustomerId: session.customer
               }, { merge: true });
+            }
+
+            // Resolve crew members and their weights
+            const crewList: Array<{ id: string; name: string; role: string; weight: number }> = [];
+            
+            // 1. Check operational assignments
+            try {
+              const assignmentsSnap = await adminDb.collection('assignments')
+                .where('bookingId', '==', bookingId)
+                .get();
+              
+              for (const asgDoc of assignmentsSnap.docs) {
+                const asg = asgDoc.data();
+                if (asg.resourceId && asg.status !== 'declined') {
+                  const resSnap = await adminDb.collection('resources').doc(asg.resourceId).get();
+                  if (resSnap.exists) {
+                    const res = resSnap.data() || {};
+                    if (res.type === 'crew') {
+                      const capabilities = res.humanConfig?.capabilities || [];
+                      const isCaptain = capabilities.includes('captain');
+                      const role = isCaptain ? 'Captain' : (capabilities.some((c: string) => c.includes('host') || c.includes('deckhand')) ? 'Deckhand / Host' : 'Crew Member');
+                      const weight = Number(res.splitWeight || res.humanConfig?.splitWeight || (isCaptain ? 10 : (role.includes('Deckhand') ? 20 : 10)));
+                      
+                      crewList.push({
+                        id: res.id,
+                        name: res.name || 'Staff Member',
+                        role,
+                        weight
+                      });
+                    }
+                  }
+                }
+              }
+            } catch (asgErr) {
+              console.error('Error fetching assignments for tipping split:', asgErr);
+            }
+
+            // 2. Fallback to booking document captainId if no crew was found
+            if (crewList.length === 0) {
+              try {
+                const bookingDoc = await adminDb.collection('pages').doc(`booking-${bookingId}`).get();
+                if (bookingDoc.exists) {
+                  const bData = bookingDoc.data() || {};
+                  if (bData.captainId) {
+                    const captSnap = await adminDb.collection('resources').doc(bData.captainId).get();
+                    if (captSnap.exists) {
+                      const capt = captSnap.data() || {};
+                      crewList.push({
+                        id: capt.id,
+                        name: capt.name || bData.captainTitle || 'Captain',
+                        role: 'Captain',
+                        weight: 10
+                      });
+                    }
+                  }
+                }
+              } catch (bErr) {
+                console.error('Error fetching booking captain fallback for tipping:', bErr);
+              }
+            }
+
+            // 3. Create Payout Drafts if we resolved crew members
+            if (crewList.length > 0) {
+              const totalWeight = crewList.reduce((sum, c) => sum + c.weight, 0);
+              
+              for (const crew of crewList) {
+                const sharePercent = totalWeight > 0 ? (crew.weight / totalWeight) : (1 / crewList.length);
+                const allocatedAmount = Math.round(tipAmount * sharePercent);
+                
+                const payoutId = `po_tip_${paymentIntentId || `manual_${Date.now()}`}_${crew.id}`;
+                const payoutRef = adminDb.collection('payouts').doc(payoutId);
+                
+                await payoutRef.set({
+                  id: payoutId,
+                  tenantId: 'org-whiskey',
+                  recipientId: crew.id,
+                  recipientName: crew.name,
+                  recipientRole: crew.role,
+                  bookingId,
+                  amount: allocatedAmount,
+                  splitWeight: crew.weight,
+                  status: 'draft',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                }, { merge: true });
+                
+                console.log(`Created payout draft ${payoutId} for ${crew.name} (${crew.role}): $${(allocatedAmount / 100).toFixed(2)}`);
+              }
+            }
+
+            // 4. Create Transaction record
+            const txId = `tx_tip_${paymentIntentId || `manual_${Date.now()}`}`;
+            await adminDb.collection('transactions').doc(txId).set({
+              id: txId,
+              tenantId: 'org-whiskey',
+              bookingId,
+              type: 'charge',
+              method: 'stripe_card',
+              status: 'completed',
+              amount: tipAmount,
+              notes: `Total crew tip appreciation payment for Booking ${bookingId}`,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+
+            // 5. Trigger Admin Notification & SMS
+            try {
+              await triggerAdminNotification({
+                title: 'New Crew Tip Received',
+                message: `A gratuity of $${amountString} was received for booking BK-${bookingId}.`,
+                type: 'tip',
+                link: `/admin/bookings`
+              });
+            } catch (notifErr) {
+              console.error('Failed to trigger admin tip notification:', notifErr);
             }
 
             console.log(`✓ Updated tipping ledger for booking ${bookingId}. Total Tipped: $${updatedLedger.totalTipped / 100}`);
@@ -189,6 +308,20 @@ export async function POST(request: NextRequest) {
         }
 
         await bookingRef.set(updatePayload, { merge: true });
+
+        // Trigger Admin Notification & SMS
+        try {
+          await triggerAdminNotification({
+            title: isBalancePayment ? 'Stripe Payment Received' : 'New Booking Completed',
+            message: isBalancePayment 
+              ? `A balance payment of $${amountPaid.toFixed(2)} was received for booking BK-${bookingId}.`
+              : `New voyage BK-${bookingId} booked by ${existingData.guestName || 'Guest'} for $${existingData.grandTotal || amountPaid} (${existingData.experienceTitle || 'Excursion'}).`,
+            type: isBalancePayment ? 'payment' : 'booking',
+            link: `/admin/bookings`
+          });
+        } catch (notifErr) {
+          console.error('Failed to trigger admin notification in webhook:', notifErr);
+        }
 
         console.log(`✓ Updated booking ${bookingId} status to "${targetStatus}". Paid: $${amountPaidTodayCalculated}, Due Later: $${amountDueLaterCalculated}`);
 

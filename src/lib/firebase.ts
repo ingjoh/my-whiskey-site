@@ -61,12 +61,16 @@ if (process.env.NODE_ENV !== 'production') {
 
 // For Server Component environments (Node.js server-side), Firestore's gRPC stream
 // can fail due to environment/network constraints. Forcing long-polling fixes this.
-export const db = globalForFirebase.db || (typeof window === 'undefined'
-  ? initializeFirestore(app, { experimentalForceLongPolling: true, ignoreUndefinedProperties: true })
-  : getFirestore(app));
-if (process.env.NODE_ENV !== 'production') {
-  globalForFirebase.db = db;
+let localDb;
+if (typeof window === 'undefined') {
+  localDb = globalForFirebase.db || initializeFirestore(app, { experimentalForceLongPolling: true, ignoreUndefinedProperties: true });
+  if (process.env.NODE_ENV !== 'production') {
+    globalForFirebase.db = localDb;
+  }
+} else {
+  localDb = getFirestore(app);
 }
+export const db = localDb;
 
 export const storage = globalForFirebase.storage || getStorage(app);
 if (process.env.NODE_ENV !== 'production') {
