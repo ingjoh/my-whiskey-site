@@ -17,7 +17,6 @@ import {
   loadTemplateData, getAllBookings, getContentItems, loadWorkspaceConfig
 } from '@/lib/db';
 import { seedTemplates } from '@/lib/pageTemplates';
-import NotificationBell from '@/components/admin/NotificationBell';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
