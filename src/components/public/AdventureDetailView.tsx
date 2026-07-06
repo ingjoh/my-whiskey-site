@@ -4281,7 +4281,7 @@ export default function AdventureDetailView({
                     {vesselsList.length > 0 && selectedVessel && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                         <span style={{ color: '#D8C7AF', opacity: 0.7 }}>Vessel Rental ({selectedVessel.title}):</span>
-                        <span style={{ color: 'white' }}>{formatCost(vesselCost)}</span>
+                        <span style={{ color: 'white' }}>{formatCost(vesselCost + budgetTotal)}</span>
                       </div>
                     )}
 
