@@ -19,6 +19,7 @@
     "@react-email/render": "^2.0.9",
     "@toast-ui/react-editor": "^3.2.3",
     "@types/markdown-it": "^14.1.2",
+    "@vercel/speed-insights": "^2.0.0",
     "acorn": "^8.16.0",
     "browser-image-compression": "^2.0.2",
     "exifr": "^7.1.3",
