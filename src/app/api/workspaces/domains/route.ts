@@ -17,15 +17,62 @@ async function verifyUserIsWorkspaceAdmin(request: NextRequest, workspaceId: str
     const decodedToken = await adminAuth.verifyIdToken(token);
     const userId = decodedToken.uid;
 
-    // Query workspace membership to verify actor authority
+    // Resolve personId from users mapping
+    let personId = userId;
+    const userDoc = await adminDb.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      personId = userDoc.data()?.personId || userId;
+    }
+
+    // 1. Check workspace_memberships
     const membershipSnap = await adminDb.collection('workspace_memberships')
       .where('workspaceId', '==', workspaceId)
-      .where('personId', '==', userId)
+      .where('personId', '==', personId)
       .get();
 
-    if (membershipSnap.empty) return false;
-    const membership = membershipSnap.docs[0].data();
-    return ['owner', 'coordinator'].includes(membership.role) && membership.status === 'active';
+    if (!membershipSnap.empty) {
+      const membership = membershipSnap.docs[0].data();
+      if (['owner', 'coordinator'].includes(membership.role) && membership.status === 'active') {
+        return true;
+      }
+    }
+
+    // 2. Fallback: Check organization-level role assignments
+    const configSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+    if (configSnap.exists) {
+      const configData = configSnap.data();
+      const orgId = configData?.identity?.operatorOrgId || 'org-whiskey';
+
+      const roleSnap = await adminDb.collection('role_assignments')
+        .where('personId', '==', personId)
+        .where('scopeId', '==', orgId)
+        .limit(1)
+        .get();
+
+      if (!roleSnap.empty) {
+        const roleData = roleSnap.docs[0].data();
+        const roleId = roleData.roleId || '';
+        if (roleId === 'role_owner' || roleId === 'role_admin' || roleId.includes('owner') || roleId.includes('admin')) {
+          return true;
+        }
+      }
+    }
+
+    // 3. Fallback: Check platform admin role assignments
+    const platformSnap = await adminDb.collection('role_assignments')
+      .where('personId', '==', personId)
+      .where('scopeType', '==', 'platform')
+      .get();
+
+    if (!platformSnap.empty) {
+      const isPlatformAdmin = platformSnap.docs.some(doc => {
+        const roleId = doc.data().roleId || '';
+        return roleId === 'role_admin' || roleId === 'role_super_admin' || roleId.includes('admin');
+      });
+      if (isPlatformAdmin) return true;
+    }
+
+    return false;
   } catch (err) {
     console.error('[Auth] Token verification failed:', err);
     return false;
