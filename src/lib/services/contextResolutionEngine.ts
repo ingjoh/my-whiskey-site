@@ -96,13 +96,61 @@ export class ContextResolutionEngine {
       }
     }
 
-    // 3. Retrieve membership for the target actorId
-    const membership = await WorkspaceMembershipRepository.findByWorkspaceAndPerson(workspaceId, actorId);
-    if (!membership || membership.status !== 'active') {
-      throw new Error('Unauthorized: Actor has no active membership in this workspace');
+    // Resolve personId if actorId is a Firebase Auth uid (does not start with 'pers_')
+    let personId = actorId;
+    if (actorId && !actorId.startsWith('pers_')) {
+      const userDoc = await adminDb.collection('users').doc(actorId).get();
+      if (userDoc.exists) {
+        personId = userDoc.data()?.personId || actorId;
+      }
     }
 
-    const role = membership.role;
+    // 3. Retrieve membership for the target personId
+    const membership = await WorkspaceMembershipRepository.findByWorkspaceAndPerson(workspaceId, personId);
+    
+    let role: 'owner' | 'coordinator' | 'member' | 'viewer' | null = null;
+    
+    if (membership && membership.status === 'active') {
+      role = membership.role as 'owner' | 'coordinator' | 'member' | 'viewer';
+    } else {
+      // Fallback: Check if the actor has a role assignment for the associated organization
+      const configSnap = await adminDb.collection('workspace_configurations').doc(workspaceId).get();
+      if (configSnap.exists) {
+        const configData = configSnap.data();
+        const orgId = configData?.identity?.operatorOrgId || 'org-whiskey';
+        
+        // Query role assignments for this person and organization
+        const roleSnap = await adminDb.collection('role_assignments')
+          .where('personId', '==', personId)
+          .where('scopeId', '==', orgId)
+          .limit(1)
+          .get();
+          
+        if (!roleSnap.empty) {
+          const roleData = roleSnap.docs[0].data();
+          const roleId = roleData.roleId || '';
+          if (roleId === 'role_owner' || roleId.includes('owner')) {
+            role = 'owner';
+          } else if (roleId === 'role_admin' || roleId.includes('admin') || roleId.includes('coordinator')) {
+            role = 'coordinator';
+          } else if (roleId.includes('member') || roleId.includes('staff')) {
+            role = 'member';
+          } else {
+            role = 'viewer';
+          }
+        }
+      }
+    }
+
+    if (!role) {
+      // Final fallback check: if the actor is a Platform Admin (e.g. whitelisted email / platform scope)
+      const isPlatformAdminActor = await this.isPlatformAdmin(personId);
+      if (isPlatformAdminActor) {
+        role = 'owner';
+      } else {
+        throw new Error('Unauthorized: Actor has no active membership or role in this workspace context');
+      }
+    }
 
     // 4. Resolve visible modules
     const activeWorkspaceModules = ws.status === 'archived' 

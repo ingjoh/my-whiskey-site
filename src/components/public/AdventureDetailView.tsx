@@ -1653,6 +1653,25 @@ export default function AdventureDetailView({
           });
         }
 
+        // Trigger GA4 add_payment_info event
+        if (typeof window !== 'undefined') {
+          (window as any).dataLayer = (window as any).dataLayer || [];
+          (window as any).dataLayer.push({
+            event: 'add_payment_info',
+            ecommerce: {
+              value: amountDueToday,
+              currency: 'USD',
+              payment_type: paymentPlan || '50_50',
+              items: [{
+                item_id: item.id || '',
+                item_name: item.title,
+                price: amountDueToday,
+                quantity: 1
+              }]
+            }
+          });
+        }
+
         setBookingStep(3);
         refreshAvailabilityData();
       } else {
@@ -1742,6 +1761,14 @@ export default function AdventureDetailView({
       };
       
       const { bookingId, token } = await saveBookingData(bookingData);
+      
+      // Save checkout value in local storage to enrich GTM conversion on redirect success
+      try {
+        localStorage.setItem(`checkout_value_${bookingId}`, amountDueToday.toString());
+        localStorage.setItem(`checkout_item_name_${bookingId}`, item.title);
+      } catch (storageErr) {
+        console.error('Failed to store checkout details in localStorage:', storageErr);
+      }
       
       try {
         if (selectedVesselSlug && selectedDate && selectedStartTime && guestEmail) {
@@ -3735,6 +3762,24 @@ export default function AdventureDetailView({
                           });
                           (window as any).fbq('trackCustom', 'SubscribedButtonClick');
                         }
+                      }
+
+                      // Trigger GA4 begin_checkout event
+                      if (typeof window !== 'undefined') {
+                        (window as any).dataLayer = (window as any).dataLayer || [];
+                        (window as any).dataLayer.push({
+                          event: 'begin_checkout',
+                          ecommerce: {
+                            value: amountDueToday,
+                            currency: 'USD',
+                            items: [{
+                              item_id: item.id || '',
+                              item_name: item.title,
+                              price: amountDueToday,
+                              quantity: 1
+                            }]
+                          }
+                        });
                       }
 
                       setBookingStep(2);

@@ -673,6 +673,15 @@ function PortalContent({ externalTheme }: { externalTheme?: any }) {
       }
 
       const { url } = await response.json();
+      
+      // Save balance payment details in local storage for GTM tracking on success redirect
+      try {
+        localStorage.setItem(`checkout_value_${booking.id}`, booking.amountDueLater.toString());
+        localStorage.setItem(`checkout_item_name_${booking.id}`, `Balance Payment - ${booking.experienceTitle}`);
+      } catch (storageErr) {
+        console.error('Failed to store checkout details in localStorage:', storageErr);
+      }
+      
       window.location.href = url;
     } catch (err: any) {
       console.error('Balance payment error:', err);

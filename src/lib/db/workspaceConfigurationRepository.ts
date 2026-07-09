@@ -21,7 +21,19 @@ export interface WorkspaceConfiguration {
     navigation: any[];
   };
   // Extensible aggregate bucket for future capabilities (AI helpers, Localizations, etc.)
-  extensibleSettings?: Record<string, any>;
+  extensibleSettings?: {
+    dnsVerification?: {
+      verified: boolean;
+      verificationRecords: Array<{
+        type: string;
+        domain: string;
+        value: string;
+        reason?: string;
+      }>;
+      lastChecked?: string;
+    };
+    [key: string]: any;
+  };
 }
 
 export class WorkspaceConfigurationRepository {

@@ -3248,10 +3248,23 @@ export async function getAssetBlackouts(vesselSlug?: string): Promise<AssetBlack
 
 export async function deleteAssetBlackout(id: string): Promise<boolean> {
   try {
-    const docId = id.startsWith('blackout-') ? id : `blackout-${id}`;
-    const docRef = doc(db, PAGE_COLLECTION, docId);
-    await deleteDoc(docRef);
-    return true;
+    if (id.startsWith('blackout-') || id.includes('blackout')) {
+      let docId = id;
+      if (!docId.startsWith('blackout-blackout-')) {
+        if (docId.startsWith('blackout-')) {
+          docId = 'blackout-' + docId;
+        } else {
+          docId = 'blackout-blackout-' + docId;
+        }
+      }
+      const docRef = doc(db, PAGE_COLLECTION, docId);
+      await deleteDoc(docRef);
+      return true;
+    } else {
+      const docRef = doc(db, 'inventory_allocations', id);
+      await deleteDoc(docRef);
+      return true;
+    }
   } catch (error) {
     console.error('Error deleting asset blackout:', error);
     return false;

@@ -135,6 +135,46 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
         </>
       )}
 
+      {!isAdminPage && settings?.injection?.googleAnalyticsId && settings.injection.googleAnalyticsId.startsWith('GTM-') && (
+        <Script id="gtm-purchase" strategy="afterInteractive">
+          {`
+            (function() {
+              const params = new URLSearchParams(window.location.search);
+              if (params.get('status') === 'success') {
+                const bookingId = params.get('bookingId') || params.get('id');
+                if (bookingId) {
+                  const trackedKey = 'gtm_tracked_purchase_' + bookingId;
+                  if (!localStorage.getItem(trackedKey)) {
+                    const storedValue = localStorage.getItem('checkout_value_' + bookingId);
+                    const storedItemName = localStorage.getItem('checkout_item_name_' + bookingId);
+                    
+                    const bookingValue = storedValue ? parseFloat(storedValue) : 0;
+                    const itemName = storedItemName || 'Yacht Charter';
+                    
+                    window.dataLayer = window.dataLayer || [];
+                    window.dataLayer.push({
+                      event: 'purchase',
+                      ecommerce: {
+                        transaction_id: bookingId,
+                        value: bookingValue,
+                        currency: 'USD',
+                        items: [{
+                          item_id: bookingId,
+                          item_name: itemName,
+                          price: bookingValue,
+                          quantity: 1
+                        }]
+                      }
+                    });
+                    localStorage.setItem(trackedKey, 'true');
+                  }
+                }
+              }
+            })();
+          `}
+        </Script>
+      )}
+
       {!isAdminPage && settings?.injection?.metaPixelId && (
         <>
           <Script id="meta-pixel" strategy="afterInteractive">

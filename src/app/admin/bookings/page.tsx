@@ -1462,19 +1462,19 @@ export default function BookingsDashboard() {
   };
 
   const handleDeleteBlackoutFromGantt = async (blackoutId: string) => {
-    if (!confirm('Are you sure you want to delete this blackout period?')) return;
+    if (!confirm('⚠️ Are you sure you want to PERMANENTLY delete this blackout period? This action will restore the vessel availability and cannot be undone.')) return;
     try {
       const ok = await deleteAssetBlackout(blackoutId);
       if (ok) {
-        showToast('success', 'Blackout period deleted.');
+        showToast('success', 'Blackout period has been successfully removed.');
         setShowGanttModal(false);
         fetchDashboardData();
       } else {
-        showToast('error', 'Failed to delete blackout.');
+        showToast('error', 'Unable to delete blackout period. Please verify your administrative permissions.');
       }
     } catch (err) {
       console.error(err);
-      showToast('error', 'Error occurred deleting blackout.');
+      showToast('error', 'An error occurred while attempting to delete the blackout period.');
     }
   };
 

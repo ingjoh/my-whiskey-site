@@ -206,6 +206,11 @@ service cloud.firestore {
       allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
     }
 
+    match /inventory_allocations/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || (request.resource.data.tenantId != null && hasOperatorAccess(request.resource.data.tenantId));
+    }
+
     // Workspace Core Rules
     match /workspaces/{document} {
       allow read: if true;
