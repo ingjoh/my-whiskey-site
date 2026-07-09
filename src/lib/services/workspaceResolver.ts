@@ -28,10 +28,12 @@ export class WorkspaceResolver {
         return { workspaceId: null, status: null, subdomain: identifier, customDomain: null };
       }
 
-      // 2. Query workspace configurations
       let config: WorkspaceConfiguration | null = null;
       if (isCustomDomain) {
-        config = await WorkspaceConfigurationRepository.findByCustomDomain(identifier);
+        const cleanDomain = identifier.toLowerCase().startsWith('www.') 
+          ? identifier.slice(4) 
+          : identifier;
+        config = await WorkspaceConfigurationRepository.findByCustomDomain(cleanDomain);
       } else {
         config = await WorkspaceConfigurationRepository.findBySubdomain(identifier);
       }
