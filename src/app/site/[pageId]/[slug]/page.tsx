@@ -140,7 +140,17 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
 
   // Common Theme styles for consistency
   const homeData = await loadPageData(workspaceId === 'ws_whiskey' ? 'home' : `${workspaceId}_home`);
-  const siteSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  const globalSettings = await loadSiteSettings();
+  const wsSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  const siteSettings = {
+    ...globalSettings,
+    ...wsSettings,
+    brand: {
+      ...globalSettings?.brand,
+      ...wsSettings?.brand
+    },
+    navigation: globalSettings?.navigation || wsSettings?.navigation
+  };
   const globalTheme = homeData?.theme || DEFAULT_THEME;
 
   const theme = {

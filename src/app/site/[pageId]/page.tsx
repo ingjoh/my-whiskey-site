@@ -178,10 +178,17 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
   }
 
   // Load configuration mapper
-  let siteSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
-  if (!siteSettings) {
-    siteSettings = await loadSiteSettings();
-  }
+  const globalSettings = await loadSiteSettings();
+  const wsSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  const siteSettings = {
+    ...globalSettings,
+    ...wsSettings,
+    brand: {
+      ...globalSettings?.brand,
+      ...wsSettings?.brand
+    },
+    navigation: globalSettings?.navigation || wsSettings?.navigation
+  };
 
   // Load page matching workspace scope
   const key = workspaceId === 'ws_whiskey' ? pageId : `${workspaceId}_${pageId}`;
@@ -198,33 +205,127 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
       const theme = siteSettings?.theme || DEFAULT_THEME;
 
       return (
-        <main style={{ minHeight: '100vh', background: theme?.backgroundColor || '#1F2326', color: theme?.foregroundColor || '#F4F1EA', fontFamily: theme?.typography?.bodyFontFamily || "'Inter', sans-serif" }}>
+        <main 
+          style={{ 
+            minHeight: '100vh', 
+            width: '100%', 
+            background: theme.backgroundColor || '#0F1112',
+            color: theme.foregroundColor || '#F4F1EA',
+            fontFamily: 'var(--font-sans)',
+            display: 'flex',
+            flexDirection: 'column',
+            '--color-background': theme?.backgroundColor || '#0F1112',
+            '--color-foreground': theme?.foregroundColor || '#F4F1EA',
+            '--color-primary': theme?.primaryColor || '#B9783B',
+            '--color-surface': theme?.surfaceColor || '#1E2124',
+            '--color-muted': theme?.mutedColor || '#D8C7AF',
+            '--color-accent': theme?.accentColor || '#708C84',
+            '--font-heading': theme?.typography?.headingFontFamily || "'Cormorant Garamond', serif",
+            '--font-sans': theme?.typography?.bodyFontFamily || "'Inter', sans-serif",
+          } as React.CSSProperties}
+        >
           <PublicNavigation theme={theme} settings={siteSettings} />
-          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '6rem 2rem' }}>
-            <h1 style={{ fontSize: '3rem', fontFamily: theme?.typography?.headingFontFamily || "'Cormorant Garamond', serif", color: 'var(--color-primary)', marginBottom: '2rem' }}>
-              {matchedConfig.pluralName}
-            </h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '2rem' }}>
-              {activeItems.map((item) => (
-                <div key={item.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  {item.meta?.images?.[0] && (
-                    <img src={item.meta.images[0]} alt={item.title} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <h3 style={{ margin: '0 0 1rem', fontSize: '1.25rem' }}>{item.title}</h3>
-                      <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.5', margin: '0 0 1.5rem' }}>
-                        {item.description || item.excerpt || 'Explore details...'}
-                      </p>
-                    </div>
-                    <a href={`/go/${pageId}/${item.slug}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}>
-                      View Details <ArrowRight size={16} />
-                    </a>
-                  </div>
-                </div>
-              ))}
+          
+          <div style={{ flex: 1, maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '8rem 2rem 6rem 2rem' }}>
+            <div style={{ marginBottom: '3.5rem', textAlign: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>
+                M/Y Whiskey Collections
+              </span>
+              <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 1rem 0' }}>
+                {matchedConfig.pluralName}
+              </h1>
+              <p style={{ color: '#D8C7AF', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto', opacity: 0.8, lineHeight: '1.6' }}>
+                Explore our fully-equipped, curated selection of premium {matchedConfig.pluralName.toLowerCase()} designed to elevate your time on board.
+              </p>
             </div>
+
+            {activeItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#1E2124', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#D8C7AF', fontSize: '1.1rem', margin: 0 }}>No {matchedConfig.pluralName.toLowerCase()} are currently available. Please check back later.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '2rem' }}>
+                {activeItems.map((item) => (
+                  <a 
+                    key={item.id}
+                    href={`/${matchedConfig.slugPrefix}/${item.slug}`}
+                    style={{
+                      textDecoration: 'none',
+                      background: '#1E2124',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      transition: 'all 0.25s ease'
+                    }}
+                    className="collection-card"
+                  >
+                    <style dangerouslySetInnerHTML={{__html: `
+                      .collection-card:hover {
+                        transform: translateY(-4px);
+                        border-color: rgba(185, 120, 59, 0.4) !important;
+                        box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+                      }
+                    `}} />
+                    
+                    {item.heroImage ? (
+                      <div style={{ width: '100%', height: '220px', overflow: 'hidden', position: 'relative' }}>
+                        <img 
+                          src={item.heroImage} 
+                          alt={item.title} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ width: '100%', height: '220px', background: '#121416', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {matchedConfig.id === 'adventure' && <Compass size={40} color="#B9783B" opacity={0.4} />}
+                        {matchedConfig.id === 'asset' && <Ship size={40} color="#B9783B" opacity={0.4} />}
+                        {matchedConfig.id === 'staff' && <Users size={40} color="#B9783B" opacity={0.4} />}
+                      </div>
+                    )}
+
+                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyItems: 'space-between', flex: 1 }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#B9783B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {matchedConfig.id === 'adventure' ? `${item.duration || 'Flexible'}` : matchedConfig.id === 'asset' ? `${item.category || 'Asset'}` : `${item.role || 'Crew'}`}
+                          </span>
+                          {matchedConfig.id === 'adventure' && item.basePrice > 0 && (
+                            <span style={{ fontSize: '0.9rem', color: 'white', fontWeight: 600 }}>
+                              From ${item.basePrice.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 style={{ fontSize: '1.35rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'white', margin: '0 0 0.5rem 0' }}>
+                          {item.title}
+                        </h3>
+
+                        {item.location && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.8, marginBottom: '0.75rem' }}>
+                            <MapPin size={14} color="#B9783B" />
+                            <span>{item.location}</span>
+                          </div>
+                        )}
+
+                        <p style={{ fontSize: '0.9rem', color: '#D8C7AF', opacity: 0.7, margin: 0, lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4', height: '2.8rem' }}>
+                          {item.shortDescription}
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '1rem', marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#B9783B', fontWeight: 600 }}>Explore Details</span>
+                        <ArrowRight size={16} color="#B9783B" />
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
+          
           <PublicFooter theme={theme} />
         </main>
       );

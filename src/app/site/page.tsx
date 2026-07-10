@@ -177,10 +177,17 @@ export default async function WorkspacePublicPresencePage() {
   const pageData = await loadPageData(key);
 
   // Load visual settings mapping
-  let siteSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
-  if (!siteSettings) {
-    siteSettings = await loadSiteSettings();
-  }
+  const globalSettings = await loadSiteSettings();
+  const wsSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
+  const siteSettings = {
+    ...globalSettings,
+    ...wsSettings,
+    brand: {
+      ...globalSettings?.brand,
+      ...wsSettings?.brand
+    },
+    navigation: globalSettings?.navigation || wsSettings?.navigation
+  };
 
   if (!pageData) {
     return (
