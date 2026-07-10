@@ -98,6 +98,11 @@ export function proxy(request: NextRequest) {
   if (
     pathname.startsWith('/_next') || 
     pathname.startsWith('/api') || 
+    pathname.startsWith('/login') || 
+    pathname.startsWith('/logout') || 
+    pathname.startsWith('/auth') || 
+    pathname.startsWith('/admin') || 
+    pathname.startsWith('/owner') || 
     pathname.includes('.')
   ) {
     return NextResponse.next();
