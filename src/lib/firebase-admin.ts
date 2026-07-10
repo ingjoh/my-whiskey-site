@@ -1,6 +1,9 @@
 import * as admin from 'firebase-admin';
 import { detectProjectId } from './project-env';
 
+export let initError: string | null = null;
+export let initType: string = 'unknown';
+
 if (!admin.apps.length) {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   const projectId = detectProjectId();
@@ -16,8 +19,11 @@ if (!admin.apps.length) {
         projectId: projectId,
         storageBucket: storageBucket,
       });
+      initType = 'service_account';
       console.log(`Firebase Admin SDK initialized using FIREBASE_SERVICE_ACCOUNT credentials. Project: ${projectId}`);
     } catch (e: any) {
+      initError = e.message || String(e);
+      initType = 'fallback_error';
       console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT environment variable:', e);
       admin.initializeApp({
         projectId: projectId,
@@ -25,6 +31,7 @@ if (!admin.apps.length) {
       });
     }
   } else {
+    initType = 'project_id_fallback';
     // In local development, if you run `firebase login` or set GOOGLE_APPLICATION_CREDENTIALS,
     // this will automatically pick up authentication, or fallback to default project.
     admin.initializeApp({
