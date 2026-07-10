@@ -193,13 +193,13 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
     const matchedConfig = configs.find(c => c.slugPrefix === pageId && c.isEnabled);
     
     if (matchedConfig) {
-      const items = await getContentItems(pageId);
+      const items = await getContentItems(matchedConfig.id, workspaceId);
       const activeItems = items.filter(i => i.status === 'published');
       const theme = siteSettings?.theme || DEFAULT_THEME;
 
       return (
         <main style={{ minHeight: '100vh', background: theme?.backgroundColor || '#1F2326', color: theme?.foregroundColor || '#F4F1EA', fontFamily: theme?.typography?.bodyFontFamily || "'Inter', sans-serif" }}>
-          <PublicNavigation settings={siteSettings} />
+          <PublicNavigation theme={theme} settings={siteSettings} />
           <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '6rem 2rem' }}>
             <h1 style={{ fontSize: '3rem', fontFamily: theme?.typography?.headingFontFamily || "'Cormorant Garamond', serif", color: 'var(--color-primary)', marginBottom: '2rem' }}>
               {matchedConfig.pluralName}
