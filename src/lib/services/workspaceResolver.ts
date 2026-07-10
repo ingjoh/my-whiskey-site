@@ -123,6 +123,9 @@ export class WorkspaceResolver {
           { name: 'Secondary', value: config.brand.secondaryColor }
         ]
       },
+      navigation: {
+        links: config.website.navigation || []
+      },
       typography: {
         headingFontFamily: "'Outfit', sans-serif",
         bodyFontFamily: "'Outfit', sans-serif"
