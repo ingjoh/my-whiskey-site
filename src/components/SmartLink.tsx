@@ -28,12 +28,12 @@ export function SmartLink({ href, target = '_self', children, className, style, 
     // Fallback if useSearchParams is unavailable
   }
 
-  const isPeek = href?.includes('peek.com');
+  const isPeek = typeof href === 'string' && href.includes('peek.com');
   const finalClassName = isPeek ? `${className || ''} peek-book-button-flat`.trim() : className;
 
   // Propagate tracking parameters to internal links
   const getProcessedHref = (targetHref: string) => {
-    if (!targetHref || targetHref.startsWith('http') || targetHref.startsWith('mailto:') || targetHref.startsWith('tel:') || targetHref.startsWith('#')) {
+    if (!targetHref || typeof targetHref !== 'string' || targetHref.startsWith('http') || targetHref.startsWith('mailto:') || targetHref.startsWith('tel:') || targetHref.startsWith('#')) {
       return targetHref;
     }
 
@@ -94,7 +94,7 @@ export function SmartLink({ href, target = '_self', children, className, style, 
     );
   }
 
-  const isExternal = href.startsWith('http');
+  const isExternal = typeof href === 'string' && href.startsWith('http');
   const targetAttr = target === '_blank' || target === 'blank' ? '_blank' : '_self';
 
   if (isExternal) {

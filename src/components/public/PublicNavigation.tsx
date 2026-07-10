@@ -26,7 +26,13 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
     { label: 'Contact Us', url: '/contact' }
   ], []);
 
-  const links = settings?.navigation?.links || theme?.header?.links || defaultLinks;
+  const links = useMemo(() => {
+    const rawLinks = settings?.navigation?.links || theme?.header?.links || defaultLinks;
+    return rawLinks.map((l: any) => ({
+      ...l,
+      url: l.url || l.link || '#'
+    }));
+  }, [settings, theme, defaultLinks]);
 
   const [dynamicLinks, setDynamicLinks] = useState<any[]>(links);
   const lastLinksStrRef = useRef<string>('');
