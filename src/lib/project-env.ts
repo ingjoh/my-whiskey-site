@@ -21,7 +21,17 @@ export const detectProjectId = (): string => {
     return 'my-whiskey-prod';
   }
 
-  // 2. Server-side runtime check (inspecting Vercel deployment type first)
+  // 2. Server-side runtime check (inspecting Vercel credentials first)
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountJson) {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      if (serviceAccount.project_id) {
+        return serviceAccount.project_id;
+      }
+    } catch (e) {}
+  }
+
   if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') {
     return 'mywhiskey-97620';
   }
