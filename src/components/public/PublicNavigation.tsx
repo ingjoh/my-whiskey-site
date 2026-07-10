@@ -58,11 +58,11 @@ export default function PublicNavigation({ theme, settings: propSettings, isEdit
         const updatedLinks = links.map((link: any) => {
           if (!link.dynamicSublinks) return link;
           
-          const matchedConfig = activeConfigs.find(c => c.id === link.dynamicSublinks);
+          const matchedConfig = activeConfigs.find(c => c.id === link.dynamicSublinks || c.slugPrefix === link.dynamicSublinks);
           if (!matchedConfig) return link;
 
           const filteredItems = allItems.filter(
-            item => item.contentType === link.dynamicSublinks && item.status === 'published'
+            item => (item.contentType === link.dynamicSublinks || item.contentType === matchedConfig.id) && item.status === 'published'
           );
 
           const allLink = {
