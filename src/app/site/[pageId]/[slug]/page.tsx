@@ -146,8 +146,8 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
     ...globalSettings,
     ...wsSettings,
     brand: {
-      ...globalSettings?.brand,
-      ...wsSettings?.brand
+      ...wsSettings?.brand,
+      ...globalSettings?.brand
     },
     navigation: globalSettings?.navigation || wsSettings?.navigation
   };

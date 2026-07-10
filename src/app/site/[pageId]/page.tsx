@@ -184,8 +184,8 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
     ...globalSettings,
     ...wsSettings,
     brand: {
-      ...globalSettings?.brand,
-      ...wsSettings?.brand
+      ...wsSettings?.brand,
+      ...globalSettings?.brand
     },
     navigation: globalSettings?.navigation || wsSettings?.navigation
   };
