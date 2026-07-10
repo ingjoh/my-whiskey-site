@@ -124,7 +124,7 @@ export class WorkspaceResolver {
         ]
       },
       navigation: {
-        links: config.website.navigation || []
+        links: config.website?.navigation || []
       },
       typography: {
         headingFontFamily: "'Outfit', sans-serif",
