@@ -94,8 +94,7 @@ export function proxy(request: NextRequest) {
   }
 
   // 3. Subdomain and Custom Domain Resolution (Production hostnames)
-  // Skip Next.js internal assets, api routes, static assets, and shared app-level routes
-  const SHARED_APP_ROUTES = ['/login', '/admin', '/owner', '/trip', '/guest', '/go', '/blog'];
+  const SHARED_APP_ROUTES = ['/login', '/logout', '/auth', '/admin', '/owner', '/trip', '/guest', '/go', '/blog'];
   if (
     pathname.startsWith('/_next') || 
     pathname.startsWith('/api') || 
