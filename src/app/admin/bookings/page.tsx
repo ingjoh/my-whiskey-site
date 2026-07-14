@@ -1308,6 +1308,7 @@ export default function BookingsDashboard() {
         if (dataMap[key]) {
           if (b.paymentPlan === 'full') {
             dataMap[key].cat1 += getPaidToday(b);
+            dataMap[key].cat3 += (b.amountDueLater || 0);
           } else {
             dataMap[key].cat2 += getPaidToday(b);
             dataMap[key].cat3 += (b.amountDueLater || 0);
@@ -1324,6 +1325,7 @@ export default function BookingsDashboard() {
         if (dataMap[key]) {
           if (b.paymentPlan === 'full') {
             dataMap[key].cat1 += getPaidToday(b);
+            dataMap[key].cat3 += (b.amountDueLater || 0);
           } else {
             dataMap[key].cat2 += getPaidToday(b);
             dataMap[key].cat3 += (b.amountDueLater || 0);
@@ -1345,7 +1347,7 @@ export default function BookingsDashboard() {
           }
         }
 
-        if (b.paymentPlan === 'deposit' && b.amountDueLater > 0) {
+        if (b.amountDueLater > 0) {
           const dueDate = getDueDateString(b.date);
           if (isWithinBounds(dueDate)) {
             let key = dueDate;
