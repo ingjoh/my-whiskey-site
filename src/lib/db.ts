@@ -2726,6 +2726,14 @@ export async function saveBookingData(booking: Omit<BookingRecord, 'id' | 'creat
       waiverSigned: false,
       token: booking.token || secureToken
     };
+
+    // Remove any undefined properties to avoid Firestore errors
+    Object.keys(bookingData).forEach((key) => {
+      if ((bookingData as any)[key] === undefined) {
+        delete (bookingData as any)[key];
+      }
+    });
+
     await setDoc(bookingRef, {
       ...bookingData,
       type: 'booking',
