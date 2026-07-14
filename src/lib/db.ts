@@ -3900,6 +3900,13 @@ export async function saveAdminInternalBooking(booking: BookingRecord): Promise<
       updatedAt: booking.updatedAt || new Date().toISOString()
     };
     
+    // Firestore does not accept 'undefined' fields. Remove them.
+    Object.keys(bookingData).forEach((key) => {
+      if ((bookingData as any)[key] === undefined) {
+        delete (bookingData as any)[key];
+      }
+    });
+    
     await setDoc(bookingRef, {
       ...bookingData,
       type: 'booking',
