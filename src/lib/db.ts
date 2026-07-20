@@ -725,6 +725,23 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
       }
 
       if (response.status === 404) {
+        if (route === 'home') {
+          try {
+            const fallbackUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${PAGE_COLLECTION}/ws_whiskey_home`;
+            const fallbackResp = await fetch(fallbackUrl, { next: { revalidate: 0 } });
+            if (fallbackResp.ok) {
+              const fallbackJson = await fallbackResp.json();
+              const fallbackFields = parseFirestoreFields(fallbackJson.fields);
+              return {
+                nodes: fallbackFields.nodes as Record<string, PageNode>,
+                theme: globalTheme || fallbackFields.theme as ThemeConfig,
+                title: fallbackFields.title as string | undefined
+              };
+            }
+          } catch (e) {
+            console.error('Error fetching fallback ws_whiskey_home in loadPageData:', e);
+          }
+        }
         if (route === 'terms') {
           return {
             nodes: DEFAULT_TERMS_PAGE.nodes as Record<string, PageNode>,
@@ -775,7 +792,14 @@ export async function loadPageData(route: string): Promise<{ nodes: Record<strin
   // Web SDK fallback (runs on client, and as server fallback)
   try {
     const pageRef = doc(db, PAGE_COLLECTION, route);
-    const docSnap = await getDoc(pageRef);
+    let docSnap = await getDoc(pageRef);
+    if (!docSnap.exists() && route === 'home') {
+      try {
+        docSnap = await getDoc(doc(db, PAGE_COLLECTION, 'ws_whiskey_home'));
+      } catch (e) {
+        console.error('Error fetching fallback ws_whiskey_home SDK in loadPageData:', e);
+      }
+    }
 
     // Load global theme via SDK
     let globalTheme: ThemeConfig | null = null;
