@@ -246,6 +246,17 @@ Payout:
   implemented_by:
     - financial-service
 
+ResourceApproval:
+  owner: Operations
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Person
+    - Vessel
+  implemented_by:
+    - identity-service
+    - asset-service
+
 Workspace:
   owner: Domain
   status: Authoritative
@@ -253,6 +264,15 @@ Workspace:
   depends_on:
     - Person
     - Organization
+  implemented_by:
+    - workspace-service
+
+WorkspaceInvitation:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on:
+    - Workspace
   implemented_by:
     - workspace-service
 
@@ -386,6 +406,20 @@ architectural-principles:
   implemented_by: []
 
 009-context-resolution-runtime:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+010-person-centric-identity-and-context-discovery:
+  owner: Domain
+  status: Authoritative
+  review_frequency: Quarterly
+  depends_on: []
+  implemented_by: []
+
+011-generalized-context-resolution-runtime-and-ui-primitives:
   owner: Domain
   status: Authoritative
   review_frequency: Quarterly

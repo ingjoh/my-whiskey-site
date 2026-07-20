@@ -16,7 +16,7 @@ A **Workspace** is the primary operating environment on the Tuamotu Platform. It
 ## Architectural Principles
 
 *   **Context over Ownership**: A Workspace represents an operating context, not a business ownership boundary. Core platform entities (People, Organizations, Resources, Bookings, Settlements) are globally addressable and exist independently of any individual Workspace.
-*   **Decoupled Participation**: Entities participate in a Workspace through explicit relationships (e.g. approved resources, active partnerships, guest memberships) rather than direct data ownership.
+*   **Decoupled Participation**: Entities participate in a Workspace through explicit relationships (e.g. active `WorkspaceMembership`, separate `WorkspaceInvitation` records for pending invites, active partnerships, guest memberships) rather than direct data ownership.
 *   **Multi-Workspace Operations**: A single entity (such as a captain, vessel resource, or concierge partner) can participate in multiple Workspaces simultaneously without redefining its platform identity.
 
 ## Properties & Naming Rules
