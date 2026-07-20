@@ -113,6 +113,25 @@ export async function GET(request: NextRequest) {
       logOutput.push(`✓ Committed ${docs.length} documents to production "${colName}"`);
     }
 
+    // Cleanup legacy 'home' document in the target database
+    try {
+      const docRef = adminDb.collection('pages').doc('home');
+      const snap = await docRef.get();
+      if (snap.exists) {
+        const data = snap.data();
+        if (data && data.workspaceId === undefined) {
+          await docRef.delete();
+          logOutput.push('✓ Cleaned up legacy "home" document (workspaceId undefined) in target database.');
+        } else {
+          logOutput.push('ℹ Legacy "home" document exists but has workspaceId defined, skipping deletion.');
+        }
+      } else {
+        logOutput.push('ℹ Legacy "home" document not found, no cleanup needed.');
+      }
+    } catch (cleanErr: any) {
+      logOutput.push(`⚠️ Warning: Failed to clean up legacy "home" document: ${cleanErr.message}`);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Database migrated successfully!',
