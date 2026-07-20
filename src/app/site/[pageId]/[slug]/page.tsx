@@ -139,7 +139,8 @@ export default async function ContentItemDetailPage({ params }: { params: Promis
   }
 
   // Common Theme styles for consistency
-  const homeData = await loadPageData(workspaceId === 'ws_whiskey' ? 'home' : `${workspaceId}_home`);
+  const { loadPageDataRelational } = require('@/lib/db');
+  const homeData = await loadPageDataRelational(workspaceId, 'home');
   const globalSettings = await loadSiteSettings();
   const wsSettings = await WorkspaceResolver.getSiteSettings(workspaceId);
   const siteSettings = {
