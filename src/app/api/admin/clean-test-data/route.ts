@@ -80,6 +80,28 @@ export async function GET(request: NextRequest) {
     }
     logOutput.push(`✓ Deleted ${pageLocksPurged} test checkout locks.`);
 
+    // 6. Cleanup legacy 'home' document in pages collection (workspaceId undefined)
+    logOutput.push('--- Purging legacy home document ---');
+    let legacyHomeCleaned = false;
+    try {
+      const docRef = adminDb.collection('pages').doc('home');
+      const snap = await docRef.get();
+      if (snap.exists) {
+        const data = snap.data();
+        if (data && data.workspaceId === undefined) {
+          await docRef.delete();
+          logOutput.push('✓ Successfully deleted legacy "home" document from target database.');
+          legacyHomeCleaned = true;
+        } else {
+          logOutput.push('ℹ "home" document has active workspaceId, skipped deletion.');
+        }
+      } else {
+        logOutput.push('ℹ Legacy "home" document not found in target database.');
+      }
+    } catch (e: any) {
+      logOutput.push(`❌ Error deleting legacy "home" document: ${e.message}`);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Purge of production test data completed successfully!',
@@ -88,7 +110,8 @@ export async function GET(request: NextRequest) {
         pageBookings: pageBookingsPurged,
         customers: pageCustomersPurged,
         waivers: pageWaiversPurged,
-        locks: pageLocksPurged
+        locks: pageLocksPurged,
+        legacyHomeCleaned
       },
       log: logOutput
     });
