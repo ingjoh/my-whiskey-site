@@ -191,8 +191,8 @@ export default async function WorkspacePublicSubPage({ params }: { params: Promi
   };
 
   // Load page matching workspace scope
-  const key = workspaceId === 'ws_whiskey' ? pageId : `${workspaceId}_${pageId}`;
-  const pageData = await loadPageData(key);
+  const { loadPageDataRelational } = require('@/lib/db');
+  const pageData = await loadPageDataRelational(workspaceId, pageId);
 
   if (!pageData) {
     // Check custom content type config boundaries

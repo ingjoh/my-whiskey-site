@@ -173,8 +173,8 @@ export default async function WorkspacePublicPresencePage() {
   }
 
   // Load page data matching workspace scope
-  const key = workspaceId === 'ws_whiskey' ? 'home' : `${workspaceId}_home`;
-  const pageData = await loadPageData(key);
+  const { loadPageDataRelational } = require('@/lib/db');
+  const pageData = await loadPageDataRelational(workspaceId, 'home');
 
   // Load visual settings mapping
   const globalSettings = await loadSiteSettings();
