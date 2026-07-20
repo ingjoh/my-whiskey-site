@@ -79,6 +79,34 @@ export class WorkspaceResolver {
       const headersList = await headers();
       slug = headersList.get('x-workspace-slug');
       domain = headersList.get('x-custom-domain');
+
+      // Fallback: If middleware bypassed the route (e.g. for /api routes), extract from host/referer
+      if (!slug && !domain) {
+        const host = headersList.get('host');
+        const referer = headersList.get('referer');
+        let hostname = '';
+        if (host) {
+          hostname = host.split(':')[0];
+        } else if (referer) {
+          try {
+            hostname = new URL(referer).hostname;
+          } catch {}
+        }
+
+        if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+          const platformApex = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN || 'tuamotu.life';
+          if (hostname !== platformApex) {
+            if (hostname.endsWith(`.${platformApex}`)) {
+              const subdomain = hostname.split('.')[0];
+              if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain.toLowerCase())) {
+                slug = subdomain;
+              }
+            } else {
+              domain = hostname;
+            }
+          }
+        }
+      }
     } catch (e) {
       console.warn('Could not read request headers for workspace resolution:', e);
     }
