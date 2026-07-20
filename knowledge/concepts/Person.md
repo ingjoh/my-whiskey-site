@@ -16,9 +16,16 @@ A **Person** represents the decoupled real-world physical identity of any human 
 ## Details
 *   Encompasses everyone: guests, passengers, captains, chefs, crew, operations staff, and external brokers.
 *   Contains core contact details (name, email, phone, physical address).
-*   Does not contain credentials, authentication states, or system access records (which belong to the **User**).
+*   Does not contain credentials, authentication mappings, or account states (which belong to the **User**).
 *   Does not contain professional qualifications (which belong to **Capabilities**).
 *   Does not contain authorization mappings (which are handled via **Role Assignments**).
+
+## Decoupled Relationships Model
+A Person participates in platform contexts through:
+*   **Workspace Memberships**: Active workspace roles.
+*   **Workspace Invitations**: Pending invitation requests, modeled separately from membership.
+*   **Resource Approvals**: Active operational approvals involving vessels or other resources (which certify eligibility but do not contain certifications/licenses).
+*   **Assignments**: Schedule allocations to operational itineraries, resolved via the canonical query chain `Person` -> `Crew Resource` -> `Assignment`.
 
 ## Examples
 
