@@ -27,6 +27,7 @@ A **TripGallery** represents the guest-facing digital memory vault of a complete
         *   `exif`: Optional object storing GPS `latitude`, `longitude`, and `capturedAt`.
     *   `isPublished`: Boolean visibility flag controlling guest page access.
     *   `tippingLedger`: An object tracking `totalTipped` (in cents) and `stripePaymentIntentIds` to ensure single-tip auditing.
+*   Supports notifications via branded HTML email (Resend) and SMS (Telnyx) dispatch, allowing guests to access their memories page, leave testimonials, and pay crew appreciation tips.
 
 ## Examples
 
