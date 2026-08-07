@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
   ArrowLeft, UploadCloud, Loader2, Sparkles, MapPin, 
-  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2, AlertCircle
+  Trash2, Eye, EyeOff, Save, CheckCircle2, Image as ImageIcon, Share2, AlertCircle,
+  Mail, Send, Smartphone, X
 } from 'lucide-react';
 import { uploadFile } from '@/lib/storage';
 import { firebaseConfig } from '@/lib/firebase';
@@ -106,6 +107,16 @@ export default function AdminTripGalleryPage() {
   const [tippingLedger, setTippingLedger] = useState({ totalTipped: 0, stripePaymentIntentIds: [] });
   const [bookingDetails, setBookingDetails] = useState<any>(null);
   const [initialDataHash, setInitialDataHash] = useState('');
+
+  // Guest Share Modal States
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareSubject, setShareSubject] = useState('');
+  const [shareEmailBody, setShareEmailBody] = useState('');
+  const [shareSmsText, setShareSmsText] = useState('');
+  const [shareRecipientEmail, setShareRecipientEmail] = useState('');
+  const [shareRecipientPhone, setShareRecipientPhone] = useState('');
+  const [isSendingShare, setIsSendingShare] = useState(false);
+  const [previewTab, setPreviewTab] = useState<'email' | 'sms'>('email');
 
   const currentHash = JSON.stringify({ 
     title, 
@@ -361,6 +372,69 @@ export default function AdminTripGalleryPage() {
     // Open preview in new tab
     const token = bookingDetails?.token || bookingId;
     window.open(`/trip/${token}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const openShareModal = () => {
+    if (!bookingDetails) return;
+    const guestName = bookingDetails.guestName || 'Valued Guest';
+    const email = bookingDetails.guestEmail || '';
+    const phone = bookingDetails.guestPhone || '';
+    const vessel = bookingDetails.vesselTitle || 'M/Y Whiskey';
+    const captain = bookingDetails.captainTitle || 'Independent Operator';
+    
+    setShareRecipientEmail(email);
+    setShareRecipientPhone(phone);
+    setShareSubject(`Your Voyage Memories Aboard ${vessel}`);
+    setShareEmailBody(
+`Dear ${guestName},
+
+Thank you for joining us for your recent charter. We had an absolute pleasure hosting you and your group.
+
+We have curated a digital memory vault of your voyage with photos and crew details. We hope these memories bring back the warmth of the sun and the breeze of the ocean.
+
+Please take a moment to review your trip gallery and leave us a review/testimonial.
+
+Warm regards,
+Captain ${captain}`
+    );
+    setShareSmsText(`Your Voyage Memories are ready! Relive your trip aboard ${vessel} here: ${window.location.origin}/trip/${bookingDetails.token || bookingId}`);
+    setIsShareModalOpen(true);
+  };
+
+  const handleSendShare = async () => {
+    if (!user) return;
+    setIsSendingShare(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/bookings/${bookingId}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          emailBody: shareEmailBody,
+          smsText: shareSmsText,
+          subject: shareSubject,
+          recipientEmail: shareRecipientEmail,
+          recipientPhone: shareRecipientPhone,
+          token: bookingDetails?.token || bookingId
+        })
+      });
+
+      if (res.ok) {
+        showToast('success', 'Voyage memories shared with guest successfully!');
+        setIsShareModalOpen(false);
+      } else {
+        const err = await res.json();
+        showToast('error', `Failed to send share: ${err.error || 'Unknown Error'}`);
+      }
+    } catch (e) {
+      console.error('Share dispatch error:', e);
+      showToast('error', 'Network error occurred while sharing.');
+    } finally {
+      setIsSendingShare(false);
+    }
   };
 
   const initMap = () => {
@@ -871,6 +945,43 @@ export default function AdminTripGalleryPage() {
               </div>
             </div>
 
+            {/* Share Excursion card */}
+            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#D8C7AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Share Excursion Page</h3>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: '#a1a1aa', lineHeight: 1.4 }}>
+                Send a branded HTML email and SMS notification to the guest containing their private memories gallery page link.
+              </p>
+              
+              <button
+                type="button"
+                onClick={openShareModal}
+                disabled={!isPublished}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.45rem', 
+                  background: isPublished ? '#B9783B' : 'rgba(255,255,255,0.02)', 
+                  border: isPublished ? 'none' : '1px solid rgba(255,255,255,0.05)', 
+                  color: isPublished ? 'white' : '#666', 
+                  padding: '0.65rem', 
+                  borderRadius: '6px', 
+                  fontSize: '0.78rem', 
+                  fontWeight: 600, 
+                  cursor: isPublished ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
+                <Share2 size={14} /> Share with Guest
+              </button>
+              {!isPublished && (
+                <span style={{ fontSize: '0.65rem', color: '#ef4444', fontStyle: 'italic', textAlign: 'center' }}>
+                  * Gallery must be published to share
+                </span>
+              )}
+            </div>
+
             {/* Crew Tipping Stats */}
             <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#D8C7AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gratuity split Ledger</h3>
@@ -891,6 +1002,255 @@ export default function AdminTripGalleryPage() {
 
         </div>
       </main>
+      {isShareModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+          <div style={{ width: '90%', maxWidth: '980px', height: '85vh', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.2s ease-out' }}>
+            
+            {/* Modal Header */}
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, color: 'white', margin: 0 }}>Review & Dispatch Voyage Memories</h3>
+                <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.6 }}>Customize notifications before sending to travelers</span>
+              </div>
+              <button 
+                onClick={() => setIsShareModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#D8C7AF', cursor: 'pointer', outline: 'none' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Content */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '1.5rem', padding: '1.5rem' }}>
+              
+              {/* Left Column: Form Fields */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                
+                {/* Contact Targets */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: '#121416', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.7 }}>Recipient Email</label>
+                    <input 
+                      type="email" 
+                      value={shareRecipientEmail}
+                      onChange={e => setShareRecipientEmail(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', fontSize: '0.8rem', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <label style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.7 }}>Recipient Phone (SMS)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. +13055550199"
+                      value={shareRecipientPhone}
+                      onChange={e => setShareRecipientPhone(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', background: '#1E2124', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', color: 'white', fontSize: '0.8rem', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Email Subject Line */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Email Subject Line</label>
+                  <input 
+                    type="text" 
+                    value={shareSubject}
+                    onChange={e => setShareSubject(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem', background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: 'white', fontSize: '0.82rem', outline: 'none' }}
+                  />
+                </div>
+
+                {/* Email Message Text */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>Email Message Body</label>
+                  <textarea 
+                    rows={8}
+                    value={shareEmailBody}
+                    onChange={e => setShareEmailBody(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem', background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: 'white', fontSize: '0.82rem', outline: 'none', resize: 'vertical', fontFamily: 'sans-serif' }}
+                  />
+                </div>
+
+                {/* SMS Text */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.7rem', color: '#D8C7AF', fontWeight: 600 }}>SMS Notification text</label>
+                  <textarea 
+                    rows={3}
+                    maxLength={160}
+                    value={shareSmsText}
+                    onChange={e => setShareSmsText(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem', background: '#121416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: 'white', fontSize: '0.82rem', outline: 'none', resize: 'none', fontFamily: 'sans-serif' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#a1a1aa' }}>
+                    <span>Include memories page link in text</span>
+                    <span>{shareSmsText.length}/160 chars</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column: Branded Previews */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('email')}
+                    style={{ 
+                      flex: 1, 
+                      padding: '0.45rem', 
+                      background: previewTab === 'email' ? 'rgba(185, 120, 59, 0.12)' : 'transparent', 
+                      border: previewTab === 'email' ? '1px solid rgba(185, 120, 59, 0.3)' : '1px solid transparent', 
+                      color: previewTab === 'email' ? '#E2A15E' : '#a1a1aa', 
+                      borderRadius: '4px', 
+                      fontSize: '0.74rem', 
+                      fontWeight: 600, 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <Mail size={12} /> Email template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('sms')}
+                    style={{ 
+                      flex: 1, 
+                      padding: '0.45rem', 
+                      background: previewTab === 'sms' ? 'rgba(185, 120, 59, 0.12)' : 'transparent', 
+                      border: previewTab === 'sms' ? '1px solid rgba(185, 120, 59, 0.3)' : '1px solid transparent', 
+                      color: previewTab === 'sms' ? '#E2A15E' : '#a1a1aa', 
+                      borderRadius: '4px', 
+                      fontSize: '0.74rem', 
+                      fontWeight: 600, 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <Smartphone size={12} /> SMS Notification
+                  </button>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', background: '#121416', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                  {previewTab === 'email' ? (
+                    <div style={{ width: '100%', background: '#0a0a0a', border: '1px solid #27272a', borderRadius: '6px', color: '#ededed', fontFamily: 'sans-serif', fontSize: '12px', textAlign: 'left', overflow: 'hidden' }}>
+                      <div style={{ borderTop: '3px solid #d97706', padding: '15px', textAlign: 'center', borderBottom: '1px solid #27272a' }}>
+                        <h4 style={{ margin: 0, color: '#d97706', letterSpacing: '0.1em', fontSize: '14px', textTransform: 'uppercase', fontFamily: 'serif' }}>M/Y WHISKEY</h4>
+                      </div>
+                      <div style={{ padding: '20px 15px' }}>
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, color: '#ededed', fontSize: '12.5px', marginBottom: '20px' }}>
+                          {shareEmailBody}
+                        </div>
+
+                        {(coverImageUrl || (media && media.length > 0 && media.find((m: any) => m.type === 'image')?.url)) && (
+                          <img 
+                            src={coverImageUrl || media.find((m: any) => m.type === 'image')?.url} 
+                            style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '4px', marginBottom: '20px', border: '1px solid #27272a' }} 
+                            alt="Voyage memories hero" 
+                          />
+                        )}
+
+                        <div style={{ background: '#121416', border: '1px solid #27272a', borderRadius: '6px', padding: '10px 12px', marginBottom: '20px' }}>
+                          <span style={{ fontSize: '9px', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Voyage details</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                            <span style={{ color: '#a1a1aa' }}>Vessel:</span>
+                            <span style={{ color: '#fff', fontWeight: 600 }}>{bookingDetails?.vesselTitle || 'M/Y Whiskey'}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                            <span style={{ color: '#a1a1aa' }}>Experience:</span>
+                            <span style={{ color: '#fff', fontWeight: 600 }}>{bookingDetails?.experienceTitle || 'Yacht Excursion'}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                            <span style={{ color: '#a1a1aa' }}>Date:</span>
+                            <span style={{ color: '#fff', fontWeight: 600 }}>{bookingDetails?.date || 'Recent'}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                            <span style={{ color: '#a1a1aa' }}>Captain:</span>
+                            <span style={{ color: '#fff', fontWeight: 600 }}>{bookingDetails?.captainTitle || 'Captain'}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                          <span style={{ display: 'inline-block', backgroundColor: '#d97706', color: 'white', padding: '8px 18px', fontWeight: 'bold', borderRadius: '4px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.05em' }}>
+                            View Voyage Memories
+                          </span>
+                        </div>
+
+                        <div style={{ borderTop: '1px dashed #27272a', paddingTop: '15px', marginTop: '20px', fontSize: '11px', color: '#a1a1aa', textAlign: 'center', lineHeight: 1.4 }}>
+                          We would be honored to hear about your excursion. Please share your review or leave a guest testimonial on your voyage gallery portal page.
+                        </div>
+                      </div>
+                      <div style={{ background: '#121416', padding: '12px', fontSize: '9px', color: '#a1a1aa', textAlign: 'center', borderTop: '1px solid #27272a' }}>
+                        © 2026 M/Y Whiskey. Luxury Yacht Charters.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ width: '100%', maxWidth: '280px', margin: '20px auto', background: '#1E2124', border: '10px solid #000', borderRadius: '24px', overflow: 'hidden', padding: '15px 10px', minHeight: '320px', position: 'relative' }}>
+                      <div style={{ width: '40px', height: '3px', background: '#000', borderRadius: '2px', margin: '0 auto 15px auto' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.05)', color: 'white', borderRadius: '12px', padding: '10px', fontSize: '11px', lineHeight: 1.4, textAlign: 'left', wordBreak: 'break-word', border: '1px solid rgba(255,255,255,0.04)' }}>
+                          {shareSmsText}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', background: '#171717' }}>
+              <button 
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                disabled={isSendingShare}
+                style={{ 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  color: 'white', 
+                  padding: '0.65rem 1.25rem', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.82rem', 
+                  fontWeight: 600,
+                  outline: 'none'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleSendShare}
+                disabled={isSendingShare}
+                style={{ 
+                  background: '#B9783B', 
+                  border: 'none', 
+                  color: 'white', 
+                  padding: '0.65rem 1.25rem', 
+                  borderRadius: '6px', 
+                  cursor: isSendingShare ? 'not-allowed' : 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.35rem', 
+                  fontSize: '0.82rem', 
+                  fontWeight: 600,
+                  outline: 'none'
+                }}
+              >
+                {isSendingShare ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 
+                {isSendingShare ? 'Sending...' : 'Send Message'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
