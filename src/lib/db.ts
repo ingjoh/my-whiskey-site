@@ -2959,21 +2959,21 @@ async function translateNewToLegacyBooking(newBooking: any): Promise<BookingReco
 
     return {
       id: newBooking.id,
-      experienceId: offer.experienceId,
-      experienceTitle: experience.title,
-      vesselSlug,
-      vesselTitle: vesselSlug === 'my-whiskey-yacht' ? 'M/Y Whiskey' : 'M/Y Barrel',
-      captainId: '',
-      captainTitle: '',
-      date: offer.schedulingSnapshot.date,
-      startTime: offer.schedulingSnapshot.startTime,
-      guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
-      guestEmail: guest.email,
-      guestPhone: guest.phone,
-      guestCount: offer.resourcePreferences.crewCountRequired || 1,
-      subtotal: offer.pricingSnapshot.subtotal,
-      salesTax: offer.pricingSnapshot.taxes,
-      grandTotal: offer.pricingSnapshot.grandTotal,
+      experienceId: newBooking.experienceId || offer.experienceId,
+      experienceTitle: newBooking.experienceTitle || experience.title,
+      vesselSlug: newBooking.vesselSlug || vesselSlug,
+      vesselTitle: newBooking.vesselTitle || (vesselSlug === 'my-whiskey-yacht' ? 'M/Y Whiskey' : 'M/Y Barrel'),
+      captainId: newBooking.captainId || '',
+      captainTitle: newBooking.captainTitle || '',
+      date: newBooking.date || offer.schedulingSnapshot.date,
+      startTime: newBooking.startTime || offer.schedulingSnapshot.startTime,
+      guestName: newBooking.guestName || `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+      guestEmail: newBooking.guestEmail || guest.email,
+      guestPhone: newBooking.guestPhone || guest.phone,
+      guestCount: newBooking.guestCount || offer.resourcePreferences.crewCountRequired || 1,
+      subtotal: newBooking.subtotal || offer.pricingSnapshot.subtotal,
+      salesTax: newBooking.salesTax || offer.pricingSnapshot.taxes,
+      grandTotal: newBooking.grandTotal || offer.pricingSnapshot.grandTotal,
       amountPaidToday,
       amountDueLater,
       paymentPlan: newBooking.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
@@ -3118,18 +3118,55 @@ export async function updateBookingSettings(
       updatedAt: new Date().toISOString()
     }, { merge: true });
 
-    // Also update bookings collection if exists
+    // Also update bookings collection and related people record if exists
     try {
       const newBookingRef = doc(db, 'bookings', bookingId);
       const newBookingSnap = await getDoc(newBookingRef);
       if (newBookingSnap.exists()) {
+        const bookingData = newBookingSnap.data();
+        
+        // Update the booking document
         await setDoc(newBookingRef, {
           ...updates,
           updatedAt: new Date().toISOString()
         }, { merge: true });
+
+        // Update the related people document if guestId is defined
+        if (bookingData?.guestId) {
+          const guestRef = doc(db, 'people', bookingData.guestId);
+          
+          let firstName = updates.guestName || '';
+          let lastName = '';
+          if (updates.guestName) {
+            const parts = updates.guestName.trim().split(/\s+/);
+            if (parts.length > 1) {
+              firstName = parts[0];
+              lastName = parts.slice(1).join(' ');
+            }
+          }
+
+          const guestUpdates: any = {};
+          if (updates.guestName !== undefined) {
+            guestUpdates.firstName = firstName;
+            guestUpdates.lastName = lastName;
+          }
+          if (updates.guestEmail !== undefined) {
+            guestUpdates.email = updates.guestEmail;
+          }
+          if (updates.guestPhone !== undefined) {
+            guestUpdates.phone = updates.guestPhone;
+          }
+
+          if (Object.keys(guestUpdates).length > 0) {
+            await setDoc(guestRef, {
+              ...guestUpdates,
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          }
+        }
       }
     } catch (newDbErr) {
-      console.warn('Could not update secondary bookings collection:', newDbErr);
+      console.warn('Could not update secondary bookings/people collection:', newDbErr);
     }
     return true;
   } catch (error) {
