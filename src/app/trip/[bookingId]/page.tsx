@@ -1494,15 +1494,15 @@ export default function GuestTripMemoriesPage() {
                 />
                 <div style={{ flex: 1 }}>
                   <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#B9783B', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Your Commander</span>
-                  <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.05rem', color: 'white', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600 }}>{captain?.title || captain?.name || 'Captain Elena Rostova'}</h4>
+                  <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.05rem', color: 'white', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600 }}>{captain?.title || captain?.name || ''}</h4>
                   <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.76rem', opacity: 0.7, lineHeight: 1.4 }}>
-                    {captain?.shortDescription || 'USCG Licensed Master Captain and open-water navigation specialist.'}
+                    {captain?.shortDescription || ''}
                   </p>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
                     <div style={{ fontSize: '0.72rem' }}>
                       <span style={{ opacity: 0.4, display: 'block' }}>Credentials</span>
-                      <strong style={{ color: '#D8C7AF' }}>{captain?.certifications?.[0] || 'USCG 100-Ton'}</strong>
+                      <strong style={{ color: '#D8C7AF' }}>{captain?.certifications?.[0] || ''}</strong>
                     </div>
                     {/* Social Media Links */}
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', color: '#D8C7AF' }}>
