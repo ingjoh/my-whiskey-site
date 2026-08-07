@@ -19,6 +19,7 @@ A **Booking** represents the single record of truth for a customer's confirmed c
 *   Does not own the scheduled date, pricing, or resource preferences directly; it references the immutable accepted **Offer** for all commercial metrics.
 *   Spawns the operational execution pipeline (**Operational Itinerary** and **Assignments**).
 *   Tracks payment status, waiver completions, and client messaging.
+*   Supports administrative parameter overrides directly on the Booking document (e.g. `guestName`, `guestEmail`, `guestPhone`, `date`, `startTime`, `captainId`, and `captainTitle`) to allow edits to confirm/update the booking parameters without mutating the accepted Offer history.
 
 ## Examples
 
