@@ -19,6 +19,7 @@ A **Person** represents the decoupled real-world physical identity of any human 
 *   Does not contain credentials, authentication mappings, or account states (which belong to the **User**).
 *   Does not contain professional qualifications (which belong to **Capabilities**).
 *   Does not contain authorization mappings (which are handled via **Role Assignments**).
+*   Aggregates a unified ledger of all user activities and communications (bookings, proposals, invoices, payments, messages, and staff notes) for CRM administration.
 
 ## Decoupled Relationships Model
 A Person participates in platform contexts through:
