@@ -308,6 +308,36 @@ export default function AdminDashboard() {
               </button>
             )}
 
+            <Link
+              href="/admin/customers"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.85rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'transparent',
+                color: '#D8C7AF',
+                fontWeight: 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                textDecoration: 'none',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s'
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Users size={18} style={{ color: '#D8C7AF' }} /> Customers
+            </Link>
+
             <button
               onClick={() => setActiveWorkspace('cms')}
               style={{
