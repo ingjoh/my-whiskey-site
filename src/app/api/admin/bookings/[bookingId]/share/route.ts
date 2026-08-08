@@ -285,6 +285,30 @@ export async function POST(
       }) as any;
     }
 
+    // 3. Log the communication dispatch in the booking messages array
+    if (emailResult.success || (recipientPhone && smsResult.success)) {
+      try {
+        const docId = bookingSnap.exists ? bookingId : `booking-${bookingId}`;
+        const collName = bookingSnap.exists ? 'bookings' : 'pages';
+        const docRef = adminDb.collection(collName).doc(docId);
+        const currentMessages = bookingDetails?.messages || [];
+        
+        const communicationMsg = {
+          id: 'msg_share_' + Math.floor(100000 + Math.random() * 900000),
+          sender: 'staff',
+          text: `[Shared Memories Page] Sent via ${emailResult.success ? `Email (${recipientEmail})` : ''}${recipientPhone && smsResult.success ? `${emailResult.success ? ' and ' : ''}SMS (${recipientPhone})` : ''}. Subject: "${subject || 'Your Voyage Memories'}". Message: "${emailBody || ''}"`,
+          timestamp: new Date().toISOString()
+        };
+
+        await docRef.update({
+          messages: [...currentMessages, communicationMsg],
+          updatedAt: new Date().toISOString()
+        });
+      } catch (logError) {
+        console.error('Error logging communication dispatch to booking:', logError);
+      }
+    }
+
     return NextResponse.json({
       success: emailResult.success && smsResult.success,
       emailSent: emailResult.success,

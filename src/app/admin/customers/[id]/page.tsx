@@ -3,11 +3,12 @@
 import { useAuth } from '@/components/AuthProvider';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useMemo } from 'react';
 import { 
   ArrowLeft, Users, CheckCircle, Clock, AlertCircle, Loader2, 
   DollarSign, RefreshCw, Calendar, MapPin, ShieldAlert, FileText, 
-  Check, Plus, Send, Smartphone, Laptop, Mail, Phone, Info
+  Check, Plus, Send, Smartphone, Laptop, Mail, Phone, Info,
+  Image as ImageIcon, MessageSquare
 } from 'lucide-react';
 import { 
   getCustomerProfileById, getAllBookings, getAllWaiverSignatures, 
@@ -15,6 +16,8 @@ import {
   updateCustomerProfileFields, getContentItems,
   CustomerProfile, BookingRecord, WaiverSignature, ContentItem
 } from '@/lib/db';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function CustomerProfileDetailView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,6 +28,10 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [waivers, setWaivers] = useState<WaiverSignature[]>([]);
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [galleries, setGalleries] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Roles & Affiliations states
@@ -38,6 +45,13 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
   const [noteText, setNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Filtering states
+  const [filterType, setFilterType] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const fetchCustomerDetails = async () => {
     setIsLoading(true);
@@ -73,6 +87,83 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
              bookingIds.includes(w.bookingId)
       );
       setWaivers(customerWaivers);
+
+      // Fetch Proposals, Invoices, Settlements, Transactions, and Galleries client-side
+      const proposalsList: any[] = [];
+      const invoicesList: any[] = [];
+      const settlementsList: any[] = [];
+      const transactionsList: any[] = [];
+      const galleriesList: any[] = [];
+
+      try {
+        const proposalsQuery = query(
+          collection(db, 'proposals'),
+          where('recipientId', '==', id)
+        );
+        const proposalsSnap = await getDocs(proposalsQuery);
+        proposalsSnap.forEach(docSnap => {
+          proposalsList.push({ id: docSnap.id, ...docSnap.data() });
+        });
+      } catch (pErr) {
+        console.error('Error fetching proposals:', pErr);
+      }
+
+      try {
+        const invoicesQuery = query(
+          collection(db, 'invoices'),
+          where('billToId', '==', id)
+        );
+        const invoicesSnap = await getDocs(invoicesQuery);
+        invoicesSnap.forEach(docSnap => {
+          invoicesList.push({ id: docSnap.id, ...docSnap.data() });
+        });
+      } catch (iErr) {
+        console.error('Error fetching invoices:', iErr);
+      }
+
+      if (bookingIds.length > 0) {
+        try {
+          const settlementsQuery = query(
+            collection(db, 'settlements'),
+            where('originId', 'in', bookingIds)
+          );
+          const settlementsSnap = await getDocs(settlementsQuery);
+          settlementsSnap.forEach(docSnap => {
+            settlementsList.push({ id: docSnap.id, ...docSnap.data() });
+          });
+
+          const settlementIds = settlementsList.map(s => s.id);
+          if (settlementIds.length > 0) {
+            const txQuery = query(
+              collection(db, 'transactions'),
+              where('settlementId', 'in', settlementIds)
+            );
+            const txSnap = await getDocs(txQuery);
+            txSnap.forEach(docSnap => {
+              transactionsList.push({ id: docSnap.id, ...docSnap.data() });
+            });
+          }
+        } catch (sErr) {
+          console.error('Error fetching settlements/transactions:', sErr);
+        }
+
+        try {
+          const galleriesQuery = query(collection(db, 'trip_galleries'));
+          const galleriesSnap = await getDocs(galleriesQuery);
+          galleriesSnap.forEach(docSnap => {
+            if (bookingIds.includes(docSnap.id)) {
+              galleriesList.push({ id: docSnap.id, ...docSnap.data() });
+            }
+          });
+        } catch (gErr) {
+          console.error('Error fetching galleries:', gErr);
+        }
+      }
+
+      setProposals(proposalsList);
+      setInvoices(invoicesList);
+      setTransactions(transactionsList);
+      setGalleries(galleriesList);
     } catch (err) {
       console.error('Error fetching customer details:', err);
       showToast('error', 'Error fetching customer data');
@@ -208,6 +299,174 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
   const formatCost = (val: number) => {
     return `$${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
+
+  // Compile unified chronological communication & activity timeline
+  const activityTimeline = useMemo(() => {
+    const items: any[] = [];
+
+    // 1. Bookings
+    bookings.forEach(b => {
+      items.push({
+        id: b.id,
+        type: 'booking',
+        date: b.createdAt || b.date,
+        title: `Voyage Booking BK-${b.id}`,
+        description: `${b.experienceTitle} aboard ${b.vesselTitle} (Date: ${b.date} at ${b.startTime})`,
+        amount: b.amountPaidToday || b.grandTotal || 0,
+        status: b.status,
+        link: '/admin/bookings',
+        raw: b
+      });
+    });
+
+    // 2. Proposals
+    proposals.forEach(p => {
+      items.push({
+        id: p.id,
+        type: 'proposal',
+        date: p.createdAt || p.updatedAt,
+        title: `Commercial Proposal ${p.id}`,
+        description: `Proposal with status "${p.status}". Expires on ${new Date(p.expiresAt).toLocaleDateString()}`,
+        status: p.status,
+        link: `/admin/content/proposals/${p.id}`,
+        raw: p
+      });
+    });
+
+    // 3. Invoices
+    invoices.forEach(i => {
+      items.push({
+        id: i.id,
+        type: 'invoice',
+        date: i.createdAt || i.dueDate,
+        title: `Invoice ${i.id}`,
+        description: `Due date: ${new Date(i.dueDate).toLocaleDateString()} (${i.paymentTerms || 'Due on receipt'})`,
+        amount: i.amountDue || 0,
+        status: i.status,
+        link: `/api/financial/invoices?id=${i.id}`,
+        raw: i
+      });
+    });
+
+    // 4. Transactions (Payments)
+    transactions.forEach(t => {
+      items.push({
+        id: t.id,
+        type: 'transaction',
+        date: t.createdAt,
+        title: `${t.type === 'charge' ? 'Payment Received' : t.type.toUpperCase()} - ${t.id}`,
+        description: `Stripe/Method: ${t.method.replace('_', ' ')} • Status: ${t.status} ${t.notes ? `• ${t.notes}` : ''}`,
+        amount: t.amount || 0,
+        status: t.status,
+        link: `/api/financial/transactions?id=${t.id}`,
+        raw: t
+      });
+    });
+
+    // 5. Waivers
+    waivers.forEach(w => {
+      items.push({
+        id: w.id,
+        type: 'waiver',
+        date: w.signedAt,
+        title: `Digital Liability Waiver Signed`,
+        description: `Signed by ${w.name} (${w.guestEmail}). IP: ${w.ip || 'N/A'} from ${w.city || 'N/A'}, ${w.region || 'N/A'}. Platform: ${w.os || 'N/A'} / ${w.browser || 'N/A'}`,
+        status: 'signed',
+        link: `#waiver-${w.id}`,
+        raw: w
+      });
+    });
+
+    // 6. Private Staff Notes
+    if (customer?.privateNotes) {
+      customer.privateNotes.forEach((n, idx) => {
+        items.push({
+          id: `note-${idx}`,
+          type: 'note',
+          date: n.date,
+          title: `Internal Staff Note by ${n.author}`,
+          description: `"${n.note}"`,
+          status: 'internal',
+          link: '#staff-notes',
+          raw: n
+        });
+      });
+    }
+
+    // 7. Galleries
+    galleries.forEach(g => {
+      items.push({
+        id: g.id,
+        type: 'gallery',
+        date: g.updatedAt || g.createdAt,
+        title: `Trip Gallery: ${g.title || 'Untitled'}`,
+        description: `${g.media?.length || 0} media assets uploaded • Visibility: ${g.isPublished ? 'Published' : 'Draft'}`,
+        status: g.isPublished ? 'published' : 'draft',
+        link: `/admin/bookings/${g.id}/gallery`,
+        raw: g
+      });
+    });
+
+    // 8. Communication Dispatches (Emails, SMS) from booking messages
+    bookings.forEach(b => {
+      if (b.messages) {
+        b.messages.forEach((msg: any) => {
+          const isSystemComm = msg.text.startsWith('[Shared Memories Page]') || msg.text.startsWith('[Communication Dispatch]');
+          items.push({
+            id: msg.id,
+            type: 'communication',
+            date: msg.timestamp,
+            title: isSystemComm ? 'Outbound Sharing Dispatch' : `Guest Chat (${msg.sender === 'guest' ? 'Inbound' : 'Outbound'})`,
+            description: msg.text,
+            status: isSystemComm ? 'sent' : 'chat',
+            link: `/admin/bookings`,
+            raw: msg
+          });
+        });
+      }
+    });
+
+    // Filtering logic
+    let filtered = items;
+
+    // Type filter
+    if (filterType !== 'all') {
+      if (filterType === 'financial') {
+        filtered = filtered.filter(item => item.type === 'invoice' || item.type === 'transaction');
+      } else {
+        filtered = filtered.filter(item => item.type === filterType);
+      }
+    }
+
+    // Date range filter
+    if (startDate) {
+      const startMs = new Date(startDate).getTime();
+      filtered = filtered.filter(item => new Date(item.date).getTime() >= startMs);
+    }
+    if (endDate) {
+      const endMs = new Date(endDate).getTime() + (24 * 60 * 60 * 1000 - 1);
+      filtered = filtered.filter(item => new Date(item.date).getTime() <= endMs);
+    }
+
+    // Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(item => 
+        item.title.toLowerCase().includes(q) || 
+        item.description.toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q)
+      );
+    }
+
+    // Sorting
+    filtered.sort((a, b) => {
+      const timeA = new Date(a.date).getTime();
+      const timeB = new Date(b.date).getTime();
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+
+    return filtered;
+  }, [bookings, proposals, invoices, transactions, waivers, galleries, customer?.privateNotes, filterType, sortOrder, startDate, endDate, searchQuery]);
 
   if (isLoading) {
     return (
@@ -480,187 +739,303 @@ export default function CustomerProfileDetailView({ params }: { params: Promise<
               </div>
             </div>
           </div>
-
-          {/* RIGHT COLUMN: Chronology logs, Waiver register, and Staff notes */}
+          {/* RIGHT COLUMN: Unified Communication & Activity Ledger */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* 1. Trip Chronology / History Timeline */}
-            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.5rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 1.25rem 0' }}>
-                <Calendar size={18} style={{ color: '#B9783B' }} /> Voyage History & Schedule
-              </h3>
-              
-              {bookings.length === 0 ? (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', background: '#121416', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                  <AlertCircle size={32} color="#D8C7AF" style={{ opacity: 0.4, margin: '0 auto 0.75rem' }} />
-                  <span style={{ fontSize: '0.78rem', color: '#D8C7AF', opacity: 0.6 }}>No bookings logged for this account yet.</span>
+            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '1.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.6rem', margin: 0 }}>
+                  <Clock size={20} style={{ color: '#B9783B' }} /> Communication & Activity Ledger
+                </h3>
+                <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.6 }}>
+                  Showing {activityTimeline.length} events
+                </span>
+              </div>
+
+              {/* Filtering Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', background: '#121416', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                {/* Search and Sort */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Search logs by keyword..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={{
+                      padding: '0.5rem 0.75rem',
+                      background: '#1E2124',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '6px',
+                      color: 'white',
+                      fontSize: '0.78rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <select
+                    value={sortOrder}
+                    onChange={e => setSortOrder(e.target.value as 'desc' | 'asc')}
+                    style={{
+                      padding: '0.5rem 0.5rem',
+                      background: '#1E2124',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '6px',
+                      color: 'white',
+                      fontSize: '0.78rem',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="desc">Newest First</option>
+                    <option value="asc">Oldest First</option>
+                  </select>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {bookings.map(b => (
-                    <div 
-                      key={b.id} 
-                      style={{ 
-                        background: '#121416', 
-                        border: '1px solid rgba(255,255,255,0.04)', 
-                        borderRadius: '8px', 
-                        padding: '1rem', 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        gap: '1rem'
+
+                {/* Date range selection */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.66rem', color: '#D8C7AF', opacity: 0.5, marginBottom: '0.25rem' }}>Start Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        background: '#1E2124',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        fontSize: '0.78rem',
+                        outline: 'none',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.66rem', color: '#D8C7AF', opacity: 0.5, marginBottom: '0.25rem' }}>End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={e => setEndDate(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        background: '#1E2124',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        fontSize: '0.78rem',
+                        outline: 'none',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Tabs / Badges for quick filter */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.85rem' }}>
+                  {[
+                    { type: 'all', label: 'All Logs' },
+                    { type: 'booking', label: 'Bookings' },
+                    { type: 'proposal', label: 'Proposals / Orders' },
+                    { type: 'financial', label: 'Financials' },
+                    { type: 'communication', label: 'Emails & SMS' },
+                    { type: 'waiver', label: 'Waivers' },
+                    { type: 'gallery', label: 'Galleries' },
+                    { type: 'note', label: 'Staff Notes' }
+                  ].map(tab => (
+                    <button
+                      key={tab.type}
+                      type="button"
+                      onClick={() => setFilterType(tab.type)}
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '4px',
+                        background: filterType === tab.type ? '#B9783B' : 'rgba(255,255,255,0.04)',
+                        color: filterType === tab.type ? 'white' : '#D8C7AF',
+                        border: '1px solid ' + (filterType === tab.type ? '#B9783B' : 'rgba(255,255,255,0.08)'),
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ fontWeight: 700, color: 'white', fontSize: '0.85rem' }}>BK-{b.id}</span>
-                          <span style={{ 
-                            fontSize: '0.66rem', 
-                            padding: '0.1rem 0.35rem', 
-                            borderRadius: '4px',
-                            background: b.status === 'confirmed' ? 'rgba(112, 140, 132, 0.12)' : 'rgba(255, 255, 255, 0.06)',
-                            color: b.status === 'confirmed' ? '#708C84' : '#D8C7AF'
-                          }}>
-                            {b.status}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.78rem', color: 'white' }}>{b.experienceTitle} ({b.vesselTitle})</span>
-                        <span style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.6 }}>Date: {b.date} at {b.startTime} • Capt. {b.captainTitle.replace('Captain ', '')}</span>
-                      </div>
-                      
-                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                        <span style={{ color: '#B9783B', fontWeight: 700, fontSize: '0.9rem' }}>{formatCost(b.amountPaidToday)}</span>
-                        <Link 
-                          href="/admin/bookings" 
-                          style={{ textDecoration: 'none', color: '#D8C7AF', opacity: 0.7, fontSize: '0.74rem', borderBottom: '1px solid rgba(216,199,175,0.3)', paddingBottom: '1px' }}
-                        >
-                          Booking Details
-                        </Link>
-                      </div>
-                    </div>
+                      {tab.label}
+                    </button>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* 2. Waiver compliance trail */}
-            <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.5rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 1.25rem 0' }}>
-                <FileText size={18} style={{ color: '#B9783B' }} /> Liability Waiver Audit Records
-              </h3>
-
-              {waivers.length === 0 ? (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', background: '#121416', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                  <ShieldAlert size={32} color="#ef4444" style={{ opacity: 0.6, margin: '0 auto 0.75rem' }} />
-                  <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: 500 }}>No digital waiver signatures stored for this email.</span>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {waivers.map(w => (
-                    <div 
-                      key={w.id} 
-                      style={{ 
-                        background: '#121416', 
-                        border: '1px solid rgba(255,255,255,0.04)', 
-                        borderRadius: '8px', 
-                        padding: '1.25rem',
-                        fontSize: '0.78rem'
+                  {(startDate || endDate || searchQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStartDate('');
+                        setEndDate('');
+                        setSearchQuery('');
+                        setFilterType('all');
+                      }}
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '4px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#EF4444',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        cursor: 'pointer',
+                        fontWeight: 600
                       }}
                     >
-                      {/* Waiver title bar */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.6rem', marginBottom: '0.65rem' }}>
-                        <strong style={{ color: 'white', fontSize: '0.82rem' }}>Waiver document: {w.id}</strong>
-                        <span style={{ color: '#708C84', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                          <CheckCircle size={12} /> SIGNED
-                        </span>
-                      </div>
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                      {/* Details breakdown */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', color: '#D8C7AF', opacity: 0.9 }}>
-                        <div>
-                          <span style={{ opacity: 0.5, display: 'block', fontSize: '0.66rem' }}>Signer Name:</span>
-                          <span style={{ color: 'white', fontWeight: 600 }}>{w.name} (Self)</span>
-                        </div>
-                        <div>
-                          <span style={{ opacity: 0.5, display: 'block', fontSize: '0.66rem' }}>Signed Timestamp:</span>
-                          <span style={{ color: 'white' }}>{new Date(w.signedAt).toLocaleString()}</span>
-                        </div>
-                        <div>
-                          <span style={{ opacity: 0.5, display: 'block', fontSize: '0.66rem' }}>Authorized Address:</span>
-                          <span style={{ color: 'white' }}>{w.address}</span>
-                        </div>
-                        <div>
-                          <span style={{ opacity: 0.5, display: 'block', fontSize: '0.66rem' }}>Network Audit Metadata:</span>
-                          <span style={{ color: 'white', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            {w.ip} ({w.city || 'Localhost'}, {w.region || 'US'})
-                          </span>
-                        </div>
-                      </div>
+              {/* Timeline Flow */}
+              {activityTimeline.length === 0 ? (
+                <div style={{ padding: '3rem 1rem', textAlign: 'center', background: '#121416', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <AlertCircle size={36} color="#D8C7AF" style={{ opacity: 0.3, margin: '0 auto 0.75rem' }} />
+                  <span style={{ fontSize: '0.8rem', color: '#D8C7AF', opacity: 0.6 }}>No matching activities found.</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '600px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                  {activityTimeline.map((item) => {
+                    let IconComponent = Calendar;
+                    let iconBg = 'rgba(185, 120, 59, 0.12)';
+                    let iconColor = '#B9783B';
+                    let badgeBg = 'rgba(255, 255, 255, 0.05)';
+                    let badgeColor = '#D8C7AF';
 
-                      {/* Device metadata audit */}
-                      <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '6px', padding: '0.5rem 0.75rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.7rem', color: '#D8C7AF' }}>
-                        {w.device === 'desktop' ? <Laptop size={14} style={{ color: '#B9783B' }} /> : <Smartphone size={14} style={{ color: '#B9783B' }} />}
-                        <span>
-                          <strong>Platform Audit:</strong> {w.browser || 'Unknown Browser'} on {w.os || 'Unknown OS'} ({w.device || 'Desktop'}) • Screen: {w.screenResolution || 'N/A'} • Lang: {w.language || 'en'}
-                        </span>
-                      </div>
+                    if (item.type === 'booking') {
+                      IconComponent = Calendar;
+                      iconBg = 'rgba(185, 120, 59, 0.12)';
+                      iconColor = '#B9783B';
+                      badgeBg = item.status === 'confirmed' ? 'rgba(112, 140, 132, 0.12)' : 'rgba(255, 255, 255, 0.06)';
+                      badgeColor = item.status === 'confirmed' ? '#708C84' : '#D8C7AF';
+                    } else if (item.type === 'proposal') {
+                      IconComponent = FileText;
+                      iconBg = 'rgba(59, 130, 246, 0.12)';
+                      iconColor = '#3B82F6';
+                      badgeBg = item.status === 'accepted' ? 'rgba(112, 140, 132, 0.12)' : 'rgba(255, 255, 255, 0.06)';
+                      badgeColor = item.status === 'accepted' ? '#708C84' : '#D8C7AF';
+                    } else if (item.type === 'invoice') {
+                      IconComponent = DollarSign;
+                      iconBg = 'rgba(245, 158, 11, 0.12)';
+                      iconColor = '#F59E0B';
+                      badgeBg = item.status === 'paid' ? 'rgba(112, 140, 132, 0.12)' : 'rgba(239, 68, 68, 0.12)';
+                      badgeColor = item.status === 'paid' ? '#708C84' : '#EF4444';
+                    } else if (item.type === 'transaction') {
+                      IconComponent = CheckCircle;
+                      iconBg = 'rgba(16, 185, 129, 0.12)';
+                      iconColor = '#10B981';
+                      badgeBg = item.status === 'completed' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)';
+                      badgeColor = item.status === 'completed' ? '#10B981' : '#F59E0B';
+                    } else if (item.type === 'waiver') {
+                      IconComponent = ShieldAlert;
+                      iconBg = 'rgba(14, 165, 233, 0.12)';
+                      iconColor = '#0EA5E9';
+                      badgeBg = 'rgba(14, 165, 233, 0.12)';
+                      badgeColor = '#0EA5E9';
+                    } else if (item.type === 'note') {
+                      IconComponent = MessageSquare;
+                      iconBg = 'rgba(107, 114, 128, 0.15)';
+                      iconColor = '#9CA3AF';
+                      badgeBg = 'rgba(107, 114, 128, 0.1)';
+                      badgeColor = '#9CA3AF';
+                    } else if (item.type === 'gallery') {
+                      IconComponent = ImageIcon;
+                      iconBg = 'rgba(139, 92, 246, 0.12)';
+                      iconColor = '#8B5CF6';
+                      badgeBg = item.status === 'published' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255, 255, 255, 0.06)';
+                      badgeColor = item.status === 'published' ? '#8B5CF6' : '#D8C7AF';
+                    } else if (item.type === 'communication') {
+                      IconComponent = Mail;
+                      iconBg = 'rgba(236, 72, 153, 0.12)';
+                      iconColor = '#EC4899';
+                      badgeBg = item.status === 'sent' ? 'rgba(236, 72, 153, 0.12)' : 'rgba(255, 255, 255, 0.06)';
+                      badgeColor = item.status === 'sent' ? '#EC4899' : '#D8C7AF';
+                    }
 
-                      {/* Dependent passengers linked */}
-                      {w.passengers && w.passengers.length > 0 && (
-                        <div style={{ marginTop: '0.75rem', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '0.65rem' }}>
-                          <span style={{ opacity: 0.6, fontSize: '0.7rem', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>Covered Co-Passengers & Dependents</span>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                            {w.passengers.map((p, idx) => (
-                              <span 
-                                key={idx} 
-                                style={{ 
-                                  fontSize: '0.68rem', 
-                                  padding: '0.15rem 0.45rem', 
-                                  borderRadius: '4px',
-                                  background: p.addedToMainWaiver ? 'rgba(185, 120, 59, 0.08)' : 'rgba(255,255,255,0.04)',
-                                  border: '1px solid rgba(255,255,255,0.06)',
-                                  color: p.addedToMainWaiver ? '#B9783B' : '#D8C7AF',
-                                  fontWeight: p.addedToMainWaiver ? 700 : 500
-                                }}
-                              >
-                                {p.name} ({p.relationship}) • {p.addedToMainWaiver ? 'Signed on Primary' : 'Requires Guest Sign'}
-                              </span>
-                            ))}
+                    return (
+                      <div 
+                        key={item.id} 
+                        style={{
+                          background: '#121416',
+                          border: '1px solid rgba(255,255,255,0.04)',
+                          borderRadius: '8px',
+                          padding: '1rem',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '1rem',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: iconBg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: iconColor,
+                          flexShrink: 0
+                        }}>
+                          <IconComponent size={18} />
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                            <span style={{ fontWeight: 700, color: 'white', fontSize: '0.85rem' }}>{item.title}</span>
+                            <span style={{ 
+                              fontSize: '0.62rem', 
+                              padding: '0.1rem 0.35rem', 
+                              borderRadius: '4px',
+                              background: badgeBg,
+                              color: badgeColor,
+                              textTransform: 'uppercase',
+                              fontWeight: 700
+                            }}>
+                              {item.status}
+                            </span>
                           </div>
+                          <p style={{ margin: '0 0 0.45rem 0', fontSize: '0.78rem', color: '#D8C7AF', lineHeight: '1.4', wordBreak: 'break-word' }}>
+                            {item.description}
+                          </p>
+                          <span style={{ fontSize: '0.68rem', color: '#D8C7AF', opacity: 0.5 }}>
+                            {new Date(item.date).toLocaleString()}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', height: '100%', gap: '0.5rem', flexShrink: 0 }}>
+                          {item.amount > 0 && (
+                            <span style={{ color: '#B9783B', fontWeight: 700, fontSize: '0.85rem' }}>
+                              {formatCost(item.amount)}
+                            </span>
+                          )}
+                          {item.link && item.link !== '#' && (
+                            <Link 
+                              href={item.link} 
+                              style={{ 
+                                textDecoration: 'none', 
+                                color: '#B9783B', 
+                                fontSize: '0.72rem', 
+                                fontWeight: 600, 
+                                borderBottom: '1px solid rgba(185,120,59,0.3)', 
+                                paddingBottom: '1px' 
+                              }}
+                            >
+                              Reference File
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* 3. Internal Private Staff Logs (CRM notes) */}
+            {/* Internal Private Staff Logs (CRM notes) */}
             <div style={{ background: '#1E2124', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1.5rem' }}>
               <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 1.25rem 0' }}>
-                <Info size={18} style={{ color: '#B9783B' }} /> Private Concierge & Staff Notes
+                <Info size={18} style={{ color: '#B9783B' }} /> Add Concierge or Private Note
               </h3>
-
-              {/* Note timeline log list */}
-              {(!customer.privateNotes || customer.privateNotes.length === 0) ? (
-                <div style={{ padding: '1.5rem 1rem', textAlign: 'center', background: '#121416', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '1.25rem' }}>
-                  <span style={{ fontSize: '0.74rem', color: '#D8C7AF', opacity: 0.5 }}>No private concierge logs recorded for this guest profile.</span>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
-                  {customer.privateNotes.map((note: any, idx: number) => (
-                    <div key={idx} style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.03)', padding: '0.85rem 1rem', borderRadius: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', opacity: 0.6, color: '#D8C7AF', marginBottom: '0.35rem' }}>
-                        <span>Logged by <strong>{note.author}</strong></span>
-                        <span>{new Date(note.date).toLocaleString()}</span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'white', lineHeight: '1.45', fontStyle: 'italic' }}>
-                        "{note.note}"
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Add Note form */}
               <form onSubmit={handleAddNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
