@@ -7,9 +7,10 @@ import {
    Sparkles, MapPin, Navigation, Share2, DollarSign, 
    Check, Info, User, HelpCircle, ArrowRight, Loader2, Play, Image as ImageIcon,
    Phone, Calendar, Copy, ChevronLeft, ChevronRight, Wind, ShieldCheck, Ship, Users, Compass,
-   Sun, Cloud, Star, Gift, Upload
+   Sun, Cloud, Star, Gift, Upload, Download, FolderDown, Archive, X
  } from 'lucide-react';
 import Link from 'next/link';
+import JSZip from 'jszip';
 import { firebaseConfig } from '@/lib/firebase';
 import { uploadFile } from '@/lib/storage';
 import PublicFooter from '@/components/public/PublicFooter';
@@ -95,6 +96,10 @@ export default function GuestTripMemoriesPage() {
   const [booking, setBooking] = useState<any>(null);
   const [captain, setCaptain] = useState<any>(null);
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
+  
+  // Media Batch Zip Download states
+  const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<string>('');
   
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -303,6 +308,143 @@ export default function GuestTripMemoriesPage() {
       } catch {
         showToast('error', 'Failed to copy link to clipboard.');
       }
+    }
+  };
+
+  const handleDownloadSingleMedia = async (mediaItem: any, index: number) => {
+    if (!mediaItem?.url) return;
+    try {
+      showToast('success', 'Starting download...');
+      const response = await fetch(mediaItem.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      let extension = mediaItem.type === 'video' ? 'mp4' : 'jpg';
+      if (mediaItem.url.includes('.webp')) extension = 'webp';
+      else if (mediaItem.url.includes('.png')) extension = 'png';
+      else if (mediaItem.url.includes('.mov')) extension = 'mov';
+      const seq = String(index + 1).padStart(2, '0');
+      link.download = `MY-Whiskey-Photo-${seq}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('success', 'Photo downloaded!');
+    } catch (e) {
+      console.error('Failed to download single image:', e);
+      window.open(mediaItem.url, '_blank');
+    }
+  };
+
+  const handleDownloadAllZip = async () => {
+    if (!gallery?.media || gallery.media.length === 0) {
+      showToast('error', 'No media items available to download.');
+      return;
+    }
+
+    setIsDownloadingZip(true);
+    setDownloadProgress('Preparing files...');
+
+    try {
+      const zip = new JSZip();
+      const mediaList = gallery.media;
+      const total = mediaList.length;
+
+      const safeExcursionName = (gallery.title || booking?.experienceTitle || 'MY-Whiskey-Voyage')
+        .replace(/[^a-zA-Z0-9-_]/g, '_')
+        .replace(/_+/g, '_')
+        .slice(0, 45);
+
+      const folderName = `${safeExcursionName}-Memories`;
+      const imgFolder = zip.folder(folderName) || zip;
+
+      // 1. Fetch each media file
+      for (let i = 0; i < total; i++) {
+        const item = mediaList[i];
+        setDownloadProgress(`Fetching media ${i + 1}/${total} (${Math.round((i / total) * 80)}%)...`);
+
+        try {
+          const response = await fetch(item.url);
+          if (!response.ok) {
+            console.warn(`Failed to fetch media item ${i + 1}:`, response.statusText);
+            continue;
+          }
+          const blob = await response.blob();
+
+          let extension = item.type === 'video' ? 'mp4' : 'jpg';
+          if (item.url.includes('.webp')) extension = 'webp';
+          else if (item.url.includes('.png')) extension = 'png';
+          else if (item.url.includes('.mov')) extension = 'mov';
+          else if (item.url.includes('.jpeg')) extension = 'jpg';
+
+          const seq = String(i + 1).padStart(2, '0');
+          const cleanCaption = item.caption 
+            ? `-${item.caption.slice(0, 25).replace(/[^a-zA-Z0-9-_]/g, '_')}` 
+            : '';
+          const filename = `${seq}-MY-Whiskey${cleanCaption}.${extension}`;
+
+          imgFolder.file(filename, blob);
+        } catch (itemErr) {
+          console.warn(`Error downloading media item ${i + 1}:`, itemErr);
+        }
+      }
+
+      // 2. Add Trip Narrative & Information text document
+      const summaryText = [
+        `=============================================================`,
+        `         M/Y WHISKEY PRIVATE CHARTER EXCURSION MEMORIES      `,
+        `=============================================================`,
+        ``,
+        `Excursion: ${gallery.title || booking?.experienceTitle || 'Private Luxury Charter'}`,
+        `Booking Reference: ${booking?.id || bookingId}`,
+        `Voyage Date: ${booking?.date || 'N/A'}`,
+        `Primary Organizer: ${booking?.guestName || 'Charter Guest'}`,
+        `Captain: ${booking?.captainTitle || captain?.title || 'Bo Johnsson'}`,
+        `Vessel: M/Y Whiskey (Destin, Florida)`,
+        ``,
+        `-------------------------------------------------------------`,
+        `THE VOYAGE STORY:`,
+        `-------------------------------------------------------------`,
+        gallery.story || 'A magical day on the emerald waters aboard the M/Y Whiskey.',
+        ``,
+        `-------------------------------------------------------------`,
+        `PHOTO CAPTIONS & LOCATIONS:`,
+        `-------------------------------------------------------------`,
+        ...mediaList.map((m: any, idx: number) => {
+          const gps = m.exif?.latitude ? ` [GPS: ${m.exif.latitude.toFixed(4)}, ${m.exif.longitude.toFixed(4)}]` : '';
+          return `Item ${idx + 1}: ${m.caption || 'Visual memory'}${gps}`;
+        }),
+        ``,
+        `Relive your voyage online: https://www.motoryachtwhiskey.com/trip/${booking?.token || bookingId}`,
+        `=============================================================`
+      ].join('\n');
+
+      imgFolder.file('Voyage-Story-and-Details.txt', summaryText);
+
+      // 3. Generate Zip
+      setDownloadProgress('Compressing .zip archive...');
+      const contentBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+        setDownloadProgress(`Building archive (${Math.round(80 + (metadata.percent * 0.2))} %)...`);
+      });
+
+      // 4. Trigger download
+      const downloadUrl = URL.createObjectURL(contentBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${folderName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast('success', `✓ Downloaded ${total} photos & excursion archive!`);
+    } catch (err: any) {
+      console.error('Error generating media zip:', err);
+      showToast('error', 'Failed to generate zip file. Please try again.');
+    } finally {
+      setIsDownloadingZip(false);
+      setDownloadProgress('');
     }
   };
 
@@ -672,6 +814,85 @@ export default function GuestTripMemoriesPage() {
           onClick={() => setActiveLightboxIndex(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.97)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
         >
+          {/* Lightbox Top Control Toolbar */}
+          <div 
+            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', zIndex: 1020 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Download single photo */}
+            <button
+              onClick={() => handleDownloadSingleMedia(gallery.media[activeLightboxIndex], activeLightboxIndex)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: 'white',
+                padding: '0.5rem 0.85rem',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              title="Download this photo"
+            >
+              <Download size={14} /> Download Photo
+            </button>
+
+            {/* Download All (.zip) */}
+            <button
+              onClick={handleDownloadAllZip}
+              disabled={isDownloadingZip}
+              style={{
+                background: '#B9783B',
+                border: 'none',
+                color: 'white',
+                padding: '0.5rem 0.85rem',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: isDownloadingZip ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { if (!isDownloadingZip) e.currentTarget.style.background = '#a2642e'; }}
+              onMouseLeave={e => { if (!isDownloadingZip) e.currentTarget.style.background = '#B9783B'; }}
+              title="Download all excursion media as .zip"
+            >
+              {isDownloadingZip ? <Loader2 size={14} className="animate-spin" /> : <FolderDown size={14} />}
+              <span>{isDownloadingZip ? 'Packaging...' : 'Download All (.zip)'}</span>
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={() => setActiveLightboxIndex(null)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: 'white',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              title="Close viewer"
+            >
+              ✕
+            </button>
+          </div>
           {/* Left Arrow Button */}
           {gallery?.media?.length > 1 && (
             <button 
@@ -827,12 +1048,43 @@ export default function GuestTripMemoriesPage() {
               </div>
             </div>
             
-            <button 
-              onClick={handleShare}
-              style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', padding: '0.65rem 1.25rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'background 0.2s' }}
-            >
-              <Share2 size={14} /> Share Memories
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {gallery?.media?.length > 0 && (
+                <button 
+                  onClick={handleDownloadAllZip}
+                  disabled={isDownloadingZip}
+                  style={{
+                    background: '#B9783B',
+                    border: 'none',
+                    color: 'white',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '4px',
+                    cursor: isDownloadingZip ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 8px rgba(185,120,59,0.3)'
+                  }}
+                  onMouseEnter={e => { if (!isDownloadingZip) e.currentTarget.style.background = '#a2642e'; }}
+                  onMouseLeave={e => { if (!isDownloadingZip) e.currentTarget.style.background = '#B9783B'; }}
+                >
+                  {isDownloadingZip ? <Loader2 size={14} className="animate-spin" /> : <FolderDown size={14} />}
+                  <span>{isDownloadingZip ? (downloadProgress || 'Downloading...') : 'Download (.zip)'}</span>
+                </button>
+              )}
+
+              <button 
+                onClick={handleShare}
+                style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', padding: '0.65rem 1.25rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'background 0.2s' }}
+              >
+                <Share2 size={14} /> Share Memories
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -1375,9 +1627,38 @@ export default function GuestTripMemoriesPage() {
 
         {/* Media Lightbox Grid */}
         <div style={{ marginBottom: '4rem' }}>
-          <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, color: 'white', marginBottom: '1.25rem', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ImageIcon size={18} color="#B9783B" /> Visual Memories
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, color: 'white', margin: 0, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ImageIcon size={18} color="#B9783B" /> Visual Memories {gallery?.media?.length > 0 && <span style={{ fontSize: '0.85rem', color: '#D8C7AF', opacity: 0.6, fontWeight: 400 }}>({gallery.media.length} items)</span>}
+            </h2>
+            
+            {gallery?.media?.length > 0 && (
+              <button
+                onClick={handleDownloadAllZip}
+                disabled={isDownloadingZip}
+                style={{
+                  background: 'rgba(185, 120, 59, 0.12)',
+                  border: '1px solid rgba(185, 120, 59, 0.4)',
+                  color: '#F4F1EA',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '6px',
+                  cursor: isDownloadingZip ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                }}
+                onMouseEnter={e => { if (!isDownloadingZip) e.currentTarget.style.background = 'rgba(185, 120, 59, 0.25)'; }}
+                onMouseLeave={e => { if (!isDownloadingZip) e.currentTarget.style.background = 'rgba(185, 120, 59, 0.12)'; }}
+              >
+                {isDownloadingZip ? <Loader2 size={14} className="animate-spin" style={{ color: '#B9783B' }} /> : <Download size={14} style={{ color: '#B9783B' }} />}
+                <span>{isDownloadingZip ? (downloadProgress || 'Downloading...') : 'Download All Photos (.zip)'}</span>
+              </button>
+            )}
+          </div>
           
           {!gallery?.media || gallery.media.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#888', padding: '3rem', background: '#17191C', borderRadius: '8px' }}>
