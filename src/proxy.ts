@@ -94,7 +94,7 @@ export function proxy(request: NextRequest) {
   }
 
   // 3. Subdomain and Custom Domain Resolution (Production hostnames)
-  const SHARED_APP_ROUTES = ['/login', '/logout', '/auth', '/admin', '/owner', '/trip', '/guest', '/go', '/blog'];
+  const SHARED_APP_ROUTES = ['/login', '/logout', '/auth', '/admin', '/owner', '/trip', '/guest', '/go', '/blog', '/contact'];
   if (
     pathname.startsWith('/_next') || 
     pathname.startsWith('/api') || 

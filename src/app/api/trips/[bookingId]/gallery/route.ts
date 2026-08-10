@@ -101,11 +101,50 @@ export async function GET(
       }
     }
 
-    const waiverSnap = await adminDb.collection('pages').doc(`waiver-${resolvedBookingId}`).get();
-    const waiverDetails = waiverSnap.exists ? waiverSnap.data() : null;
+    // Fetch Waiver details
+    let waiverDetails = null;
+    const possibleWaiverIds = [
+      `waiver-${resolvedBookingId}`,
+      `waiver-${bookingId}`,
+      `waiver-BK-${resolvedBookingId.replace(/^BK-/, '')}`,
+      `waiver-${resolvedBookingId.replace(/^BK-/, '')}`
+    ];
+    for (const wId of possibleWaiverIds) {
+      const waiverSnap = await adminDb.collection('pages').doc(wId).get();
+      if (waiverSnap.exists) {
+        waiverDetails = waiverSnap.data();
+        break;
+      }
+    }
 
-    const testimonialSnap = await adminDb.collection('testimonials').doc(`tst_${resolvedBookingId}`).get();
-    const testimonialDetails = testimonialSnap.exists ? testimonialSnap.data() : null;
+    // Fetch Testimonial details
+    let testimonialDetails = null;
+    const possibleTestimonialIds = [
+      `tst_${resolvedBookingId}`,
+      `tst_${bookingId}`,
+      `tst_BK-${resolvedBookingId.replace(/^BK-/, '')}`,
+      `tst_${resolvedBookingId.replace(/^BK-/, '')}`
+    ];
+    for (const tId of possibleTestimonialIds) {
+      const testimonialSnap = await adminDb.collection('testimonials').doc(tId).get();
+      if (testimonialSnap.exists) {
+        testimonialDetails = testimonialSnap.data();
+        break;
+      }
+    }
+    if (!testimonialDetails) {
+      try {
+        const tQuery = await adminDb.collection('testimonials')
+          .where('bookingId', 'in', [resolvedBookingId, bookingId, `BK-${resolvedBookingId}`, resolvedBookingId.replace(/^BK-/, '')])
+          .limit(1)
+          .get();
+        if (!tQuery.empty) {
+          testimonialDetails = tQuery.docs[0].data();
+        }
+      } catch (tErr) {
+        console.warn('Testimonials multi-query fallback warning:', tErr);
+      }
+    }
 
     const expSnap = await adminDb.collection('experiences').where('status', '==', 'published').get();
     const otherExperiences: any[] = [];
@@ -116,18 +155,45 @@ export async function GET(
       }
     });
 
-    const docSnap = await adminDb.collection('trip_galleries').doc(resolvedBookingId).get();
-    if (docSnap.exists) {
-      const data = docSnap.data();
+    // Fetch Trip Gallery record
+    let galleryData: any = null;
+    const possibleGalleryIds = [
+      resolvedBookingId,
+      bookingId,
+      resolvedBookingId.startsWith('BK-') ? resolvedBookingId : `BK-${resolvedBookingId}`,
+      resolvedBookingId.replace(/^BK-/, '')
+    ];
+    for (const gId of possibleGalleryIds) {
+      const docSnap = await adminDb.collection('trip_galleries').doc(gId).get();
+      if (docSnap.exists) {
+        galleryData = docSnap.data();
+        break;
+      }
+    }
+    if (!galleryData) {
+      try {
+        const gQuery = await adminDb.collection('trip_galleries')
+          .where('bookingId', 'in', [resolvedBookingId, bookingId, `BK-${resolvedBookingId}`, resolvedBookingId.replace(/^BK-/, '')])
+          .limit(1)
+          .get();
+        if (!gQuery.empty) {
+          galleryData = gQuery.docs[0].data();
+        }
+      } catch (gErr) {
+        console.warn('Trip gallery multi-query fallback warning:', gErr);
+      }
+    }
+
+    if (galleryData) {
       // If it is not published, check if the client is authenticated
-      if (data && !data.isPublished) {
+      if (!galleryData.isPublished) {
         const isAuthed = await verifyAuth(request);
         if (!isAuthed) {
           return NextResponse.json({ error: 'Gallery is in draft and is not public.' }, { status: 403 });
         }
       }
       return NextResponse.json({ 
-        ...data, 
+        ...galleryData, 
         booking: bookingDetails, 
         waiver: waiverDetails, 
         vessel: vesselDetails, 
