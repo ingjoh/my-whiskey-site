@@ -55,18 +55,29 @@ export async function generateMetadata({
     let title = 'Your Voyage Memories';
     let description = 'Relive your luxury yacht excursion aboard M/Y Whiskey.';
 
-    const gallerySnap = await adminDb.collection('trip_galleries').doc(resolvedBookingId).get();
-    if (gallerySnap.exists) {
-      const galleryData = gallerySnap.data();
-      if (galleryData) {
-        if (galleryData.title) title = galleryData.title;
-        if (galleryData.description) description = galleryData.description;
-        if (galleryData.coverImageUrl) {
-          coverImageUrl = galleryData.coverImageUrl;
-        } else if (galleryData.media && galleryData.media.length > 0) {
-          const firstImg = galleryData.media.find((m: any) => m.type === 'image');
-          if (firstImg) coverImageUrl = firstImg.url;
-        }
+    let galleryData: any = null;
+    const possibleGalleryIds = [
+      resolvedBookingId,
+      bookingId,
+      resolvedBookingId.startsWith('BK-') ? resolvedBookingId : `BK-${resolvedBookingId}`,
+      resolvedBookingId.replace(/^BK-/, '')
+    ];
+    for (const gId of possibleGalleryIds) {
+      const gallerySnap = await adminDb.collection('trip_galleries').doc(gId).get();
+      if (gallerySnap.exists) {
+        galleryData = gallerySnap.data();
+        break;
+      }
+    }
+
+    if (galleryData) {
+      if (galleryData.title) title = galleryData.title;
+      if (galleryData.description) description = galleryData.description;
+      if (galleryData.coverImageUrl) {
+        coverImageUrl = galleryData.coverImageUrl;
+      } else if (galleryData.media && galleryData.media.length > 0) {
+        const firstImg = galleryData.media.find((m: any) => m.type === 'image');
+        if (firstImg) coverImageUrl = firstImg.url;
       }
     }
 

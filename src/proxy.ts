@@ -103,6 +103,11 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/auth') || 
     pathname.startsWith('/admin') || 
     pathname.startsWith('/owner') || 
+    pathname.startsWith('/trip') || 
+    pathname.startsWith('/guest') || 
+    pathname.startsWith('/go') || 
+    pathname.startsWith('/blog') || 
+    pathname.startsWith('/contact') || 
     pathname.includes('.')
   ) {
     return NextResponse.next();
