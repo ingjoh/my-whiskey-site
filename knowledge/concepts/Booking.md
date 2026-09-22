@@ -20,6 +20,8 @@ A **Booking** represents the single record of truth for a customer's confirmed c
 *   Spawns the operational execution pipeline (**Operational Itinerary** and **Assignments**).
 *   Tracks payment status, waiver completions, and client messaging.
 *   Supports administrative parameter overrides directly on the Booking document (e.g. `guestName`, `guestEmail`, `guestPhone`, `date`, `startTime`, `captainId`, and `captainTitle`) to allow edits to confirm/update the booking parameters without mutating the accepted Offer history.
+*   Spawns automated **Booking Confirmation & Payment Receipts** upon payment confirmation (either full payment, deposit, or cleared ACH transfer), delivering an itemized receipt with dedicated card views for the assigned Vessel, Departure Port (Start Location), and Captain.
+*   Provides administrative tools under Manage Bookings to view, print (via paper-optimized CSS), and email/resend confirmation receipts to guests.
 
 ## Examples
 

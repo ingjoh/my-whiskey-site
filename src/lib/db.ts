@@ -5117,6 +5117,25 @@ export function getSeoMetadata(pageData: any, pathname: string): any {
   };
 }
 
+/**
+ * Retrieves all payout records for a specific booking.
+ */
+export async function getPayoutsForBooking(bookingId: string): Promise<any[]> {
+  try {
+    if (!db || !bookingId) return [];
+    const q = query(collection(db, 'payouts'), where('bookingId', '==', bookingId));
+    const snap = await getDocs(q);
+    const list: any[] = [];
+    snap.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    return list;
+  } catch (error) {
+    console.error(`Error loading payouts for booking ${bookingId}:`, error);
+    return [];
+  }
+}
+
 
 
 
