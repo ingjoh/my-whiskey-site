@@ -317,191 +317,6 @@ export default function BookingConfirmationReceiptView({
           </div>
         </div>
 
-        {/* 3 CARD VIEWS: VESSEL, LOCATION, CAPTAIN */}
-        <div className="receipt-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-
-          {/* CARD 1: THE VESSEL */}
-          <div className="receipt-card" style={{
-            backgroundColor: '#192D3B',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '8px',
-            padding: '18px',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            {data.vessel.imageUrl && (
-              <div style={{
-                width: '100%',
-                height: '140px',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                marginBottom: '14px',
-                backgroundColor: 'rgba(0,0,0,0.3)',
-              }}>
-                <img
-                  src={data.vessel.imageUrl}
-                  alt={data.vessel.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                />
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <Ship size={18} color="#B9783B" />
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
-                The Vessel
-              </span>
-            </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
-              {data.vessel.title}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#D8C7AF', marginBottom: '8px' }}>
-              {data.vessel.model} • {data.vessel.length}
-            </div>
-            {data.vessel.tagline && (
-              <div style={{ fontSize: '0.78rem', fontStyle: 'italic', color: '#B9783B', fontWeight: 600, marginBottom: '6px' }}>
-                "{data.vessel.tagline}"
-              </div>
-            )}
-            <div style={{ fontSize: '0.75rem', color: '#F4F1EA', opacity: 0.9, lineHeight: 1.45, marginBottom: '12px', flex: 1 }}>
-              {data.vessel.description}
-            </div>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px' }}>
-              <div style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600, marginBottom: '4px' }}>Key Amenities:</div>
-              <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.72rem', color: '#D8C7AF', lineHeight: 1.5 }}>
-                {data.vessel.features.slice(0, 4).map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* CARD 2: START LOCATION */}
-          <div className="receipt-card" style={{
-            backgroundColor: '#192D3B',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '8px',
-            padding: '18px',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            {data.location.imageUrl && (
-              <div style={{
-                width: '100%',
-                height: '140px',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                marginBottom: '14px',
-                backgroundColor: 'rgba(0,0,0,0.3)',
-              }}>
-                <img
-                  src={data.location.imageUrl}
-                  alt={data.location.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                />
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <MapPin size={18} color="#B9783B" />
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
-                Departure Port
-              </span>
-            </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
-              {data.location.title}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#B9783B', fontWeight: 600, marginBottom: '8px' }}>
-              {data.location.marina}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#D8C7AF', lineHeight: 1.4, marginBottom: '10px' }}>
-              {data.location.address}
-              {data.location.slip && (
-                <div style={{ color: '#FFFFFF', fontWeight: 600, marginTop: '2px' }}>
-                  Dock Assignment: {data.location.slip}
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.85, lineHeight: 1.4, flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: '4px', marginBottom: '10px' }}>
-              <strong>Arrival Rule:</strong> {data.location.arrivalInstructions}
-            </div>
-            <a
-              href={data.location.mapUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B9783B', textDecoration: 'none' }}
-              className="no-print"
-            >
-              📍 Open Google Maps Directions →
-            </a>
-          </div>
-
-          {/* CARD 3: THE CAPTAIN */}
-          <div className="receipt-card" style={{
-            backgroundColor: '#192D3B',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '8px',
-            padding: '18px',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            {data.captain.avatarUrl && (
-              <div style={{
-                width: '100%',
-                height: '140px',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                marginBottom: '14px',
-                backgroundColor: 'rgba(0,0,0,0.3)',
-              }}>
-                <img
-                  src={data.captain.avatarUrl}
-                  alt={data.captain.name}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'top center',
-                    display: 'block',
-                  }}
-                />
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <UserCheck size={18} color="#B9783B" />
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
-                Trip Leadership
-              </span>
-            </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
-              {data.captain.name}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#B9783B', fontWeight: 600, marginBottom: '6px' }}>
-              {data.captain.title}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#D8C7AF', lineHeight: 1.4, marginBottom: '10px' }}>
-              {data.captain.credentials}
-            </div>
-            {data.captain.bio && (
-              <div style={{ fontSize: '0.72rem', fontStyle: 'italic', color: '#D8C7AF', opacity: 0.85, lineHeight: 1.4, flex: 1, marginBottom: '10px' }}>
-                "{data.captain.bio}"
-              </div>
-            )}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', fontSize: '0.75rem', color: '#D8C7AF' }}>
-              Dockside Assistance: <strong style={{ color: '#FFFFFF' }}>{data.captain.phone}</strong>
-            </div>
-          </div>
-
-        </div>
-
         {/* ITEMIZED PAYMENT RECEIPT LEDGER */}
         <div className="receipt-ledger" style={{
           backgroundColor: '#121416',
@@ -599,6 +414,191 @@ export default function BookingConfirmationReceiptView({
             <span>Stripe Reference: <code style={{ color: '#FFFFFF' }}>{data.financials.stripePaymentIntentId || 'STRIPE_DIRECT'}</code></span>
             <span>Recorded: {new Date(data.financials.paidAt || data.createdAt).toLocaleString()}</span>
           </div>
+        </div>
+
+        {/* 3 CARD VIEWS: VESSEL, LOCATION, CAPTAIN */}
+        <div className="receipt-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+
+          {/* CARD 1: THE VESSEL */}
+          <div className="receipt-card" style={{
+            backgroundColor: '#192D3B',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {data.vessel.imageUrl && (
+              <div className="receipt-card-image-box" style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '14px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+              }}>
+                <img
+                  src={data.vessel.imageUrl}
+                  alt={data.vessel.title}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Ship size={18} color="#B9783B" />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
+                The Vessel
+              </span>
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
+              {data.vessel.title}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#D8C7AF', marginBottom: '8px' }}>
+              {data.vessel.model} • {data.vessel.length}
+            </div>
+            {data.vessel.tagline && (
+              <div style={{ fontSize: '0.78rem', fontStyle: 'italic', color: '#B9783B', fontWeight: 600, marginBottom: '6px' }}>
+                "{data.vessel.tagline}"
+              </div>
+            )}
+            <div style={{ fontSize: '0.75rem', color: '#F4F1EA', opacity: 0.9, lineHeight: 1.45, marginBottom: '12px', flex: 1 }}>
+              {data.vessel.description}
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px' }}>
+              <div style={{ fontSize: '0.72rem', color: '#D8C7AF', fontWeight: 600, marginBottom: '4px' }}>Key Amenities:</div>
+              <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.72rem', color: '#D8C7AF', lineHeight: 1.5 }}>
+                {data.vessel.features.slice(0, 4).map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* CARD 2: START LOCATION */}
+          <div className="receipt-card" style={{
+            backgroundColor: '#192D3B',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {data.location.imageUrl && (
+              <div className="receipt-card-image-box" style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '14px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+              }}>
+                <img
+                  src={data.location.imageUrl}
+                  alt={data.location.title}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <MapPin size={18} color="#B9783B" />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
+                Departure Port
+              </span>
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
+              {data.location.title}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#B9783B', fontWeight: 600, marginBottom: '8px' }}>
+              {data.location.marina}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#D8C7AF', lineHeight: 1.4, marginBottom: '10px' }}>
+              {data.location.address}
+              {data.location.slip && (
+                <div style={{ color: '#FFFFFF', fontWeight: 600, marginTop: '2px' }}>
+                  Dock Assignment: {data.location.slip}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#D8C7AF', opacity: 0.85, lineHeight: 1.4, flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: '4px', marginBottom: '10px' }}>
+              <strong>Arrival Rule:</strong> {data.location.arrivalInstructions}
+            </div>
+            <a
+              href={data.location.mapUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B9783B', textDecoration: 'none' }}
+              className="no-print"
+            >
+              📍 Open Google Maps Directions →
+            </a>
+          </div>
+
+          {/* CARD 3: THE CAPTAIN */}
+          <div className="receipt-card" style={{
+            backgroundColor: '#192D3B',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {data.captain.avatarUrl && (
+              <div className="receipt-card-image-box" style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '14px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+              }}>
+                <img
+                  src={data.captain.avatarUrl}
+                  alt={data.captain.name}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    display: 'block',
+                  }}
+                />
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <UserCheck size={18} color="#B9783B" />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: '#B9783B', textTransform: 'uppercase' }}>
+                Trip Leadership
+              </span>
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
+              {data.captain.name}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#B9783B', fontWeight: 600, marginBottom: '6px' }}>
+              {data.captain.title}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#D8C7AF', lineHeight: 1.4, marginBottom: '10px' }}>
+              {data.captain.credentials}
+            </div>
+            {data.captain.bio && (
+              <div style={{ fontSize: '0.72rem', fontStyle: 'italic', color: '#D8C7AF', opacity: 0.85, lineHeight: 1.4, flex: 1, marginBottom: '10px' }}>
+                "{data.captain.bio}"
+              </div>
+            )}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', fontSize: '0.75rem', color: '#D8C7AF' }}>
+              Dockside Assistance: <strong style={{ color: '#FFFFFF' }}>{data.captain.phone}</strong>
+            </div>
+          </div>
+
         </div>
 
         {/* PRE-BOARDING & GUEST ACTIONS */}
@@ -711,29 +711,16 @@ export default function BookingConfirmationReceiptView({
             border: 1px solid #D1D5DB !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-          }
-          .receipt-cards-grid {
-            display: grid !important;
-            grid-template-columns: repeat(3, 1fr) !important;
-            gap: 12px !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          .receipt-card {
-            background-color: #F8F9FA !important;
-            border: 1px solid #D1D5DB !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          .receipt-card img {
-            max-height: 110px !important;
-            object-fit: cover !important;
+            margin-bottom: 16px !important;
           }
           .receipt-ledger {
             background-color: #F8F9FA !important;
             border: 1px solid #D1D5DB !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            margin-bottom: 0 !important;
           }
           .receipt-ledger table tr {
             page-break-inside: avoid !important;
@@ -741,6 +728,35 @@ export default function BookingConfirmationReceiptView({
           }
           .receipt-ledger td, .receipt-ledger th {
             border-color: #E5E7EB !important;
+          }
+          .receipt-cards-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 12px !important;
+            page-break-before: always !important;
+            break-before: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-top: 0 !important;
+          }
+          .receipt-card {
+            background-color: #F8F9FA !important;
+            border: 1px solid #D1D5DB !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-card .receipt-card-image-box {
+            width: 100% !important;
+            aspect-ratio: 1 / 1 !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          .receipt-card img {
+            width: 100% !important;
+            height: 100% !important;
+            aspect-ratio: 1 / 1 !important;
+            max-height: none !important;
+            object-fit: cover !important;
           }
         }
       ` }} />
