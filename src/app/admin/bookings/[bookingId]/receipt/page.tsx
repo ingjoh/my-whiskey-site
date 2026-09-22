@@ -72,11 +72,8 @@ export default async function BookingReceiptPage({ params, searchParams }: Recei
       <BookingConfirmationReceiptView
         data={receiptData}
         showAdminActions={true}
+        autoPrint={shouldAutoPrint}
       />
-
-      {shouldAutoPrint && (
-        <script dangerouslySetInnerHTML={{ __html: `window.addEventListener('load', () => window.print());` }} />
-      )}
     </div>
   );
 }

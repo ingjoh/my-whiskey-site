@@ -4693,10 +4693,12 @@ export default function BookingsDashboard() {
       {/* BOOKING CONFIRMATION & PAYMENT RECEIPT MODAL */}
       {showReceiptModal && (
         <div 
+          className="receipt-modal-backdrop"
           style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', padding: '1.5rem' }}
           onClick={() => setShowReceiptModal(false)}
         >
           <div 
+            className="receipt-modal-content"
             style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
             onClick={e => e.stopPropagation()}
           >
@@ -5594,7 +5596,7 @@ export default function BookingsDashboard() {
         </div>
       )}
 
-      {/* Styled slideIn and fadeIn animations */}
+      {/* Styled slideIn and fadeIn animations & Print media overrides */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes slideInRight {
           from {
@@ -5612,6 +5614,25 @@ export default function BookingsDashboard() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        @media print {
+          nav, main, aside, header, .no-print {
+            display: none !important;
+          }
+          .receipt-modal-backdrop, .receipt-modal-content {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
         }
       ` }} />
