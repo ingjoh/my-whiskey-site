@@ -8,6 +8,7 @@ import { enrollBookingInFlow, parseMarkdownToHtml } from '@/lib/notifications';
 import MasterEmailWrapper from '@/components/emails/MasterEmailWrapper';
 import { sendMetaServerEvent } from '@/lib/meta-capi';
 import { triggerAdminNotification } from '@/lib/admin-notifications';
+import { sendBookingConfirmationReceiptEmail } from '@/lib/receipt';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
   apiVersion: '2023-10-16' as any,
@@ -127,6 +128,13 @@ export async function POST(request: NextRequest) {
               });
             });
             console.log(`✓ Webhook successfully accepted Offer ${offerId} -> created Booking ${generatedBookingId}`);
+
+            // Automatically dispatch booking confirmation & payment receipt
+            try {
+              await sendBookingConfirmationReceiptEmail(generatedBookingId);
+            } catch (receiptErr) {
+              console.error(`[Receipt] Failed to send confirmation receipt for offer booking ${generatedBookingId}:`, receiptErr);
+            }
           }
           break;
         }
@@ -437,6 +445,15 @@ export async function POST(request: NextRequest) {
           console.error('Meta CAPI: Failed to track purchase event in webhook:', capiErr);
         }
 
+        // Automatically dispatch booking confirmation & payment receipt on confirmed payment
+        if (targetStatus === 'pending waiver' || isBalancePayment) {
+          try {
+            await sendBookingConfirmationReceiptEmail(bookingId);
+          } catch (receiptErr) {
+            console.error(`[Receipt] Failed to send confirmation receipt for booking ${bookingId}:`, receiptErr);
+          }
+        }
+
         // Send notifications via Flow Manager (only on initial booking)
         if (!isBalancePayment && targetStatus === 'pending waiver') {
           try {
@@ -500,11 +517,11 @@ export async function POST(request: NextRequest) {
               }, { merge: true });
               console.log(`✓ Funds cleared for booking ${bookingId}. Status updated to "pending waiver".`);
 
-              // Enroll in the standard bareboat flow now that payment cleared!
+              // Automatically dispatch booking confirmation & payment receipt
               try {
-                await enrollBookingInFlow(bookingId, 'standard_bareboat_flow');
-              } catch (flowErr) {
-                console.error('Failed to enroll booking in standard bareboat flow on payment intent success:', flowErr);
+                await sendBookingConfirmationReceiptEmail(bookingId);
+              } catch (receiptErr) {
+                console.error(`[Receipt] Failed to send confirmation receipt on ACH payment success for ${bookingId}:`, receiptErr);
               }
             }
           }

@@ -30,7 +30,7 @@ export default function NotificationBell() {
 
   // 2. Listen to unread and recent notifications in real-time
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !db) return;
 
     const q = query(
       collection(db, 'notifications'),

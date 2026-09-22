@@ -7,16 +7,18 @@ import { useEffect, useState } from 'react';
 import { 
   Anchor, ArrowLeft, Search, Calendar, Ship, Users, CheckCircle, 
   Clock, AlertCircle, Loader2, DollarSign, X, Edit3, ArrowRight, Eye, RefreshCw,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon, Save
+  MessageSquare, ChevronLeft, ChevronRight, Plus, Image as ImageIcon, Save, FileText
 } from 'lucide-react';
 import NotificationBell from '@/components/admin/NotificationBell';
+import BookingConfirmationReceiptView from '@/components/booking/BookingConfirmationReceiptView';
+import type { BookingReceiptData } from '@/lib/receipt';
 import { 
   getAllBookings, updateBookingOperationalFields, getContentItems, 
   getAssetBlackouts, getAllCheckoutLocks, deleteAssetBlackout,
   sendBookingMessage, getBookingById, updateBookingMessageStatus,
   ensureBookingToken, archiveBooking, deleteBooking,
   getAllCustomerProfiles, saveAdminInternalBooking, checkBlackoutConflicts,
-  saveAssetBlackout, updateBookingSettings
+  saveAssetBlackout, updateBookingSettings, getPayoutsForBooking
 } from '@/lib/db';
 
 // Helper to format local timezone Date objects as YYYY-MM-DD
@@ -221,14 +223,7 @@ export default function BookingsDashboard() {
     const fetchPayouts = async () => {
       setIsLoadingPayouts(true);
       try {
-        const { collection, query, where, getDocs } = require('firebase/firestore');
-        const { db } = require('@/lib/firebase');
-        const q = query(collection(db, 'payouts'), where('bookingId', '==', selectedBooking.id));
-        const snap = await getDocs(q);
-        const list: any[] = [];
-        snap.forEach((docSnap: any) => {
-          list.push(docSnap.data());
-        });
+        const list = await getPayoutsForBooking(selectedBooking.id);
         setBookingPayouts(list);
       } catch (err) {
         console.error('Error loading payouts for booking details:', err);
@@ -325,6 +320,29 @@ export default function BookingsDashboard() {
   // Modal visibility states
   const [showInternalBookingModal, setShowInternalBookingModal] = useState(false);
   const [showBlackoutModal, setShowBlackoutModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptModalData, setReceiptModalData] = useState<BookingReceiptData | null>(null);
+  const [isLoadingReceipt, setIsLoadingReceipt] = useState(false);
+
+  const handleOpenReceiptModal = async (booking: any) => {
+    if (!booking) return;
+    setShowReceiptModal(true);
+    setIsLoadingReceipt(true);
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}/receipt/send`);
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setReceiptModalData(json.data);
+      } else {
+        showToast('error', json.error || 'Failed to load receipt details.');
+      }
+    } catch (err) {
+      console.error('Error fetching receipt data:', err);
+      showToast('error', 'Could not retrieve receipt data.');
+    } finally {
+      setIsLoadingReceipt(false);
+    }
+  };
 
   // Loaded metadata for selections
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
@@ -4200,6 +4218,31 @@ export default function BookingsDashboard() {
                   <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B9783B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Administrative Charter Actions</h4>
                     
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReceiptModal(selectedBooking)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        background: '#1E3A4C',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: 'white',
+                        padding: '0.65rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseOver={e => e.currentTarget.style.backgroundColor = '#26485e'}
+                      onMouseOut={e => e.currentTarget.style.backgroundColor = '#1E3A4C'}
+                    >
+                      <FileText size={14} color="#B9783B" /> View, Print or Email Receipt
+                    </button>
+
                     <Link 
                       href={`/admin/bookings/${selectedBooking.id}/gallery`}
                       style={{ 
@@ -4643,6 +4686,42 @@ export default function BookingsDashboard() {
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOOKING CONFIRMATION & PAYMENT RECEIPT MODAL */}
+      {showReceiptModal && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', padding: '1.5rem' }}
+          onClick={() => setShowReceiptModal(false)}
+        >
+          <div 
+            style={{ background: '#121416', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {isLoadingReceipt ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem', color: '#D8C7AF', gap: '1rem' }}>
+                <Loader2 size={32} className="animate-spin" color="#B9783B" />
+                <span style={{ fontSize: '0.9rem' }}>Compiling booking confirmation & payment receipt...</span>
+              </div>
+            ) : receiptModalData ? (
+              <BookingConfirmationReceiptView 
+                data={receiptModalData} 
+                onClose={() => setShowReceiptModal(false)}
+                showAdminActions={true}
+              />
+            ) : (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#D8C7AF' }}>
+                <p>Failed to load receipt details.</p>
+                <button 
+                  onClick={() => setShowReceiptModal(false)}
+                  style={{ padding: '8px 16px', background: '#B9783B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
