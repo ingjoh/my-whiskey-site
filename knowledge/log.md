@@ -6,6 +6,12 @@ This document tracks all manual and automated revisions made to the Knowledge Ca
 
 ## Chronological Revisions Log
 
+### 2026-09-22 (Booking Confirmation & Payment Receipt)
+*   **Action**: Enriched `Booking` and `Payment` concepts with automated confirmation and receipt lifecycle rules, including card views for Vessel, Start Location, and Captain, and administrative management capabilities.
+*   **Concepts Modified**: `knowledge/concepts/Booking.md`, `knowledge/concepts/Payment.md`.
+*   **Author**: Antigravity Agent
+*   **Commit**: `main@HEAD`
+
 ### 2026-06-25 (Initial Setup)
 *   **Action**: Initialized the atomic Knowledge Object Catalog.
 *   **Concepts Added**: `Booking`, `Proposal`, `Vessel`, `Gear`, `Guest`, `Adventure`, `Blackout`, `Organization`, `Payment`.

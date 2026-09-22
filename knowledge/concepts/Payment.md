@@ -17,6 +17,8 @@ A **Payment** tracks transactions bound to a Booking.
 *   Payments utilize Stripe Connect for payment splitting.
 *   Supports splits between the operator, crew, and external booking agencies.
 *   Records payment methods (e.g. Card, EFT Bank Transfer) and reconciliation reference codes.
+*   Triggers automated creation of the **Payment Receipt Ledger**, itemizing charter base rate, port and municipal taxes, optional cancellation insurance, amount settled today, and future balance due dates.
+*   Binds receipt dispatch status (`receiptSentAt`, `receiptSentTo`) to transaction documents.
 
 ## Examples
 
