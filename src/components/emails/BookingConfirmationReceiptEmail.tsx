@@ -147,20 +147,24 @@ export default function BookingConfirmationReceiptEmail({ data }: BookingConfirm
             margin: '0 0 20px 0',
           }}>
             {data.vessel.imageUrl && (
-              <Img
-                src={data.vessel.imageUrl}
-                alt={data.vessel.title}
-                width="100%"
-                height="180"
-                style={{
-                  width: '100%',
-                  height: '180px',
-                  objectFit: 'cover',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  display: 'block',
-                }}
-              />
+              <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                <Img
+                  src={data.vessel.imageUrl}
+                  alt={data.vessel.title}
+                  width="280"
+                  height="280"
+                  style={{
+                    width: '280px',
+                    height: '280px',
+                    maxWidth: '100%',
+                    aspectRatio: '1 / 1',
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                    margin: '0 auto',
+                    display: 'block',
+                  }}
+                />
+              </div>
             )}
             <Text style={{
               fontSize: '11px',
@@ -230,20 +234,24 @@ export default function BookingConfirmationReceiptEmail({ data }: BookingConfirm
             margin: '0 0 20px 0',
           }}>
             {data.location.imageUrl && (
-              <Img
-                src={data.location.imageUrl}
-                alt={data.location.title}
-                width="100%"
-                height="180"
-                style={{
-                  width: '100%',
-                  height: '180px',
-                  objectFit: 'cover',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  display: 'block',
-                }}
-              />
+              <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                <Img
+                  src={data.location.imageUrl}
+                  alt={data.location.title}
+                  width="280"
+                  height="280"
+                  style={{
+                    width: '280px',
+                    height: '280px',
+                    maxWidth: '100%',
+                    aspectRatio: '1 / 1',
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                    margin: '0 auto',
+                    display: 'block',
+                  }}
+                />
+              </div>
             )}
             <Text style={{
               fontSize: '11px',
@@ -268,22 +276,26 @@ export default function BookingConfirmationReceiptEmail({ data }: BookingConfirm
               fontSize: '13px',
               fontWeight: 600,
               color: primaryColor,
-              margin: '0 0 8px 0',
+              margin: '0 0 10px 0',
             }}>
-              {data.location.marina} • {data.location.address}
+              {data.location.marina}
+            </Text>
+            <Text style={{
+              fontSize: '12px',
+              color: mutedColor,
+              margin: '0 0 8px 0',
+              lineHeight: '1.4',
+            }}>
+              {data.location.address}
             </Text>
             {data.location.slip && (
               <Text style={{
                 fontSize: '12px',
+                fontWeight: 700,
                 color: '#FFFFFF',
-                backgroundColor: 'rgba(185, 120, 59, 0.15)',
-                display: 'inline-block',
-                padding: '4px 10px',
-                borderRadius: '4px',
                 margin: '0 0 14px 0',
-                border: '1px solid rgba(185, 120, 59, 0.3)',
               }}>
-                Dock Assignment: <strong>{data.location.slip}</strong>
+                Dock Assignment: {data.location.slip}
               </Text>
             )}
 
@@ -322,20 +334,25 @@ export default function BookingConfirmationReceiptEmail({ data }: BookingConfirm
             margin: '0 0 20px 0',
           }}>
             {data.captain.avatarUrl && (
-              <Img
-                src={data.captain.avatarUrl}
-                alt={data.captain.name}
-                width="100%"
-                height="180"
-                style={{
-                  width: '100%',
-                  height: '180px',
-                  objectFit: 'cover',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  display: 'block',
-                }}
-              />
+              <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                <Img
+                  src={data.captain.avatarUrl}
+                  alt={data.captain.name}
+                  width="280"
+                  height="280"
+                  style={{
+                    width: '280px',
+                    height: '280px',
+                    maxWidth: '100%',
+                    aspectRatio: '1 / 1',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    borderRadius: '8px',
+                    margin: '0 auto',
+                    display: 'block',
+                  }}
+                />
+              </div>
             )}
             <Text style={{
               fontSize: '11px',
