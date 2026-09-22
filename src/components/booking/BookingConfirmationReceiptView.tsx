@@ -247,7 +247,23 @@ export default function BookingConfirmationReceiptView({
           marginBottom: '28px',
         }}>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, letterSpacing: '0.1em', color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
+            {(data.branding?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/settings%2F1778774194015_MY_Whiskey_Rectangular_Logo.jpg?alt=media&token=2c019952-c295-4381-afe5-cd63de4570ee") && (
+              <div style={{ marginBottom: '14px' }}>
+                <img
+                  src={data.branding?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/settings%2F1778774194015_MY_Whiskey_Rectangular_Logo.jpg?alt=media&token=2c019952-c295-4381-afe5-cd63de4570ee"}
+                  alt="M/Y Whiskey"
+                  className="receipt-header-logo"
+                  style={{
+                    height: '46px',
+                    width: 'auto',
+                    objectFit: 'contain',
+                    display: 'block',
+                    borderRadius: '4px',
+                  }}
+                />
+              </div>
+            )}
+            <div style={{ fontSize: '1.45rem', fontWeight: 700, letterSpacing: '0.1em', color: '#FFFFFF', fontFamily: "var(--font-heading, 'Cormorant Garamond', serif)" }}>
               M/Y WHISKEY
             </div>
             <div style={{ fontSize: '0.78rem', letterSpacing: '0.2em', color: '#B9783B', fontWeight: 600, textTransform: 'uppercase', marginTop: '2px' }}>
@@ -705,6 +721,14 @@ export default function BookingConfirmationReceiptView({
           .printable-receipt * {
             color: #111111 !important;
             text-shadow: none !important;
+          }
+          .receipt-header-logo {
+            height: 44px !important;
+            max-height: 44px !important;
+            width: auto !important;
+            display: block !important;
+            border-radius: 4px !important;
+            margin-bottom: 10px !important;
           }
           .receipt-summary-bar {
             background-color: #F8F9FA !important;

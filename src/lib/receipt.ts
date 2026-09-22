@@ -396,7 +396,7 @@ export async function getBookingReceiptData(bookingId: string): Promise<BookingR
       },
 
       branding: {
-        logoUrl: theme.logoUrl || "https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/settings%2F1778774194015_MY_Whiskey_Rectangular_Logo.jpg?alt=media&token=2c019952-c295-4381-afe5-cd63de4570ee",
+        logoUrl: settings?.brand?.logoRectUrl || settings?.brand?.logoSquareUrl || settings?.brand?.logoUrl || theme?.logoUrl || theme?.header?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/mywhiskey-97620.firebasestorage.app/o/settings%2F1778774194015_MY_Whiskey_Rectangular_Logo.jpg?alt=media&token=2c019952-c295-4381-afe5-cd63de4570ee",
         primaryColor: theme.primaryColor || '#B9783B',
         surfaceColor: theme.surfaceColor || '#1E2124',
         backgroundColor: theme.backgroundColor || '#121416'
