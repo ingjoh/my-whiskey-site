@@ -12,6 +12,7 @@ interface BookingConfirmationReceiptViewProps {
   data: BookingReceiptData;
   onClose?: () => void;
   showAdminActions?: boolean;
+  autoPrint?: boolean;
 }
 
 const formatCurrency = (val: number) => {
@@ -22,10 +23,20 @@ export default function BookingConfirmationReceiptView({
   data,
   onClose,
   showAdminActions = true,
+  autoPrint = false,
 }: BookingConfirmationReceiptViewProps) {
   const [recipientEmail, setRecipientEmail] = useState(data.guest.email || '');
   const [isSending, setIsSending] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  React.useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
@@ -33,7 +44,18 @@ export default function BookingConfirmationReceiptView({
   };
 
   const handlePrint = () => {
-    window.print();
+    const isStandalone = typeof window !== 'undefined' && window.location.pathname.includes('/receipt');
+    if (isStandalone) {
+      window.print();
+    } else {
+      const printUrl = `/admin/bookings/${data.bookingId}/receipt?print=true`;
+      const printWin = window.open(printUrl, '_blank');
+      if (printWin) {
+        printWin.focus();
+      } else {
+        window.print();
+      }
+    }
   };
 
   const handleSendEmail = async () => {
@@ -68,7 +90,7 @@ export default function BookingConfirmationReceiptView({
     <div className="receipt-container" style={{ width: '100%', maxWidth: '850px', margin: '0 auto', color: '#F4F1EA', fontFamily: "var(--font-sans, 'Inter', sans-serif)" }}>
       {/* Toast Notification */}
       {toast && (
-        <div style={{
+        <div className="no-print" style={{
           position: 'fixed',
           top: '20px',
           right: '20px',
@@ -263,7 +285,7 @@ export default function BookingConfirmationReceiptView({
         </div>
 
         {/* Voyage & Guest Summary Bar */}
-        <div style={{
+        <div className="receipt-summary-bar" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '16px',
@@ -296,10 +318,10 @@ export default function BookingConfirmationReceiptView({
         </div>
 
         {/* 3 CARD VIEWS: VESSEL, LOCATION, CAPTAIN */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+        <div className="receipt-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
 
           {/* CARD 1: THE VESSEL */}
-          <div style={{
+          <div className="receipt-card" style={{
             backgroundColor: '#192D3B',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '8px',
@@ -359,7 +381,7 @@ export default function BookingConfirmationReceiptView({
           </div>
 
           {/* CARD 2: START LOCATION */}
-          <div style={{
+          <div className="receipt-card" style={{
             backgroundColor: '#192D3B',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '8px',
@@ -423,7 +445,7 @@ export default function BookingConfirmationReceiptView({
           </div>
 
           {/* CARD 3: THE CAPTAIN */}
-          <div style={{
+          <div className="receipt-card" style={{
             backgroundColor: '#192D3B',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '8px',
@@ -481,7 +503,7 @@ export default function BookingConfirmationReceiptView({
         </div>
 
         {/* ITEMIZED PAYMENT RECEIPT LEDGER */}
-        <div style={{
+        <div className="receipt-ledger" style={{
           backgroundColor: '#121416',
           border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: '8px',
@@ -637,44 +659,91 @@ export default function BookingConfirmationReceiptView({
       </div>
 
       {/* PRINT-OPTIMIZED STYLES */}
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          body {
-            background-color: #FFFFFF !important;
-            color: #000000 !important;
+          @page {
+            size: letter portrait;
+            margin: 12mm;
+          }
+          html, body {
+            background: #FFFFFF !important;
+            color: #111111 !important;
             margin: 0 !important;
             padding: 0 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
           }
-          .no-print {
+          .no-print, .no-print * {
             display: none !important;
           }
-          .receipt-container {
+          .receipt-modal-backdrop, .receipt-modal-content, .receipt-container {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
             max-width: 100% !important;
-            margin: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
             padding: 0 !important;
+            margin: 0 !important;
           }
           .printable-receipt {
-            background-color: #FFFFFF !important;
-            color: #000000 !important;
-            border: none !important;
+            background: #FFFFFF !important;
+            color: #111111 !important;
+            border: 1px solid #D1D5DB !important;
             box-shadow: none !important;
-            padding: 10px !important;
+            padding: 20px !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
           }
           .printable-receipt * {
-            color: #000000 !important;
+            color: #111111 !important;
             text-shadow: none !important;
           }
-          .printable-receipt h1, .printable-receipt h2, .printable-receipt h3, .printable-receipt strong {
-            color: #000000 !important;
-          }
-          .printable-receipt div, .printable-receipt table, .printable-receipt td, .printable-receipt th {
-            border-color: #CCCCCC !important;
-          }
-          .printable-receipt table tr {
+          .receipt-summary-bar {
+            background-color: #F8F9FA !important;
+            border: 1px solid #D1D5DB !important;
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-cards-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 12px !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-card {
+            background-color: #F8F9FA !important;
+            border: 1px solid #D1D5DB !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-card img {
+            max-height: 110px !important;
+            object-fit: cover !important;
+          }
+          .receipt-ledger {
+            background-color: #F8F9FA !important;
+            border: 1px solid #D1D5DB !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-ledger table tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-ledger td, .receipt-ledger th {
+            border-color: #E5E7EB !important;
           }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }
